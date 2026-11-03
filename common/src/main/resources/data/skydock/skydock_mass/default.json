@@ -10,6 +10,7 @@
   },
   "blocks": {
     "skydock:helm": 20,
+    "skydock:cargo_pod": 40,
     "skydock:lift_cell": 5,
     "skydock:engine": 80,
     "skydock:engine_reinforced": 100,

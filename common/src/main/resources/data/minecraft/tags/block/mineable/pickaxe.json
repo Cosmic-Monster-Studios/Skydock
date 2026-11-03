@@ -12,6 +12,7 @@
     "skydock:engine_aether",
     "skydock:ballast",
     "skydock:mooring_clamp",
-    "skydock:brass_lantern"
+    "skydock:brass_lantern",
+    "skydock:cargo_pod"
   ]
 }
