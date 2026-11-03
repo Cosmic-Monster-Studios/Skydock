@@ -66,7 +66,8 @@ public final class DockControllerBlock extends HorizontalDirectionalBlock implem
     private static BerthClearance.Cell cell(BlockState state) {
         if (state.isAir() || state.is(SkydockBlocks.NOT_SHIP)) return BerthClearance.Cell.EMPTY;
         if (!state.getFluidState().isEmpty()) return BerthClearance.Cell.FLUID;
-        return state.canBeReplaced() ? BerthClearance.Cell.CLEARABLE : BerthClearance.Cell.SOLID;
+        // Replaceable blocks (grass, snow) and bush plants (flowers, saplings, mushrooms, crops) are cleared, not refused.
+        return state.canBeReplaced() || state.getBlock() instanceof BushBlock ? BerthClearance.Cell.CLEARABLE : BerthClearance.Cell.SOLID;
     }
     @Override protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) { builder.add(FACING); }
     @Override public BlockEntity newBlockEntity(BlockPos pos, BlockState state) { return new DockBlockEntity(pos, state); }

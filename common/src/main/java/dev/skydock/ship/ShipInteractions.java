@@ -80,9 +80,10 @@ public final class ShipInteractions {
         ShipManager.wake(player.getServer(), ship);
         ItemStack held = player.getMainHandItem();
         if (held.is(SkydockBlocks.SHIPWRIGHT_HAMMER.get())) { ShipRepair.repair(player, ship, held); return; }
-        if (held.is(SkydockBlocks.SUMMONING_HORN.get())) { dev.skydock.item.SummoningHornItem.bind(player, held, ship.dimension, ship.dock); return; }
         BlockState state = ship.state(local);
         DeviceBlock.Kind kind = deviceKind(state);
+        // On a device the horn stays out of the way, so the helm and seats still work with it in hand.
+        if (kind == null && held.is(SkydockBlocks.SUMMONING_HORN.get())) { dev.skydock.item.SummoningHornItem.bind(player, held, ship.dimension, ship.dock); return; }
         if (player.isShiftKeyDown() && kind != null) {
             AbstractContainerMenu before = player.containerMenu;
             dev.skydock.menu.DeviceMenu.openShip(player, ship, local, kind);
