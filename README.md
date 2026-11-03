@@ -18,7 +18,7 @@ The installable mod is `neoforge/build/libs/skydock-neoforge-0.2.0-alpha.1.jar`.
 
 ## Build your first airship
 
-1. Craft a Scout Dock Controller or take one from the Skydock creative tab. Place it just in front of the future hull, facing the way the bow should point: the controller faces the direction you are looking, and the outline extends behind it, toward you, one block above the controller. Looking north gives a north-facing dock whose outline extends **south (+Z)**, as every dock did before 0.2. Preview it while holding a controller.
+1. Craft a Scout Dock Controller or take one from the Skydock creative tab. Place it just in front of the future hull, facing the way the bow should point: the controller faces the direction you are looking, and the outline extends behind it, toward you, one block above the controller. Looking north gives a north-facing dock whose outline extends **south (+Z)**, as every dock did before 0.2. Preview it while holding a controller: the outline is green when the controller can go there and red when it cannot. The berth must be clear before the controller goes down: no solid blocks or fluids inside it, inside the build height and world border, loaded, and not overlapping another dock's berth or a launched ship. Grass, flowers and other plants do not count; they are broken, with drops, when the controller is placed. If placement is refused, chat says why and where the first block in the way is.
 2. Build entirely inside the outline. Leave the hull separated from terrain; Minecraft scaffolding can support it and is excluded from assembly. Every counted block must connect face-to-face to exactly one helm.
 3. Add lift cells. Each supplies 1,000 kg of lift and supports 128 structural blocks. Ordinary blocks weigh 10 kg by default. Adjacent lift cells merge visually on all six faces, so 2 × 2 × 2 envelopes and larger clusters remain intact as you expand them.
 4. Add an engine and put furnace fuel in its five fuel slots. Engines progress from Brass Engine to Compound Engine, Turbine Engine, and Aether Drive; later tiers provide more thrust, better fuel efficiency, and a higher top speed.
@@ -31,6 +31,8 @@ The installable mod is `neoforge/build/libs/skydock-neoforge-0.2.0-alpha.1.jar`.
    Crashes do damage. Hitting terrain or another ship faster than 3 blocks/second breaks hull blocks where the ship struck: faster and heavier ships break more, and harder blocks hold longer, so canvas lift cells give way before planks and planks before engines. Broken blocks drop their items, and container contents, where they were. The helm is never broken, docking speeds are always safe, and terrain is never damaged. A ship moving faster than 3 blocks/second also hurts creatures in its path; crew aboard it are safe. Turn it all off with `/gamerule skydockCollisionDamage false`.
 
    Repair a launched ship in the field with the **Shipwright's Hammer** (crafted from three iron ingots and two sticks set diagonally: ingots at top middle, top right and middle right, sticks at middle and bottom left; 250 durability). Use it aboard a ship you may operate, within 8 blocks of the hull: each use restores up to 16 missing blocks of the hull as it was launched, nearest to you first. Each block costs one of its item, taken from containers aboard first and then from your inventory, and one point of durability; Creative mode still pays materials. A block is skipped if it has no item form, if its place is taken, or if it would overlap a creature. Restored containers start empty. Ships launched before 0.2 remember the blocks they had when first loaded, so blocks lost earlier cannot be restored.
+
+   Call a launched ship to you with the **Summoning Horn** (a goat horn with a gold ingot above and below and a copper ingot on each side; 64 uses). Bind it first by using it on your dock controller or on the hull of a ship launched from that dock; the tooltip shows the dock it is bound to, and the binding lasts through redocks and relaunches. Blow it anywhere in the same dimension and the ship launched from that dock appears beside you, stopped and moored, bow pointing the way you look and stern three blocks ahead. If that spot is blocked, it tries spots up to 24 blocks out and 16 blocks up; with no room it tells you to find open sky. The horn will not summon a ship while anyone is aboard, and it has a one-minute cooldown. The berth stays reserved, so the ship can still redock there.
 8. To redock, return within four blocks of the destination berth center, align yaw within ten degrees of that dock's facing (heading lock makes this easy), and slow below 1.6 blocks/second. Stand near the controller and choose **Redock ship**. The berth must be clear and the same tier or larger. The real blocks and current inventories return; repair and expansion are available again.
 
 | Tier | Interior | Filled-block cap |
@@ -46,7 +48,7 @@ Controllers and ships are owned by the player who places/first claims the contro
 
 ## Shipyard and devices
 
-The Skydock creative tab contains 17 custom blocks and the Shipwright's Hammer. The blocks are four dock controllers, a helm, lift cell, four engine tiers, ballast, a mooring clamp, a crew seat, and four decorative blocks. The decorative blocks can be included or excluded with the dock's decoration toggle. Included decorations are cosmetic: they add no mass, consume no structural-lift allowance, and do not add lift. They still count toward the dock tier's overall filled-block cap.
+The Skydock creative tab contains 17 custom blocks, the Shipwright's Hammer and the Summoning Horn. The blocks are four dock controllers, a helm, lift cell, four engine tiers, ballast, a mooring clamp, a crew seat, and four decorative blocks. The decorative blocks can be included or excluded with the dock's decoration toggle. Included decorations are cosmetic: they add no mass, consume no structural-lift allowance, and do not add lift. They still count toward the dock tier's overall filled-block cap.
 
 Each dock tier offers three built-in construction patterns, for a catalog of twelve ships; datapacks can add more (see [Datapacks](#datapacks)), and the dock screen pages through them three at a time with the ◀ ▶ buttons. Select a pattern and decoration option in the dock interface, then assemble it with the required resources in one or more vanilla chests touching the controller. Touching double chests are supported. The full material cost is always required, including in Creative mode.
 
@@ -62,6 +64,7 @@ These use the same validation and permissions as the controls and do not bypass 
 /skydock inspect <controller x y z>
 /skydock launch <controller x y z>
 /skydock redock <controller x y z>
+/skydock summon <controller x y z>
 /skydock use
 /skydock target
 /skydock release
@@ -71,7 +74,7 @@ These use the same validation and permissions as the controls and do not bypass 
 /skydock blueprint export <controller x y z> <name>
 ```
 
-`use` operates the ship block under your crosshair; `target` identifies it for diagnostics. Control commands expire after ten ticks without fresh input. The diagnostic `status` output includes ship IDs, pose, velocity, mass/lift, and shipyard coordinates. Operators see every ship; other players see only ships they own or share by team. `blueprint export` (permission level 2) saves the hull in a dock as a ship pattern; see [Datapacks](#datapacks).
+`summon` calls the ship launched from that dock as the Summoning Horn does, without the item or its cooldown. `use` operates the ship block under your crosshair; `target` identifies it for diagnostics. Control commands expire after ten ticks without fresh input. The diagnostic `status` output includes ship IDs, pose, velocity, mass/lift, and shipyard coordinates. Operators see every ship; other players see only ships they own or share by team. `blueprint export` (permission level 2) saves the hull in a dock as a ship pattern; see [Datapacks](#datapacks).
 
 ## Datapacks
 

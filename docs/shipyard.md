@@ -4,7 +4,7 @@ Skydock's NeoForge 1.21.1 build lets you create an airship from a dock controlle
 
 ## Start a custom ship
 
-1. Place a dock controller facing the way the bow should point; the controller faces the direction you look, and its outline extends behind it, toward you. Build within the outline. Keep the hull separate from terrain. Scaffolding may support construction because it is excluded from the ship.
+1. Place a dock controller facing the way the bow should point; the controller faces the direction you look, and its outline extends behind it, toward you. The outline must be clear first: no solid blocks or fluids, and no overlap with another berth or a launched ship. Plants are cleared for you. The preview outline turns red where a controller cannot go. Build within the outline. Keep the hull separate from terrain. Scaffolding may support construction because it is excluded from the ship.
 2. Connect every included block face-to-face to one helm. A ship needs exactly one helm.
 3. Add lift cells and engines. A lift cell contributes lift and structural capacity; a connected cluster can grow in any direction without breaking its visual form.
 4. Open the controller's **Manual** tab, choose **Inspect ship**, correct any reported issue, then choose **Launch ship**.
@@ -55,6 +55,10 @@ The mooring clamp can secure a ship only within five blocks of its reserved bert
 ## Repair
 
 Use a **Shipwright's Hammer** (three iron ingots and two sticks, set diagonally: ingots at top middle, top right and middle right; sticks at middle and bottom left) aboard a ship you may operate, within 8 blocks of the hull. Each use restores up to 16 missing blocks, nearest first, to the hull recorded at launch. Every block costs one of its item, taken from containers aboard and then from your inventory, and one point of the hammer's 250 durability. Blocks without an item form, places already filled, and places a creature stands in are skipped. Restored containers start empty.
+
+## Summoning
+
+Bind a **Summoning Horn** (goat horn, gold above and below, copper on each side) by using it on your dock controller or on your launched ship. Blow it anywhere in that dimension to bring the ship launched from that dock to hover beside you, stopped and moored. It needs open space near you, will not move a ship with anyone aboard, has 64 uses and a one-minute cooldown. The ship keeps its berth and can redock there as usual.
 
 ## Docking
 
