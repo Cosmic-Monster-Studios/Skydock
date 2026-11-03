@@ -26,7 +26,7 @@ class DeliveryTest {
     @Test void secondDeliveryOfTheSamePodPaysNothing() {
         Contract c = contract(2, CrateRank.BRASS); CargoProfile p = new CargoProfile();
         Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, DEST);
-        assertEquals(new Delivery.Result(0, null, false, false), Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, DEST));
+        assertEquals(new Delivery.Result(0, null, false, false, null), Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, DEST));
         assertEquals(FULL, p.reputation);
     }
     @Test void latePodHalvesAndLowersTheCrate() {
@@ -62,9 +62,31 @@ class DeliveryTest {
         Delivery.deliver(new CargoProfile(), THIEF, c, pod(c, 1, false), false, false, DEST);
         assertEquals(CrateRank.COPPER, Delivery.deliver(holder, HOLDER, c, pod(c, 0, false), true, false, DEST).crate());
     }
+    @Test void strangerDeliveringTheLastPodStillPaysTheHolderALowerCrate() {
+        Contract c = contract(2, CrateRank.BRASS);
+        Delivery.deliver(new CargoProfile(), HOLDER, c, pod(c, 0, false), true, false, DEST);
+        Delivery.Result r = Delivery.deliver(new CargoProfile(), THIEF, c, pod(c, 1, false), false, false, DEST);
+        assertTrue(r.settled()); assertEquals(CrateRank.COPPER, r.holderCrate()); assertEquals(CrateRank.COPPER, r.crate());
+    }
+    @Test void strangerSettlingWhenTheHolderDeliveredNothingPaysTheHolderNothing() {
+        Contract c = contract(1, CrateRank.BRASS);
+        Delivery.Result r = Delivery.deliver(new CargoProfile(), THIEF, c, pod(c, 0, false), false, false, DEST);
+        assertTrue(r.settled()); assertNull(r.holderCrate()); assertEquals(CrateRank.COPPER, r.crate());
+    }
+    @Test void strangerNotSettlingOwesTheHolderNoCrate() {
+        Contract c = contract(2, CrateRank.BRASS);
+        assertNull(Delivery.deliver(new CargoProfile(), THIEF, c, pod(c, 0, false), false, false, DEST).holderCrate());
+    }
+    @Test void podOfAnotherContractOrOutOfRangePaysNothing() {
+        Contract c = contract(2, CrateRank.BRASS); CargoProfile p = new CargoProfile();
+        assertEquals(0, Delivery.deliver(p, HOLDER, c, new PodTag(c.id + 1, 0, false), true, false, DEST).reputation());
+        assertEquals(0, Delivery.deliver(p, HOLDER, c, pod(c, 2, false), true, false, DEST).reputation());
+        assertEquals(0, Delivery.deliver(p, HOLDER, c, pod(c, -1, false), true, false, DEST).reputation());
+        assertEquals(0, p.reputation); assertTrue(c.delivered.isEmpty());
+    }
     @Test void deliveryAtTheOriginIsRefused() {
         Contract c = contract(1, CrateRank.BRASS); CargoProfile p = new CargoProfile();
-        assertEquals(new Delivery.Result(0, null, false, false), Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, ORIGIN));
+        assertEquals(new Delivery.Result(0, null, false, false, null), Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, ORIGIN));
         assertEquals(0, p.reputation); assertTrue(c.delivered.isEmpty());
     }
     @Test void orphanPodPaysHalfDeckhandAndNoCrate() {

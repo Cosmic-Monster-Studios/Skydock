@@ -22,7 +22,7 @@ public final class CargoSavedData extends SavedData {
     public static CargoSavedData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(CargoSavedData::new, CargoSavedData::load, null), "skydock_cargo");
     }
-    public CargoProfile profile(UUID id) { setDirty(); return profiles.computeIfAbsent(id, k -> new CargoProfile()); }
+    public CargoProfile profile(UUID id) { return profiles.computeIfAbsent(id, k -> { setDirty(); return new CargoProfile(); }); }
     /** The contract with this id and the player holding it, or null. */
     public Map.Entry<UUID, Contract> findContract(long id) {
         for (Map.Entry<UUID, CargoProfile> e : profiles.entrySet()) { Contract c = e.getValue().contracts.get(id); if (c != null) return Map.entry(e.getKey(), c); }
