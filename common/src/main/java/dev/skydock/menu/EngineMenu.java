@@ -14,7 +14,7 @@ public final class EngineMenu extends AbstractContainerMenu {
     public EngineMenu(int id, Inventory inventory) { this(id, inventory, new SimpleContainer(5), new SimpleContainerData(3)); }
     public EngineMenu(int id, Inventory inventory, EngineBlockEntity engine) {
         this(id, inventory, engine, new ContainerData() {
-            @Override public int get(int index) { return switch (index) { case 0 -> engine.burnTicks & 0xffff; case 1 -> engine.burnTicks >>> 16; default -> engine.tier().ordinal(); }; }
+            @Override public int get(int index) { return switch (index) { case 0 -> engine.burnTicks() & 0xffff; case 1 -> engine.burnTicks() >>> 16; default -> engine.tier().ordinal(); }; }
             @Override public void set(int index, int value) {}
             @Override public int getCount() { return 3; }
         });

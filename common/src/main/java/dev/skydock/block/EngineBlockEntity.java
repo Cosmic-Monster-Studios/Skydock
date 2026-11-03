@@ -14,19 +14,25 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public final class EngineBlockEntity extends BlockEntity implements Container, MenuProvider {
     private NonNullList<ItemStack> items = NonNullList.withSize(5, ItemStack.EMPTY);
-    public int burnTicks;
+    private FuelBurner fuel = new FuelBurner();
     public EngineBlockEntity(BlockPos pos, BlockState state) { super(SkydockBlocks.ENGINE_ENTITY.get(), pos, state); }
-    public boolean burn() {
-        if (burnTicks > 0) { burnTicks--; setChanged(); return true; }
+    /** Burns fuel in proportion to {@code load} (0..1); false when there is nothing to burn. */
+    public boolean burn(double load) {
+        boolean burned = fuel.burn(load, this::nextFuel);
+        if (burned) setChanged();
+        return burned;
+    }
+    public int burnTicks() { return fuel.remainingTicks(); }
+    private int nextFuel() {
         for (int i = 0; i < items.size(); i++) {
-            ItemStack fuel = items.get(i); int time = FuelRegistry.get(fuel);
+            ItemStack stack = items.get(i); int time = FuelRegistry.get(stack);
             if (time > 0) {
-                ItemStack remainder = fuel.getItem().hasCraftingRemainingItem() ? new ItemStack(fuel.getItem().getCraftingRemainingItem()) : ItemStack.EMPTY;
-                fuel.shrink(1); if (fuel.isEmpty()) items.set(i, remainder);
-                burnTicks = Math.max(0, (int) Math.round(time * tier().fuelEfficiency) - 1); setChanged(); return true;
+                ItemStack remainder = stack.getItem().hasCraftingRemainingItem() ? new ItemStack(stack.getItem().getCraftingRemainingItem()) : ItemStack.EMPTY;
+                stack.shrink(1); if (stack.isEmpty()) items.set(i, remainder);
+                return Math.max(0, (int) Math.round(time * tier().fuelEfficiency));
             }
         }
-        return false;
+        return 0;
     }
     public EngineTier tier() { return EngineTier.from(getBlockState()); }
     @Override public int getContainerSize() { return items.size(); }
@@ -45,10 +51,10 @@ public final class EngineBlockEntity extends BlockEntity implements Container, M
     }); }
     @Override public AbstractContainerMenu createMenu(int id, Inventory inventory, Player player) { return new EngineMenu(id, inventory, this); }
     @Override protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries); ContainerHelper.saveAllItems(tag, items, registries); tag.putInt("BurnTicks", burnTicks);
+        super.saveAdditional(tag, registries); ContainerHelper.saveAllItems(tag, items, registries); fuel.save(tag);
     }
     @Override protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries); items = NonNullList.withSize(5, ItemStack.EMPTY);
-        ContainerHelper.loadAllItems(tag, items, registries); burnTicks = Math.max(0, tag.getInt("BurnTicks"));
+        ContainerHelper.loadAllItems(tag, items, registries); fuel = FuelBurner.load(tag);
     }
 }
