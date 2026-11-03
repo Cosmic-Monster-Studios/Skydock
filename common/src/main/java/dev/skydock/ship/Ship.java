@@ -1,5 +1,6 @@
 package dev.skydock.ship;
 
+import dev.skydock.data.DockFrame;
 import dev.skydock.data.DockTier;
 import dev.skydock.block.FenceConnections;
 import dev.skydock.block.SkydockBlocks;
@@ -19,6 +20,8 @@ public final class Ship {
     public DockTier tier;
     public ResourceKey<Level> dimension = Level.OVERWORLD;
     public BlockPos dock, yard;
+    /** The launch dock's facing; hull cells stay in the north frame, this only places the berth. */
+    public Direction dockFacing = Direction.NORTH;
     public ShipPose pose, previousPose;
     public Vec3 velocity = Vec3.ZERO;
     public final ShipMotion history = new ShipMotion();
@@ -53,8 +56,16 @@ public final class Ship {
     public String phase = "active";
     public ResourceKey<Level> transferDimension;
     public BlockPos transferOrigin, transferDock;
+    /** The berth side of a transfer puts local cell {@code p} at {@code DockFrame.toWorld(transferOrigin, rotation(transferFacing), p)}. */
+    public Direction transferFacing = Direction.NORTH;
     public final Map<UUID, BlockPos> seated = new HashMap<>();
 
+    public DockFrame berthFrame() { return new DockFrame(dock, dockFacing, tier); }
+    /** The pose of a hull whose local {@code (0,0,0)} sits at local cell {@code offset} of a berth: pivot in place, yaw of the dock. */
+    public static ShipPose berthPose(DockFrame frame, BlockPos offset, Vec3 pivot) {
+        Vec3 at = frame.toWorld(Vec3.atLowerCornerOf(offset).add(pivot));
+        return new ShipPose(at.x, at.y, at.z, frame.yaw());
+    }
     public Vec3 center() { return pivot == null ? legacyCenter() : pivot; }
     private Vec3 legacyCenter() { return new Vec3(tier.width / 2.0, 0, tier.length / 2.0); }
     void initializePivot() {
@@ -166,7 +177,7 @@ public final class Ship {
         CompoundTag tag = new CompoundTag();
         tag.putUUID("Id", id); if (owner != null) tag.putUUID("Owner", owner);
         tag.putString("Team", team); tag.putString("Tier", tier.name()); tag.putString("Dimension", dimension.location().toString());
-        tag.putLong("Dock", dock.asLong()); tag.putLong("Yard", yard.asLong());
+        tag.putLong("Dock", dock.asLong()); tag.putLong("Yard", yard.asLong()); tag.putString("DockFacing", dockFacing.getSerializedName());
         tag.putDouble("X", pose.x()); tag.putDouble("Y", pose.y()); tag.putDouble("Z", pose.z()); tag.putDouble("Yaw", pose.yaw());
         Vec3 center = center(); tag.putDouble("PivotX", center.x); tag.putDouble("PivotZ", center.z);
         tag.putDouble("Vx", velocity.x); tag.putDouble("Vy", velocity.y); tag.putDouble("Vz", velocity.z);
@@ -176,7 +187,7 @@ public final class Ship {
         tag.putString("Phase", phase);
         if (transferOrigin != null) {
             tag.putLong("TransferOrigin", transferOrigin.asLong()); tag.putLong("TransferDock", transferDock.asLong());
-            tag.putString("TransferDimension", transferDimension.location().toString());
+            tag.putString("TransferDimension", transferDimension.location().toString()); tag.putString("TransferFacing", transferFacing.getSerializedName());
         }
         if (pilot != null) tag.putUUID("Pilot", pilot);
         if (pilot != null && pilotAnchor != null) {
@@ -201,6 +212,11 @@ public final class Ship {
         return tag;
     }
 
+    /** Saves from before facing docks have none: north, the original layout. */
+    private static Direction facing(String name) {
+        Direction facing = Direction.byName(name);
+        return facing == null || facing.getAxis().isVertical() ? Direction.NORTH : facing;
+    }
     public static Ship load(CompoundTag tag, HolderLookup.Provider registries) { return load(tag, registries, false); }
     static Ship loadPersisted(CompoundTag tag, HolderLookup.Provider registries) { return load(tag, registries, true); }
     private static Ship load(CompoundTag tag, HolderLookup.Provider registries, boolean migrateLegacy) {
@@ -208,7 +224,7 @@ public final class Ship {
         ship.id = tag.getUUID("Id"); ship.owner = tag.hasUUID("Owner") ? tag.getUUID("Owner") : null;
         ship.team = tag.getString("Team"); ship.tier = DockTier.valueOf(tag.getString("Tier"));
         ship.dimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(tag.getString("Dimension")));
-        ship.dock = BlockPos.of(tag.getLong("Dock")); ship.yard = BlockPos.of(tag.getLong("Yard"));
+        ship.dock = BlockPos.of(tag.getLong("Dock")); ship.yard = BlockPos.of(tag.getLong("Yard")); ship.dockFacing = facing(tag.getString("DockFacing"));
         ship.pose = new ShipPose(tag.getDouble("X"), tag.getDouble("Y"), tag.getDouble("Z"), tag.getDouble("Yaw")); ship.previousPose = ship.pose;
         if (tag.contains("PivotX", Tag.TAG_DOUBLE) && tag.contains("PivotZ", Tag.TAG_DOUBLE))
             ship.pivot = new Vec3(tag.getDouble("PivotX"), 0, tag.getDouble("PivotZ"));
@@ -221,6 +237,7 @@ public final class Ship {
         if (tag.contains("TransferOrigin")) {
             ship.transferOrigin = BlockPos.of(tag.getLong("TransferOrigin")); ship.transferDock = BlockPos.of(tag.getLong("TransferDock"));
             ship.transferDimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(tag.getString("TransferDimension")));
+            ship.transferFacing = facing(tag.getString("TransferFacing"));
         }
         if (tag.hasUUID("Pilot")) ship.pilot = tag.getUUID("Pilot");
         if (tag.contains("AnchorX")) ship.pilotAnchor = new Vec3(tag.getDouble("AnchorX"), tag.getDouble("AnchorY"), tag.getDouble("AnchorZ"));

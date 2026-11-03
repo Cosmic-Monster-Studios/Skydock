@@ -77,4 +77,19 @@ class ShipPersistenceTest {
         ship.blocks.remove(new BlockPos(2, 2, 2)); ship.revision++;
         assertEquals(125 - 1 - 20, ship.surfaceCollisionBoxes().size());
     }
+
+    @Test void legacyShipLoadsFacingNorth() {
+        CompoundTag legacy = hull().save(registries, true);
+        legacy.remove("DockFacing");
+        legacy.putLong("TransferOrigin", 5); legacy.putLong("TransferDock", 6); legacy.putString("TransferDimension", "minecraft:overworld");
+        Ship loaded = Ship.loadPersisted(legacy, registries);
+        assertEquals(Direction.NORTH, loaded.dockFacing);
+        assertEquals(Direction.NORTH, loaded.transferFacing);
+        Ship east = hull(); east.dockFacing = Direction.EAST;
+        east.transferOrigin = BlockPos.ZERO; east.transferDock = BlockPos.ZERO; east.transferDimension = east.dimension; east.transferFacing = Direction.WEST;
+        Ship reloaded = Ship.loadPersisted(east.save(registries, true), registries);
+        assertEquals(Direction.EAST, reloaded.dockFacing);
+        assertEquals(Direction.WEST, reloaded.transferFacing);
+        assertEquals(new dev.skydock.data.DockFrame(BlockPos.ZERO, Direction.EAST, DockTier.SCOUT), reloaded.berthFrame());
+    }
 }

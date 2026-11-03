@@ -109,8 +109,8 @@ public final class ShipInteractions {
                     Component.keybind("key.skydock.cruise"), Component.keybind("key.skydock.release"))); return true;
         }
         if (kind == DeviceBlock.Kind.CLAMP) {
-            Vec3 berth = Vec3.atLowerCornerOf(ship.tier.origin(ship.dock)).add(ship.center());
-            if (berth.distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 25) { ShipManager.tell(player, "message.skydock.clamp_too_far"); return true; }
+            ShipPose berth = Ship.berthPose(ship.berthFrame(), BlockPos.ZERO, ship.center());
+            if (new Vec3(berth.x(), berth.y(), berth.z()).distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 25) { ShipManager.tell(player, "message.skydock.clamp_too_far"); return true; }
             ship.moored = !ship.moored; ship.velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.cruise = false; ShipManager.tell(player, ship.moored ? "message.skydock.clamp_secured" : "message.skydock.clamp_released"); return true;
         }
         if (kind == DeviceBlock.Kind.SEAT) {

@@ -3,6 +3,7 @@ package dev.skydock.block;
 import dev.skydock.Skydock;
 import dev.skydock.assembly.AssemblyJob;
 import dev.skydock.assembly.AssemblyManager;
+import dev.skydock.data.DockFrame;
 import dev.skydock.data.DockTier;
 import dev.skydock.data.ShipPatterns;
 import dev.skydock.menu.DockMenu;
@@ -30,6 +31,7 @@ public final class DockBlockEntity extends BlockEntity implements MenuProvider {
     private int hullBlocks;
     public DockBlockEntity(BlockPos pos, BlockState state) { super(SkydockBlocks.DOCK_ENTITY.get(), pos, state); }
     public DockTier tier() { return ((DockControllerBlock) getBlockState().getBlock()).tier; }
+    public DockFrame frame() { return new DockFrame(worldPosition, getBlockState().getOptionalValue(DockControllerBlock.FACING).orElse(Direction.NORTH), tier()); }
     public void claim(Player player) {
         owner = player.getUUID(); team = player.getTeam() == null ? "" : player.getTeam().getName(); setChanged();
     }

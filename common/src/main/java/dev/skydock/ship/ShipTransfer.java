@@ -1,6 +1,7 @@
 package dev.skydock.ship;
 
 import dev.skydock.Skydock;
+import dev.skydock.data.DockFrame;
 import dev.skydock.mixin.ChunkMapAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -13,6 +14,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.storage.LevelResource;
@@ -30,18 +32,23 @@ public final class ShipTransfer {
     @FunctionalInterface public interface JournalWriter { void write(CompoundTag tag, Path file) throws IOException; }
     public static JournalWriter journalWriter = ShipTransfer::writeDurably;
 
-    public static void snapshot(Ship ship, ServerLevel level, BlockPos origin) {
+    /** Copies block entities keyed by local cell; a berth's cells are turned by {@code rotation}, the shipyard's are not. NBT is never rotated. */
+    public static void snapshot(Ship ship, ServerLevel level, BlockPos origin, Rotation rotation) {
         ship.blockEntities.clear();
         for (BlockPos p : ship.blocks.keySet()) {
-            BlockEntity entity = level.getBlockEntity(origin.offset(p));
+            BlockEntity entity = level.getBlockEntity(DockFrame.toWorld(origin, rotation, p));
             if (entity != null) ship.blockEntities.put(p, entity.saveWithFullMetadata(level.registryAccess()));
         }
     }
     /** Chunks holding any of the cells, which are offsets from origin. Section coordinates, so negative positions floor correctly. */
-    static Set<ChunkPos> chunksOf(Collection<BlockPos> local, BlockPos origin) {
+    static Set<ChunkPos> chunksOf(Collection<BlockPos> local, BlockPos origin) { return chunksOf(local, origin, Rotation.NONE); }
+    /** The same for a berth turned by {@code rotation}: each cell is mapped to its world position first. */
+    static Set<ChunkPos> chunksOf(Collection<BlockPos> local, BlockPos origin, Rotation rotation) {
         Set<ChunkPos> chunks = new HashSet<>();
-        for (BlockPos p : local)
-            chunks.add(new ChunkPos(SectionPos.blockToSectionCoord(origin.getX() + p.getX()), SectionPos.blockToSectionCoord(origin.getZ() + p.getZ())));
+        for (BlockPos p : local) {
+            BlockPos at = DockFrame.toWorld(origin, rotation, p);
+            chunks.add(new ChunkPos(SectionPos.blockToSectionCoord(at.getX()), SectionPos.blockToSectionCoord(at.getZ())));
+        }
         return chunks;
     }
     /**
@@ -82,49 +89,51 @@ public final class ShipTransfer {
         ServerLevel destination = server.getLevel(ship.transferDimension);
         if (yard == null || destination == null) throw new IllegalStateException("Transfer dimension missing; journal retained");
         ShipManager.wake(server, ship);
-        Set<ChunkPos> yardChunks = chunksOf(ship.blocks.keySet(), ship.yard), berthChunks = chunksOf(ship.blocks.keySet(), ship.transferOrigin);
+        Rotation berth = DockFrame.rotation(ship.transferFacing);
+        Set<ChunkPos> yardChunks = chunksOf(ship.blocks.keySet(), ship.yard), berthChunks = chunksOf(ship.blocks.keySet(), ship.transferOrigin, berth);
         changing = true;
         try {
             if (ship.phase.equals("launching")) {
-                paste(ship, yard, ship.yard);
+                paste(ship, yard, ship.yard, Rotation.NONE);
                 flush(server, yard, yardChunks);
-                clear(ship, destination, ship.transferOrigin);
+                clear(ship, destination, ship.transferOrigin, berth);
                 ship.phase = "active";
                 ship.transferOrigin = null;
                 // The yard now holds the real block entities; keeping the journal copy would bloat every save.
                 ship.blockEntities.clear();
                 flush(server, destination, berthChunks);
             } else if (ship.phase.equals("redocking")) {
-                paste(ship, destination, ship.transferOrigin);
+                paste(ship, destination, ship.transferOrigin, berth);
                 flush(server, destination, berthChunks);
-                clear(ship, yard, ship.yard);
+                clear(ship, yard, ship.yard, Rotation.NONE);
                 ShipSavedData.get(server).ships.remove(ship.id);
                 ShipManager.releaseTickets(server, ship);
                 flush(server, yard, yardChunks);
             } else throw new IllegalStateException("Unknown transfer phase " + ship.phase);
         } finally { changing = false; ShipManager.fleetChanged(); }
     }
-    private static void clear(Ship ship, ServerLevel level, BlockPos origin) {
+    private static void clear(Ship ship, ServerLevel level, BlockPos origin, Rotation rotation) {
         for (BlockPos p : ship.blocks.keySet()) {
-            BlockPos at = origin.offset(p);
+            BlockPos at = DockFrame.toWorld(origin, rotation, p);
             // Removing the BE before its block avoids Container.onRemove duplicating inventory drops.
             level.removeBlockEntity(at);
             level.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS);
         }
-        for (BlockPos p : ship.blocks.keySet()) level.updateNeighborsAt(origin.offset(p), Blocks.AIR);
+        for (BlockPos p : ship.blocks.keySet()) level.updateNeighborsAt(DockFrame.toWorld(origin, rotation, p), Blocks.AIR);
     }
-    private static void paste(Ship ship, ServerLevel level, BlockPos origin) {
+    /** Hull states are stored north-frame and turned by {@code rotation} on the way into a berth. */
+    private static void paste(Ship ship, ServerLevel level, BlockPos origin, Rotation rotation) {
         ship.blocks.forEach((p, state) -> {
-            BlockPos at = origin.offset(p); level.removeBlockEntity(at);
-            level.setBlock(at, state, FLAGS);
+            BlockPos at = DockFrame.toWorld(origin, rotation, p); level.removeBlockEntity(at);
+            level.setBlock(at, state.rotate(rotation), FLAGS);
         });
         ship.blockEntities.forEach((p, data) -> {
-            BlockPos at = origin.offset(p); CompoundTag tag = data.copy();
+            BlockPos at = DockFrame.toWorld(origin, rotation, p); CompoundTag tag = data.copy();
             tag.putInt("x", at.getX()); tag.putInt("y", at.getY()); tag.putInt("z", at.getZ());
             BlockEntity entity = BlockEntity.loadStatic(at, level.getBlockState(at), tag, level.registryAccess());
             if (entity == null) throw new IllegalStateException("Could not restore block entity at " + at);
             level.setBlockEntity(entity); entity.setChanged();
         });
-        for (BlockPos p : ship.blocks.keySet()) level.updateNeighborsAt(origin.offset(p), ship.state(p).getBlock());
+        for (BlockPos p : ship.blocks.keySet()) level.updateNeighborsAt(DockFrame.toWorld(origin, rotation, p), ship.state(p).getBlock());
     }
 }

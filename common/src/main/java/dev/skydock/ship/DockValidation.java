@@ -5,6 +5,7 @@ import dev.skydock.data.*;
 import net.minecraft.core.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.*;
 
@@ -16,22 +17,25 @@ public record DockValidation(Map<BlockPos, BlockState> blocks, double mass, doub
         return Component.translatable("message.skydock.dock_summary", blocks.size(), String.format(java.util.Locale.ROOT, "%.0f", mass),
                 String.format(java.util.Locale.ROOT, "%.0f", lift), cells, engines, valid() ? Component.translatable("message.skydock.ready_to_launch") : Component.translatable(error, args.toArray()));
     }
+    /** Reads the berth through the dock's frame; {@code blocks} come back in the north frame, states turned to match. */
     public static DockValidation scan(ServerLevel level, DockBlockEntity dock) {
-        DockTier tier = dock.tier(); BlockPos origin = tier.origin(dock.getBlockPos());
+        DockFrame frame = dock.frame(); DockTier tier = frame.tier(); BlockPos origin = frame.origin();
+        Rotation back = DockFrame.inverse(frame.rotation());
         Map<BlockPos, BlockState> blocks = new LinkedHashMap<>();
         double mass = 0; int structural = 0, cells = 0, engines = 0, helms = 0; BlockPos helm = null;
         String error = ""; List<Object> args = List.of();
         for (int x = 0; x < tier.width; x += 16) for (int z = 0; z < tier.length; z += 16) {
-            if (!level.hasChunkAt(origin.offset(x, 0, z)) || !level.hasChunkAt(origin.offset(Math.min(x + 15, tier.width - 1), 0, Math.min(z + 15, tier.length - 1))))
+            if (!level.hasChunkAt(frame.toWorld(new BlockPos(x, 0, z))) || !level.hasChunkAt(frame.toWorld(new BlockPos(Math.min(x + 15, tier.width - 1), 0, Math.min(z + 15, tier.length - 1)))))
                 return new DockValidation(blocks, 0, 0, 0, 0, "error.skydock.dock_unloaded");
         }
         if (origin.getY() < level.getMinBuildHeight() || origin.getY() + tier.height > level.getMaxBuildHeight())
             return new DockValidation(blocks, 0, 0, 0, 0, "error.skydock.dock_height");
         for (BlockPos p : BlockPos.betweenClosed(BlockPos.ZERO, new BlockPos(tier.width - 1, tier.height - 1, tier.length - 1))) {
-            BlockState state = level.getBlockState(origin.offset(p));
+            BlockPos at = frame.toWorld(p); BlockState state = level.getBlockState(at);
             if (state.isAir() || state.is(SkydockBlocks.NOT_SHIP)) continue;
-            if (state.is(SkydockBlocks.FORBIDDEN) || state.getDestroySpeed(level, origin.offset(p)) < 0) error = "error.skydock.dock_unmovable";
+            if (state.is(SkydockBlocks.FORBIDDEN) || state.getDestroySpeed(level, at) < 0) error = "error.skydock.dock_unmovable";
             if (!state.getFluidState().isEmpty()) error = "error.skydock.dock_fluid";
+            state = state.rotate(back);
             BlockPos local = p.immutable(); blocks.put(local, state);
             boolean decoration = state.is(SkydockBlocks.DECORATIONS);
             if (!decoration) { mass += MassTable.mass(state); structural++; }
@@ -51,7 +55,7 @@ public record DockValidation(Map<BlockPos, BlockState> blocks, double mass, doub
                     BlockPos q = p.relative(face);
                     if (blocks.containsKey(q) && reached.add(q)) queue.add(q);
                     if (q.getX() < 0 || q.getX() >= tier.width || q.getY() < 0 || q.getY() >= tier.height || q.getZ() < 0 || q.getZ() >= tier.length) {
-                        BlockState outside = level.getBlockState(origin.offset(q));
+                        BlockState outside = level.getBlockState(frame.toWorld(q));
                         if (!outside.isAir() && !outside.is(SkydockBlocks.NOT_SHIP)) error = "error.skydock.dock_outside";
                     }
                 }

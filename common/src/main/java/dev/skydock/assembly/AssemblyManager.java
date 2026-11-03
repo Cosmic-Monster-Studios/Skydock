@@ -3,6 +3,7 @@ package dev.skydock.assembly;
 import net.minecraft.network.chat.Component;
 import dev.skydock.block.DockBlockEntity;
 import dev.skydock.block.SkydockBlocks;
+import dev.skydock.data.DockFrame;
 import dev.skydock.data.MassTable;
 import dev.skydock.data.ShipPattern;
 import dev.skydock.data.ShipPatterns;
@@ -69,9 +70,8 @@ public final class AssemblyManager {
         int requiredCells = (stats.structuralBlocks() + MassTable.blocksPerCell() - 1) / MassTable.blocksPerCell();
         if (stats.cells() < requiredCells) return new Check(false, "error.skydock.assembly_more_cells");
         if (stats.mass() > stats.lift()) return new Check(false, "error.skydock.assembly_heavy");
-        AABB local = pattern.bounds(decorations);
-        BlockPos origin = dock.tier().origin(dock.getBlockPos());
-        AABB footprint = local.move(origin);
+        DockFrame frame = dock.frame();
+        AABB footprint = frame.toWorld(pattern.bounds(decorations));
         if (footprint.minY < level.getMinBuildHeight() || footprint.maxY > level.getMaxBuildHeight())
             return new Check(false, "error.skydock.assembly_height");
         if (!level.getWorldBorder().isWithinBounds(footprint)) return new Check(false, "error.skydock.assembly_border");
@@ -87,7 +87,7 @@ public final class AssemblyManager {
         Map<BlockPos, BlockState> allowed = new HashMap<>();
         if (dock.assemblyJob() != null) {
             AssemblyJob job = dock.assemblyJob();
-            for (int i = 0; i < job.placed; i++) allowed.put(origin.offset(job.cells.get(i).pos()), job.cells.get(i).state());
+            for (int i = 0; i < job.placed; i++) allowed.put(frame.toWorld(job.cells.get(i).pos()), placed(frame, job.cells.get(i)));
         }
         int minX = (int) Math.floor(footprint.minX), minY = (int) Math.floor(footprint.minY), minZ = (int) Math.floor(footprint.minZ);
         int maxX = (int) Math.ceil(footprint.maxX) - 1, maxY = (int) Math.ceil(footprint.maxY) - 1, maxZ = (int) Math.ceil(footprint.maxZ) - 1;
@@ -142,7 +142,8 @@ public final class AssemblyManager {
         if (level.getGameTime() - job.lastStep < STEP_TICKS) return;
         job.lastStep = level.getGameTime();
         ShipPattern pattern = selected(dock);
-        AABB footprint = pattern.bounds(job.decorations).move(dock.tier().origin(dock.getBlockPos()));
+        DockFrame frame = dock.frame();
+        AABB footprint = frame.toWorld(pattern.bounds(job.decorations));
         boolean loaded = chunksLoaded(level, footprint);
         String occupant = loaded ? occupant(level, footprint) : null;
         String paused = !loaded ? "status.skydock.paused_unloaded" : occupant != null ? STATUS + "paused_" + occupant.substring(E.length()) : null;
@@ -151,13 +152,12 @@ public final class AssemblyManager {
             return;
         }
         if (dock.status().startsWith(STATUS + "paused") || dock.status().startsWith("Assembly paused")) dock.setStatus("status.skydock.in_progress");
-        BlockPos origin = dock.tier().origin(dock.getBlockPos());
         boolean recovered = false;
         // A world chunk may have saved just ahead of the dock journal. Adopt only the contiguous
         // exact states from the already-cleared plan so recovery cannot refund duplicate blocks.
         while (!job.complete()) {
             AssemblyJob.Cell cell = job.cells.get(job.placed);
-            if (!level.getBlockState(origin.offset(cell.pos())).equals(cell.state())) break;
+            if (!level.getBlockState(frame.toWorld(cell.pos())).equals(placed(frame, cell))) break;
             if (!job.spend(Item.byBlock(cell.state().getBlock()))) { fail(level, dock, "error.skydock.assembly_escrow"); return; }
             job.placed++;
             recovered = true;
@@ -168,10 +168,10 @@ public final class AssemblyManager {
         int placedThisStep = 0;
         while (!job.complete() && placedThisStep++ < BLOCKS_PER_STEP) {
             AssemblyJob.Cell cell = job.cells.get(job.placed);
-            BlockPos worldPos = origin.offset(cell.pos());
+            BlockPos worldPos = frame.toWorld(cell.pos());
             if (!level.getBlockState(worldPos).isAir()) { fail(level, dock, "error.skydock.assembly_obstructed"); return; }
             if (!job.spend(Item.byBlock(cell.state().getBlock()))) { fail(level, dock, "error.skydock.assembly_escrow"); return; }
-            if (!level.setBlock(worldPos, cell.state(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE)) {
+            if (!level.setBlock(worldPos, placed(frame, cell), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE)) {
                 AssemblyInventory.merge(job.escrow, job.undoLastSpend());
                 fail(level, dock, "error.skydock.assembly_place"); return;
             }
@@ -181,14 +181,14 @@ public final class AssemblyManager {
         }
         dock.markAssemblyProgress();
         if (job.complete()) {
-            for (AssemblyJob.Cell cell : job.cells) if (!level.getBlockState(origin.offset(cell.pos())).equals(cell.state())) {
+            for (AssemblyJob.Cell cell : job.cells) if (!level.getBlockState(frame.toWorld(cell.pos())).equals(placed(frame, cell))) {
                 fail(level, dock, "error.skydock.assembly_mismatch"); return;
             }
             dock.completeAssembly(job.total());
             unregister(level, dock);
         } else {
             AssemblyJob.Cell next = job.cells.get(job.placed);
-            BlockPos at = origin.offset(next.pos());
+            BlockPos at = frame.toWorld(next.pos());
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK, at.getX() + .5, at.getY() + .5, at.getZ() + .5,
                     6, .45, .45, .45, .025);
         }
@@ -206,14 +206,14 @@ public final class AssemblyManager {
     private static void rollback(ServerLevel level, DockBlockEntity dock, String reason) {
         AssemblyJob job = dock.assemblyJob();
         if (job == null) return;
-        BlockPos origin = dock.tier().origin(dock.getBlockPos());
+        DockFrame frame = dock.frame();
         List<ItemStack> refund = new ArrayList<>();
         List<Map.Entry<BlockPos, Block>> removed = new ArrayList<>();
         for (ItemStack stack : job.escrow) AssemblyInventory.merge(refund, stack);
         for (int i = 0; i < job.placed; i++) {
             AssemblyJob.Cell cell = job.cells.get(i);
-            BlockPos worldPos = origin.offset(cell.pos());
-            if (!level.getBlockState(worldPos).equals(cell.state())) continue;
+            BlockPos worldPos = frame.toWorld(cell.pos());
+            if (!level.getBlockState(worldPos).equals(placed(frame, cell))) continue;
             if (level.getBlockEntity(worldPos) instanceof Container container) Containers.dropContents(level, worldPos, container);
             level.setBlock(worldPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
             removed.add(Map.entry(worldPos.immutable(), cell.state().getBlock()));
@@ -232,11 +232,14 @@ public final class AssemblyManager {
         docks.entrySet().removeIf(entry -> level.getBlockEntity(entry.getKey()) != entry.getValue() || entry.getValue().assemblyJob() == null);
         for (DockBlockEntity dock : docks.values()) {
             AssemblyJob job = dock.assemblyJob();
-            BlockPos origin = dock.tier().origin(dock.getBlockPos());
-            if (job.cells.stream().anyMatch(cell -> origin.offset(cell.pos()).equals(pos))) return true;
+            BlockPos local = dock.frame().toLocal(pos);
+            if (job.cells.stream().anyMatch(cell -> cell.pos().equals(local))) return true;
         }
         return false;
     }
+
+    /** Pattern cells are north-frame; in the world they are turned with the dock. */
+    private static BlockState placed(DockFrame frame, AssemblyJob.Cell cell) { return cell.state().rotate(frame.rotation()); }
 
     private static void register(ServerLevel level, DockBlockEntity dock) {
         ACTIVE.computeIfAbsent(level, ignored -> new LinkedHashMap<>()).put(dock.getBlockPos().immutable(), dock);

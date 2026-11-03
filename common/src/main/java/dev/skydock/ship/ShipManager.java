@@ -191,7 +191,8 @@ public final class ShipManager {
         if (!result.blocks().isEmpty()) dock.markManualHull(result.blocks().size());
         else if (dock.manualHull() || dock.assemblyComplete()) dock.clearHullMarker("status.skydock.ready");
         tell(player, result.summary());
-        tell(player, "message.skydock.dock_interior", dock.tier().origin(pos).toShortString(), dock.tier().origin(pos).offset(dock.tier().width - 1, dock.tier().height - 1, dock.tier().length - 1).toShortString());
+        DockFrame frame = dock.frame();
+        tell(player, "message.skydock.dock_interior", frame.origin().toShortString(), frame.toWorld(new BlockPos(frame.tier().width - 1, frame.tier().height - 1, frame.tier().length - 1)).toShortString());
     }
     public static void launch(ServerPlayer player, BlockPos pos) {
         DockBlockEntity dock = dock(player, pos); if (dock == null) return;
@@ -204,17 +205,18 @@ public final class ShipManager {
         if (server.getLevel(SHIPYARD) == null) { tell(player, "message.skydock.shipyard_missing"); return; }
         Ship ship = new Ship(); ship.owner = dock.owner; ship.team = dock.team; ship.tier = dock.tier();
         ship.dimension = player.level().dimension(); ship.dock = pos.immutable();
-        BlockPos origin = ship.tier.origin(pos);
+        DockFrame frame = dock.frame(); ship.dockFacing = frame.facing();
+        BlockPos origin = frame.origin();
         ship.blocks.putAll(result.blocks()); ship.mass = result.mass(); ship.lift = result.lift(); ship.cells = result.cells(); ship.engines = result.engines();
         ship.initializePivot();
-        ship.pose = new ShipPose(origin.getX() + ship.center().x, origin.getY(), origin.getZ() + ship.center().z, 0);
+        ship.pose = Ship.berthPose(frame, BlockPos.ZERO, ship.center());
         ship.previousPose = ship.pose;
         if (ships(player.level()).stream().anyMatch(s -> s.bounds().intersects(ship.bounds()))) { tell(player, "message.skydock.envelope_occupied"); return; }
         int region = data.nextRegion++;
         if (region >= 1_000_000) { tell(player, "message.skydock.shipyard_full"); return; }
         ship.yard = new BlockPos((region % 1000) * 256, 64, (region / 1000) * 256);
-        ShipTransfer.snapshot(ship, player.serverLevel(), origin);
-        ship.phase = "launching"; ship.transferOrigin = origin; ship.transferDock = pos; ship.transferDimension = ship.dimension;
+        ShipTransfer.snapshot(ship, player.serverLevel(), origin, frame.rotation());
+        ship.phase = "launching"; ship.transferOrigin = origin; ship.transferFacing = frame.facing(); ship.transferDock = pos; ship.transferDimension = ship.dimension;
         data.ships.put(ship.id, ship); ShipTransfer.flush(server);
         try {
             forceTickets(server, ship); ShipTransfer.complete(server, ship); transferred(player, pos); ShipNetwork.resync(server);
@@ -236,19 +238,25 @@ public final class ShipManager {
         if (dock.tier().ordinal() < ship.tier.ordinal()) { tell(player, "message.skydock.berth_too_small"); return; }
         ShipSavedData data = ShipSavedData.get(player.getServer());
         if (data.ships.values().stream().anyMatch(s -> !s.id.equals(ship.id) && s.dimension.equals(ship.dimension) && s.dock.equals(pos))) { tell(player, "message.skydock.berth_reserved_other"); return; }
-        BlockPos origin = dock.tier().origin(pos).offset((dock.tier().width - ship.tier.width) / 2, 0, (dock.tier().length - ship.tier.length) / 2);
-        Vec3 destination = Vec3.atLowerCornerOf(origin).add(ship.center());
-        double yawError = Math.abs(net.minecraft.util.Mth.wrapDegrees(ship.pose.yaw()));
-        if (destination.distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 16 || yawError > 10 || ship.velocity.length() > .08) {
+        // A smaller hull is centred in the berth's local frame, then the whole berth is turned to the dock's facing.
+        DockFrame frame = dock.frame();
+        BlockPos offset = new BlockPos((frame.tier().width - ship.tier.width) / 2, 0, (frame.tier().length - ship.tier.length) / 2);
+        BlockPos origin = frame.toWorld(offset);
+        ShipPose berth = Ship.berthPose(frame, offset, ship.center());
+        double yawError = Math.abs(net.minecraft.util.Mth.wrapDegrees(ship.pose.yaw() - frame.yaw()));
+        if (new Vec3(berth.x(), berth.y(), berth.z()).distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 16 || yawError > 10 || ship.velocity.length() > .08) {
             tell(player, "message.skydock.redock_alignment"); return;
         }
         ServerLevel world = player.serverLevel();
-        for (BlockPos p : ship.blocks.keySet()) if (!world.getBlockState(origin.offset(p)).isAir()) { tell(player, "message.skydock.berth_obstructed", origin.offset(p).toShortString()); return; }
-        refresh(player.getServer(), ship); ShipTransfer.snapshot(ship, player.getServer().getLevel(SHIPYARD), ship.yard);
-        ShipPose old = ship.pose; ship.pose = new ShipPose(destination.x, destination.y, destination.z, 0);
+        for (BlockPos p : ship.blocks.keySet()) {
+            BlockPos at = DockFrame.toWorld(origin, frame.rotation(), p);
+            if (!world.getBlockState(at).isAir()) { tell(player, "message.skydock.berth_obstructed", at.toShortString()); return; }
+        }
+        refresh(player.getServer(), ship); ShipTransfer.snapshot(ship, player.getServer().getLevel(SHIPYARD), ship.yard, net.minecraft.world.level.block.Rotation.NONE);
+        ShipPose old = ship.pose; ship.pose = berth;
         carry(world, ship, old);
         ship.velocity = Vec3.ZERO; ship.pilot = null; ship.seated.clear();
-        ship.phase = "redocking"; ship.transferOrigin = origin; ship.transferDock = pos; ship.transferDimension = world.dimension();
+        ship.phase = "redocking"; ship.transferOrigin = origin; ship.transferFacing = frame.facing(); ship.transferDock = pos; ship.transferDimension = world.dimension();
         fleetChanged();
         ShipTransfer.flush(player.getServer());
         try {
@@ -263,7 +271,7 @@ public final class ShipManager {
         HitResult hit = player.pick(player.blockInteractionRange(), 1, false);
         return hit instanceof BlockHitResult block && hit.getType() == HitResult.Type.BLOCK
                 && player.level().getBlockState(block.getBlockPos()).is(SkydockBlocks.HELM.get())
-                && dock.tier().envelope(dock.getBlockPos()).contains(Vec3.atCenterOf(block.getBlockPos()));
+                && dock.frame().envelope().contains(Vec3.atCenterOf(block.getBlockPos()));
     }
     public static void deviceOnGround(ServerPlayer player, DeviceBlock.Kind kind, BlockPos pos) {
         if (kind != DeviceBlock.Kind.HELM) { tell(player, "message.skydock.device_aboard"); return; }
@@ -273,7 +281,7 @@ public final class ShipManager {
         for (int x = center.x - 7; x <= center.x + 7; x++) for (int z = center.z - 7; z <= center.z + 7; z++) {
             var chunk = player.serverLevel().getChunkSource().getChunkNow(x, z);
             if (chunk != null) for (var entity : chunk.getBlockEntities().values())
-                if (entity instanceof DockBlockEntity dock && dock.tier().envelope(dock.getBlockPos()).contains(Vec3.atCenterOf(pos))) candidates.add(dock);
+                if (entity instanceof DockBlockEntity dock && dock.frame().envelope().contains(Vec3.atCenterOf(pos))) candidates.add(dock);
         }
         if (candidates.isEmpty()) { tell(player, "message.skydock.helm_no_dock"); return; }
         if (candidates.size() > 1) { tell(player, "message.skydock.helm_many_docks"); return; }

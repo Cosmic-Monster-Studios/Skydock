@@ -13,4 +13,10 @@ class ShipTransferTest {
         assertEquals(Set.of(new ChunkPos(-1,-1), new ChunkPos(0,0), new ChunkPos(0,-1), new ChunkPos(-1,1)),
                 ShipTransfer.chunksOf(cells, new BlockPos(-8, 64, -8)));
     }
+    @Test void rotatedBerthChunksFollowTheWorldCells() {
+        var cells = List.of(new BlockPos(0,0,0), new BlockPos(20,0,0), new BlockPos(0,0,20));
+        // Clockwise 90: local (x, z) lands at (-z, x) from the origin.
+        assertEquals(Set.of(new ChunkPos(0,0), new ChunkPos(0,1), new ChunkPos(-1,0)),
+                ShipTransfer.chunksOf(cells, new BlockPos(8, 64, 8), net.minecraft.world.level.block.Rotation.CLOCKWISE_90));
+    }
 }
