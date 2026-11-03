@@ -31,7 +31,7 @@ public final class ShipPhysics {
             ship.cruise = false;
             // The pilot may be a teammate rather than the owner; tell whoever is flying.
             var pilot = server.getPlayerList().getPlayer(ship.pilot != null ? ship.pilot : ship.owner);
-            if (pilot != null) ShipManager.tell(pilot, "Cruise disengaged: engines need fuel.");
+            if (pilot != null) ShipManager.tell(pilot, "message.skydock.cruise_no_fuel");
         }
         double speedLimit = powered ? poweredTier.maxSpeed : FlightDynamics.MAX_SPEED;
         if (ship.cruise) ship.cruiseSpeed = Math.clamp(ship.cruiseSpeed + ship.throttle * .006, -speedLimit, speedLimit);

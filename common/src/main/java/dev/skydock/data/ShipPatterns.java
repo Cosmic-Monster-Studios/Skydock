@@ -74,21 +74,21 @@ public final class ShipPatterns {
 
     private static List<ShipPattern> createCatalog(Palette palette) {
         List<ShipPattern> patterns = new ArrayList<>(12);
-        patterns.add(cutter(palette, "scout_cutter", "Windward Cutter", "A nimble timber cutter with twin stern engines under a trim canvas envelope.", DockTier.SCOUT, new CutterPlan(11, 19, 9, 1, 5, 4, false, 0, 0)));
-        patterns.add(twinHull(palette, "scout_twinhull", "Twinfin Skiff", "Two fine hulls and an open center make a steady starter craft.", DockTier.SCOUT, new TwinPlan(11, 19, 9, 1, 5, 4, false, 0, 0, 0)));
-        patterns.add(hauler(palette, "scout_hauler", "Tinker Tender", "A practical round-bowed tender with a sheltered workshop bay.", DockTier.SCOUT, new HaulerPlan(11, 19, 9, 1, 3, 3, 4, false)));
+        patterns.add(cutter(palette, "scout_cutter", "pattern.skydock.scout_cutter.name", "pattern.skydock.scout_cutter.description", DockTier.SCOUT, new CutterPlan(11, 19, 9, 1, 5, 4, false, 0, 0)));
+        patterns.add(twinHull(palette, "scout_twinhull", "pattern.skydock.scout_twinhull.name", "pattern.skydock.scout_twinhull.description", DockTier.SCOUT, new TwinPlan(11, 19, 9, 1, 5, 4, false, 0, 0, 0)));
+        patterns.add(hauler(palette, "scout_hauler", "pattern.skydock.scout_hauler.name", "pattern.skydock.scout_hauler.description", DockTier.SCOUT, new HaulerPlan(11, 19, 9, 1, 3, 3, 4, false)));
 
-        patterns.add(cutter(palette, "brig_cutter", "Peregrine", "A long raised-stern cutter with a gabled captain's cabin, built for fast regional passages.", DockTier.BRIG, new CutterPlan(17, 27, 12, 2, 9, 5, false, 3, 2)));
-        patterns.add(twinHull(palette, "brig_twinhull", "Brasswing Catamaran", "Parallel envelopes and twin brass drives span two lean hulls.", DockTier.BRIG, new TwinPlan(17, 27, 12, 2, 5, 4, true, 2, 2, 0)));
-        patterns.add(hauler(palette, "brig_hauler", "Wayfarer Hauler", "A covered cargo barge with an upper helm and generous deck room.", DockTier.BRIG, new HaulerPlan(17, 27, 12, 2, 5, 4, 7, true)));
+        patterns.add(cutter(palette, "brig_cutter", "pattern.skydock.brig_cutter.name", "pattern.skydock.brig_cutter.description", DockTier.BRIG, new CutterPlan(17, 27, 12, 2, 9, 5, false, 3, 2)));
+        patterns.add(twinHull(palette, "brig_twinhull", "pattern.skydock.brig_twinhull.name", "pattern.skydock.brig_twinhull.description", DockTier.BRIG, new TwinPlan(17, 27, 12, 2, 5, 4, true, 2, 2, 0)));
+        patterns.add(hauler(palette, "brig_hauler", "pattern.skydock.brig_hauler.name", "pattern.skydock.brig_hauler.description", DockTier.BRIG, new HaulerPlan(17, 27, 12, 2, 5, 4, 7, true)));
 
-        patterns.add(cutter(palette, "cruiser_cutter", "Meridian Clipper", "A broad clipper with a forecastle, a cargo hold below decks, and a poop deck over the captain's cabin.", DockTier.CRUISER, new CutterPlan(23, 35, 15, 3, 13, 7, true, 5, 3)));
-        patterns.add(twinHull(palette, "cruiser_twinhull", "Cloudsplitter", "Wide-set hulls, three bridge spans, and paired turbine banks cut cleanly through cloud.", DockTier.CRUISER, new TwinPlan(23, 35, 15, 2, 7, 5, true, 3, 3, 2)));
-        patterns.add(hauler(palette, "cruiser_hauler", "Grand Caravan", "A glazed traveling warehouse with four lifted corner galleries.", DockTier.CRUISER, new HaulerPlan(23, 35, 15, 2, 5, 5, 8, true)));
+        patterns.add(cutter(palette, "cruiser_cutter", "pattern.skydock.cruiser_cutter.name", "pattern.skydock.cruiser_cutter.description", DockTier.CRUISER, new CutterPlan(23, 35, 15, 3, 13, 7, true, 5, 3)));
+        patterns.add(twinHull(palette, "cruiser_twinhull", "pattern.skydock.cruiser_twinhull.name", "pattern.skydock.cruiser_twinhull.description", DockTier.CRUISER, new TwinPlan(23, 35, 15, 2, 7, 5, true, 3, 3, 2)));
+        patterns.add(hauler(palette, "cruiser_hauler", "pattern.skydock.cruiser_hauler.name", "pattern.skydock.cruiser_hauler.description", DockTier.CRUISER, new HaulerPlan(23, 35, 15, 2, 5, 5, 8, true)));
 
-        patterns.add(cutter(palette, "dreadnought_cutter", "Sovereign", "A monumental royal cutter with a tiered stern, a deep cargo hold, and a vast central envelope.", DockTier.DREADNOUGHT, new CutterPlan(29, 43, 18, 3, 17, 10, true, 6, 3)));
-        patterns.add(twinHull(palette, "dreadnought_twinhull", "Tempest Ark", "Twin aether hulls carry a fortress bridge between two immense balloon banks.", DockTier.DREADNOUGHT, new TwinPlan(29, 43, 18, 3, 9, 7, true, 5, 3, 2)));
-        patterns.add(hauler(palette, "dreadnought_hauler", "Atlas Freighter", "A huge rounded freighter whose four canvas pylons frame an enclosed hold.", DockTier.DREADNOUGHT, new HaulerPlan(29, 43, 18, 3, 7, 6, 10, true)));
+        patterns.add(cutter(palette, "dreadnought_cutter", "pattern.skydock.dreadnought_cutter.name", "pattern.skydock.dreadnought_cutter.description", DockTier.DREADNOUGHT, new CutterPlan(29, 43, 18, 3, 17, 10, true, 6, 3)));
+        patterns.add(twinHull(palette, "dreadnought_twinhull", "pattern.skydock.dreadnought_twinhull.name", "pattern.skydock.dreadnought_twinhull.description", DockTier.DREADNOUGHT, new TwinPlan(29, 43, 18, 3, 9, 7, true, 5, 3, 2)));
+        patterns.add(hauler(palette, "dreadnought_hauler", "pattern.skydock.dreadnought_hauler.name", "pattern.skydock.dreadnought_hauler.description", DockTier.DREADNOUGHT, new HaulerPlan(29, 43, 18, 3, 7, 6, 10, true)));
         return List.copyOf(patterns);
     }
 

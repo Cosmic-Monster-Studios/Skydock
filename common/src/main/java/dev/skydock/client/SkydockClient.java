@@ -9,6 +9,7 @@ import dev.skydock.network.ShipNetwork;
 import dev.skydock.ship.*;
 import net.minecraft.client.*;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.*;
 import net.minecraft.world.level.block.Block;
@@ -52,16 +53,16 @@ public final class SkydockClient {
             if (mc.options.hideGui || mc.getDebugOverlay().showDebugScreen()) return;
             Ship piloted = piloted(), seated = seatedShip(), ship = piloted != null ? piloted : seated != null ? seated : aboard();
             if (ship == null) return;
-            List<String> status = new ArrayList<>(List.of("SKYDOCK", String.format(Locale.ROOT, "%.1f blocks/s", ship.velocity.length() * 20),
-                    String.format(Locale.ROOT, "Altitude %.0f", ship.pose.y())));
-            if (ship.cruise) status.add(String.format(Locale.ROOT, "CRUISE %.1f blocks/s", ship.cruiseSpeed * 20));
-            if (ship.blocked) status.add("OBSTRUCTED");
-            String view = ShipCamera.active() ? "Scroll or " + keyLabel(ShipCamera.ZOOM_IN) + "/" + keyLabel(ShipCamera.ZOOM_OUT) + " zoom"
-                    : keyLabel(mc.options.keyTogglePerspective) + " ship view";
+            List<String> status = new ArrayList<>(List.of(I18n.get("hud.skydock.title"), I18n.get("hud.skydock.speed", String.format(Locale.ROOT, "%.1f", ship.velocity.length() * 20)),
+                    I18n.get("hud.skydock.altitude", String.format(Locale.ROOT, "%.0f", ship.pose.y()))));
+            if (ship.cruise) status.add(I18n.get("hud.skydock.cruise", String.format(Locale.ROOT, "%.1f", ship.cruiseSpeed * 20)));
+            if (ship.blocked) status.add(I18n.get("hud.skydock.obstructed"));
+            String view = ShipCamera.active() ? I18n.get("hud.skydock.zoom", keyLabel(ShipCamera.ZOOM_IN), keyLabel(ShipCamera.ZOOM_OUT))
+                    : I18n.get("hud.skydock.ship_view", keyLabel(mc.options.keyTogglePerspective));
             List<String> controls = piloted != null
-                    ? List.of(thrustKeys() + " speed", turnKeys() + " turn", altitudeKeys() + " altitude", cruiseKey() + " cruise", releaseKey() + " release", view)
-                    : seated != null ? List.of(releaseKey() + " stand up", cruiseKey() + " cruise", view)
-                    : List.of("Walk and use storage aboard", cruiseKey() + " cruise");
+                    ? List.of(I18n.get("hud.skydock.ctl_speed", thrustKeys()), I18n.get("hud.skydock.ctl_turn", turnKeys()), I18n.get("hud.skydock.ctl_altitude", altitudeKeys()), I18n.get("hud.skydock.ctl_cruise", cruiseKey()), I18n.get("hud.skydock.ctl_release", releaseKey()), view)
+                    : seated != null ? List.of(I18n.get("hud.skydock.ctl_stand", releaseKey()), I18n.get("hud.skydock.ctl_cruise", cruiseKey()), view)
+                    : List.of(I18n.get("hud.skydock.ctl_walk"), I18n.get("hud.skydock.ctl_cruise", cruiseKey()));
             // Wrap between hints rather than running off narrow windows.
             int maxWidth = graphics.guiWidth() - 28;
             List<String> statusLines = wrap(mc.font, status, "  |  ", maxWidth), controlLines = wrap(mc.font, controls, "   ", maxWidth);

@@ -75,7 +75,7 @@ public final class ShipInteractions {
     }
     public static void use(ServerPlayer player, Hit hit) {
         Ship ship = hit.ship; BlockPos local = hit.localHit.getBlockPos();
-        if (!ShipManager.permitted(player, ship)) { ShipManager.tell(player, "Only the ship owner and their team can operate devices or open storage."); return; }
+        if (!ShipManager.permitted(player, ship)) { ShipManager.tell(player, "message.skydock.device_not_permitted"); return; }
         BlockState state = ship.state(local);
         DeviceBlock.Kind kind = deviceKind(state);
         if (player.isShiftKeyDown() && kind != null) {
@@ -98,7 +98,7 @@ public final class ShipInteractions {
     private static boolean activate(ServerPlayer player, Ship ship, BlockPos local, DeviceBlock.Kind kind) {
         if (kind == DeviceBlock.Kind.HELM) {
             if (player.getUUID().equals(ship.pilot)) { ShipManager.release(player); return true; }
-            if (ship.pilot != null) { ShipManager.tell(player, "Another crew member is at the helm."); return true; }
+            if (ship.pilot != null) { ShipManager.tell(player, "message.skydock.helm_occupied"); return true; }
             ship.pilot = player.getUUID(); ship.pilotHelm = local.immutable(); ship.lastInputTick = player.level().getGameTime(); ship.moored = false;
             ship.pilotAnchor = ship.worldToBlock(player.position());
             ship.seated.remove(player.getUUID());
@@ -109,12 +109,12 @@ public final class ShipInteractions {
         }
         if (kind == DeviceBlock.Kind.CLAMP) {
             Vec3 berth = Vec3.atLowerCornerOf(ship.tier.origin(ship.dock)).add(ship.center());
-            if (berth.distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 25) { ShipManager.tell(player, "Mooring clamps only hold within 5 blocks of the reserved berth."); return true; }
-            ship.moored = !ship.moored; ship.velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.cruise = false; ShipManager.tell(player, ship.moored ? "Mooring clamp secured." : "Mooring clamp released."); return true;
+            if (berth.distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 25) { ShipManager.tell(player, "message.skydock.clamp_too_far"); return true; }
+            ship.moored = !ship.moored; ship.velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.cruise = false; ShipManager.tell(player, ship.moored ? "message.skydock.clamp_secured" : "message.skydock.clamp_released"); return true;
         }
         if (kind == DeviceBlock.Kind.SEAT) {
-            if (local.equals(ship.seated.get(player.getUUID()))) { ship.seated.remove(player.getUUID()); ShipManager.tell(player, "You stand up."); return true; }
-            if (ship.seated.containsValue(local)) { ShipManager.tell(player, "This seat is occupied."); return true; }
+            if (local.equals(ship.seated.get(player.getUUID()))) { ship.seated.remove(player.getUUID()); ShipManager.tell(player, "message.skydock.seat_stand"); return true; }
+            if (ship.seated.containsValue(local)) { ShipManager.tell(player, "message.skydock.seat_occupied"); return true; }
             ship.seated.put(player.getUUID(), local.immutable()); ShipManager.tell(player, Component.translatable("message.skydock.seated", Component.keybind("key.skydock.release"))); return true;
         }
         return kind == DeviceBlock.Kind.LIFT || kind == DeviceBlock.Kind.BALLAST;
@@ -130,7 +130,7 @@ public final class ShipInteractions {
         BlockPos at = ship.yard.offset(local); BlockState actual = yard.getBlockState(at);
         // The shipyard's dimension type disables beds and anchors, and vanilla answers that by exploding them inside the hull.
         if (actual.getBlock() instanceof net.minecraft.world.level.block.BedBlock || actual.getBlock() instanceof net.minecraft.world.level.block.RespawnAnchorBlock) {
-            ShipManager.tell(player, "Beds and respawn anchors only work while the ship is docked."); return;
+            ShipManager.tell(player, "message.skydock.bed_docked_only"); return;
         }
         BlockHitResult remapped = new BlockHitResult(localHit.getLocation().add(Vec3.atLowerCornerOf(ship.yard)), localHit.getDirection(), at, localHit.isInside());
         AbstractContainerMenu before = player.containerMenu;

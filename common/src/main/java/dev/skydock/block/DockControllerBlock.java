@@ -42,14 +42,14 @@ public final class DockControllerBlock extends Block implements EntityBlock {
                 MenuRegistry.openExtendedMenu(serverPlayer, dock, buffer -> buffer.writeBlockPos(pos));
                 if (serverPlayer.containerMenu instanceof DockMenu menu) DockNetwork.sendSnapshot(serverPlayer, menu, dock);
             }
-            else ShipManager.tell(player, "Only the dock owner or their team can manage this berth.");
+            else ShipManager.tell(player, "message.skydock.dock_not_owner");
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
     @Override protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
         if (state.getBlock() != newState.getBlock() && level instanceof net.minecraft.server.level.ServerLevel serverLevel
                 && level.getBlockEntity(pos) instanceof DockBlockEntity dock)
-            AssemblyManager.cancel(serverLevel, dock, "Assembly cancelled because the dock was removed.");
+            AssemblyManager.cancel(serverLevel, dock, "status.skydock.cancelled_removed");
         super.onRemove(state, level, pos, newState, movedByPiston);
     }
 }

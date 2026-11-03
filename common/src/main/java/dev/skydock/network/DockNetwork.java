@@ -113,11 +113,11 @@ public final class DockNetwork {
                 if (id != null) dock.setSelection(id, command.decorations);
             }
             case ASSEMBLE -> AssemblyManager.start(player, dock);
-            case CANCEL -> AssemblyManager.cancel(player.serverLevel(), dock, "Assembly cancelled by operator.");
+            case CANCEL -> AssemblyManager.cancel(player.serverLevel(), dock, "status.skydock.cancelled_operator");
             case INSPECT -> ShipManager.inspect(player, dock.getBlockPos());
             case LAUNCH -> {
                 if (dock.assemblyJob() == null) ShipManager.launch(player, dock.getBlockPos());
-                else ShipManager.tell(player, "Wait for assembly to finish before launching.");
+                else ShipManager.tell(player, "message.skydock.wait_assembly");
             }
             case REDOCK -> ShipManager.redockNearest(player, dock.getBlockPos());
             default -> { return; }
@@ -133,11 +133,11 @@ public final class DockNetwork {
             case 0 -> ShipManager.inspect(player, menu.pos);
             case 1 -> {
                 if (dock.assemblyJob() == null) ShipManager.launch(player, menu.pos);
-                else ShipManager.tell(player, "Wait for assembly to finish before launching.");
+                else ShipManager.tell(player, "message.skydock.wait_assembly");
             }
             case 2 -> ShipManager.redockNearest(player, menu.pos);
             case 3 -> AssemblyManager.start(player, dock);
-            case 4 -> AssemblyManager.cancel(player.serverLevel(), dock, "Assembly cancelled by operator.");
+            case 4 -> AssemblyManager.cancel(player.serverLevel(), dock, "status.skydock.cancelled_operator");
             case 5 -> dock.setSelection(dock.selectedPattern(), !dock.decorations());
             case 10, 11, 12 -> {
                 int index = button - 10;
@@ -165,7 +165,7 @@ public final class DockNetwork {
         Map<Item, Integer> cost = pattern.cost(decorations);
         Map<Item, Integer> available = AssemblyInventory.available(player.serverLevel(), dock.getBlockPos());
         AssemblyManager.Check space = AssemblyManager.validate(player.serverLevel(), dock, pattern, decorations);
-        if (space.clear() && (dock.assemblyComplete() || dock.manualHull())) dock.clearHullMarker("Ready.");
+        if (space.clear() && (dock.assemblyComplete() || dock.manualHull())) dock.clearHullMarker("status.skydock.ready");
         boolean resources = cost.entrySet().stream().allMatch(entry -> available.getOrDefault(entry.getKey(), 0) >= entry.getValue());
         CompoundTag root = new CompoundTag();
         root.putInt("Container", menu.containerId);
@@ -185,7 +185,7 @@ public final class DockNetwork {
         root.putInt("Progress", job != null ? job.placed : complete ? total : 0);
         root.putInt("Total", total);
         root.putString("Status", job != null || complete || manualHull ? dock.status() : !space.clear() ? space.message()
-                : !resources ? "The adjacent chest is missing required materials." : dock.status());
+                : !resources ? "status.skydock.resources_missing" : dock.status());
         root.putBoolean("AssemblySpaceClear", space.clear());
         root.putBoolean("SpaceClear", space.clear());
         root.putBoolean("CanAssemble", job == null && space.clear() && resources);

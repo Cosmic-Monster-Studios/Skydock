@@ -7,6 +7,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -55,25 +57,25 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         super.init();
         patternButtons.clear();
         int tabY = topPos + 27;
-        designsTab = addShipButton(leftPos + 9, tabY, 76, 18, "Designs", () -> page = Page.DESIGNS);
-        manualTab = addShipButton(leftPos + 87, tabY, 70, 18, "Manual", () -> page = Page.MANUAL);
+        designsTab = addShipButton(leftPos + 9, tabY, 76, 18, "gui.skydock.tab_designs", () -> page = Page.DESIGNS);
+        manualTab = addShipButton(leftPos + 87, tabY, 70, 18, "gui.skydock.tab_manual", () -> page = Page.MANUAL);
         for (int i = 0; i < 3; i++) {
             final int button = 10 + i;
-            patternButtons.add(addShipButton(0, 0, 10, 10, "—", () -> menuButton(button)));
+            patternButtons.add(addShipButton(0, 0, 10, 10, "gui.skydock.none", () -> menuButton(button)));
         }
-        decorations = addShipButton(0, 0, 10, 10, "Decorations", () -> menuButton(5));
-        assemble = addShipButton(0, 0, 10, 10, "Build ship", () -> menuButton(3));
-        cancel = addShipButton(0, 0, 10, 10, "Cancel build", () -> menuButton(4));
-        inspect = addShipButton(0, 0, 10, 10, "Inspect ship", () -> menuButton(0));
-        launch = addShipButton(0, 0, 10, 10, "Launch ship", () -> menuButton(1));
-        redock = addShipButton(0, 0, 10, 10, "Redock ship", () -> menuButton(2));
+        decorations = addShipButton(0, 0, 10, 10, "gui.skydock.decorations", () -> menuButton(5));
+        assemble = addShipButton(0, 0, 10, 10, "gui.skydock.build", () -> menuButton(3));
+        cancel = addShipButton(0, 0, 10, 10, "gui.skydock.cancel", () -> menuButton(4));
+        inspect = addShipButton(0, 0, 10, 10, "gui.skydock.inspect", () -> menuButton(0));
+        launch = addShipButton(0, 0, 10, 10, "gui.skydock.launch", () -> menuButton(1));
+        redock = addShipButton(0, 0, 10, 10, "gui.skydock.redock", () -> menuButton(2));
         layoutButtons();
         DockNetwork.request(menu.containerId, menu.pos, -1);
         requestTicks = 0;
     }
 
     private ShipwrightButton addShipButton(int x, int y, int w, int h, String label, Runnable action) {
-        return addRenderableWidget(new ShipwrightButton(x, y, w, h, Component.literal(label), action));
+        return addRenderableWidget(new ShipwrightButton(x, y, w, h, Component.translatable(label), action));
     }
 
     private void menuButton(int id) {
@@ -138,17 +140,17 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
             button.active = exists && !waiting && !snapshot.active() && !complete;
             if (exists) {
                 DockView.Pattern pattern = snapshot.patterns().get(i);
-                button.setMessage(Component.literal(pattern.name()));
+                button.setMessage(Component.translatable(pattern.name()));
                 button.selected = snapshot.selected().equals(pattern.id());
             } else {
-                button.setMessage(Component.literal("—"));
+                button.setMessage(Component.translatable("gui.skydock.none"));
                 button.selected = false;
             }
         }
         decorations.visible = designs;
         decorations.active = snapshot != null && !waiting && !snapshot.active() && !complete;
         decorations.selected = snapshot != null && snapshot.decorations();
-        decorations.setMessage(Component.literal(snapshot != null && snapshot.decorations() ? "Decorations: on" : "Decorations: off"));
+        decorations.setMessage(Component.translatable(snapshot != null && snapshot.decorations() ? "gui.skydock.decorations_on" : "gui.skydock.decorations_off"));
         assemble.visible = designs && (snapshot == null || (!snapshot.active() && !complete));
         cancel.visible = designs && snapshot != null && snapshot.active();
         assemble.active = snapshot != null && snapshot.canAssemble() && !waiting;
@@ -183,8 +185,8 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         graphics.fill(leftPos, topPos, right, topPos + 24, INK);
         graphics.fill(leftPos, topPos + 23, right, topPos + 26, BRASS);
         graphics.fill(leftPos + 6, topPos + 48, right - 6, bottom - 32, CANVAS_DARK);
-        graphics.drawString(font, "SHIPWRIGHT'S DOCK", leftPos + 10, topPos + 8, PALE, false);
-        String berth = snapshot == null ? "AWAITING HARBOR RECORD" : snapshot.tier().toUpperCase(Locale.ROOT) + " BERTH";
+        graphics.drawString(font, I18n.get("gui.skydock.title"), leftPos + 10, topPos + 8, PALE, false);
+        String berth = snapshot == null ? I18n.get("gui.skydock.awaiting") : I18n.get("gui.skydock.berth", snapshot.tier().toUpperCase(Locale.ROOT));
         berth = font.plainSubstrByWidth(berth, Math.max(58, imageWidth - 148));
         graphics.drawString(font, berth, right - 10 - font.width(berth), topPos + 8, TEAL, false);
         if (page == Page.DESIGNS) renderDesigns(graphics);
@@ -207,28 +209,28 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         costsH = Math.max(20, bodyBottom - costsY);
 
         if (wide) {
-            graphics.drawString(font, "SHIP PATTERNS", leftPos + 12, bodyY + 3, INK, false);
+            graphics.drawString(font, I18n.get("gui.skydock.patterns"), leftPos + 12, bodyY + 3, INK, false);
             if (snapshot != null) {
                 DockView.Pattern selected = snapshot.patterns().stream().filter(p -> p.id().equals(snapshot.selected())).findFirst().orElse(null);
-                if (selected != null) drawWrapped(graphics, selected.description(), leftPos + 12, bodyY + 162, 110, MUTED, 3);
+                if (selected != null) drawWrapped(graphics, I18n.get(selected.description()), leftPos + 12, bodyY + 162, 110, MUTED, 3);
             }
         }
         panel(graphics, previewX, previewY, previewW, previewH, INK);
         drawPreviewGrid(graphics, previewX, previewY, previewW, previewH);
         if (snapshot == null) {
-            center(graphics, "Reading the shipwright's ledger…", previewX, previewY + previewH / 2, previewW, PALE);
+            center(graphics, I18n.get("gui.skydock.reading"), previewX, previewY + previewH / 2, previewW, PALE);
         } else if (snapshot.preview().isEmpty()) {
-            center(graphics, "No preview supplied", previewX, previewY + previewH / 2, previewW, PALE);
+            center(graphics, I18n.get("gui.skydock.no_preview"), previewX, previewY + previewH / 2, previewW, PALE);
         } else {
             preview.render(graphics, previewX, previewY, previewW, previewH, snapshot.preview());
         }
-        String help = font.plainSubstrByWidth("DRAG ROTATE  ·  WHEEL ZOOM  ·  R RESET", Math.max(10, previewW - 14));
+        String help = font.plainSubstrByWidth(I18n.get("gui.skydock.preview_help"), Math.max(10, previewW - 14));
         graphics.drawString(font, help, previewX + 7, previewY + previewH - 12, 0xFF9CCBC4, false);
 
         int rx = costsX, ry = rightTop;
-        graphics.drawString(font, "VESSEL FIGURES", rx + 3, ry + 3, INK, false);
+        graphics.drawString(font, I18n.get("gui.skydock.figures"), rx + 3, ry + 3, INK, false);
         if (snapshot != null) renderStats(graphics, rx + 3, ry + (wide ? 16 : 13), costsW - 6, snapshot.stats());
-        if (wide) graphics.drawString(font, "MATERIALS REMAINING", rx + 3, costsY - 12, INK, false);
+        if (wide) graphics.drawString(font, I18n.get("gui.skydock.materials"), rx + 3, costsY - 12, INK, false);
         graphics.fill(costsX, costsY, costsX + costsW, costsY + costsH, 0xCCF6EED8);
         renderCosts(graphics);
         renderFooterStatus(graphics);
@@ -239,15 +241,15 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         int columnWidth = (width - gutter) / 2;
         int rightX = x + columnWidth + gutter;
         int rightWidth = width - columnWidth - gutter;
-        stat(graphics, "Mass", format(stats.mass()), x, y, columnWidth);
-        stat(graphics, "Lift", format(stats.lift()), rightX, y, rightWidth);
-        stat(graphics, "Power", format(stats.power()), x, y + 11, columnWidth);
-        stat(graphics, "Speed", format(stats.speed() * 20.0) + "/s", rightX, y + 11, rightWidth);
-        stat(graphics, "Struct.", Integer.toString(stats.structuralBlocks()), x, y + 22, columnWidth);
-        stat(graphics, "Blocks", Integer.toString(stats.blocks()), rightX, y + 22, rightWidth);
-        stat(graphics, "Cells", Integer.toString(stats.cells()), x, y + 33, columnWidth);
-        stat(graphics, "Engines", Integer.toString(stats.engines()), rightX, y + 33, rightWidth);
-        graphics.drawString(font, font.plainSubstrByWidth(stats.width() + " × " + stats.height() + " × " + stats.length() + " blocks", width), x, y + 44, INK, false);
+        stat(graphics, I18n.get("gui.skydock.stat_mass"), format(stats.mass()), x, y, columnWidth);
+        stat(graphics, I18n.get("gui.skydock.stat_lift"), format(stats.lift()), rightX, y, rightWidth);
+        stat(graphics, I18n.get("gui.skydock.stat_power"), format(stats.power()), x, y + 11, columnWidth);
+        stat(graphics, I18n.get("gui.skydock.stat_speed"), I18n.get("gui.skydock.per_second", format(stats.speed() * 20.0)), rightX, y + 11, rightWidth);
+        stat(graphics, I18n.get("gui.skydock.stat_structural"), Integer.toString(stats.structuralBlocks()), x, y + 22, columnWidth);
+        stat(graphics, I18n.get("gui.skydock.stat_blocks"), Integer.toString(stats.blocks()), rightX, y + 22, rightWidth);
+        stat(graphics, I18n.get("gui.skydock.stat_cells"), Integer.toString(stats.cells()), x, y + 33, columnWidth);
+        stat(graphics, I18n.get("gui.skydock.stat_engines"), Integer.toString(stats.engines()), rightX, y + 33, rightWidth);
+        graphics.drawString(font, font.plainSubstrByWidth(I18n.get("gui.skydock.size", stats.width(), stats.height(), stats.length()), width), x, y + 44, INK, false);
     }
 
     private void stat(GuiGraphics graphics, String label, String value, int x, int y, int width) {
@@ -260,7 +262,7 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
 
     private void renderCosts(GuiGraphics graphics) {
         if (snapshot == null || snapshot.costs().isEmpty()) {
-            center(graphics, "No materials listed", costsX, costsY + 8, costsW, MUTED);
+            center(graphics, I18n.get("gui.skydock.no_materials"), costsX, costsY + 8, costsW, MUTED);
             return;
         }
         int rows = visibleCostRows();
@@ -290,8 +292,8 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
     private void renderFooterStatus(GuiGraphics graphics) {
         int y = topPos + imageHeight - 25;
         int statusRight = assemble.getX() - 6;
-        String status = snapshot == null ? "Contacting dock…" : snapshot.status();
-        if (waiting) status = "Updating plan…";
+        String status = snapshot == null ? I18n.get("gui.skydock.contacting") : Component.translatable(snapshot.status()).getString();
+        if (waiting) status = I18n.get("gui.skydock.updating");
         if (snapshot != null && snapshot.active() && snapshot.total() > 0)
             status += "  ·  " + snapshot.progress() + " / " + snapshot.total();
         graphics.drawString(font, font.plainSubstrByWidth(status, Math.max(40, statusRight - leftPos - 14)), leftPos + 10, y + 8, INK, false);
@@ -306,37 +308,37 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
     private void renderManual(GuiGraphics graphics) {
         int x = leftPos + 16, y = topPos + 58;
         graphics.enableScissor(leftPos + 7, topPos + 49, leftPos + imageWidth - 7, topPos + imageHeight - 32);
-        graphics.drawString(font, "OPERATING MANUAL", x, y, INK, false);
+        graphics.drawString(font, I18n.get("gui.skydock.manual_title"), x, y, INK, false);
         y += 18;
-        y = paragraph(graphics, "Inspect asks the dock to verify the current berth and report its exact state.", x, y, imageWidth - 32);
-        y = paragraph(graphics, "Launch transfers an assembled ship out of the berth. Keep the envelope clear and review the live figures first.", x, y + 7, imageWidth - 32);
-        y = paragraph(graphics, "Redock restores the nearest permitted ship to this berth for repair or expansion.", x, y + 7, imageWidth - 32);
+        y = paragraph(graphics, I18n.get("gui.skydock.manual_inspect"), x, y, imageWidth - 32);
+        y = paragraph(graphics, I18n.get("gui.skydock.manual_launch"), x, y + 7, imageWidth - 32);
+        y = paragraph(graphics, I18n.get("gui.skydock.manual_redock"), x, y + 7, imageWidth - 32);
         y += 11;
         graphics.fill(x, y, leftPos + imageWidth - 16, y + 1, BRASS);
         y += 10;
-        graphics.drawString(font, "LIVE DOCK STATUS", x, y, INK, false);
+        graphics.drawString(font, I18n.get("gui.skydock.live_status"), x, y, INK, false);
         y += 14;
         boolean complete = snapshot != null && snapshot.complete();
         boolean hullPresent = complete || snapshot != null && snapshot.manualHull();
-        String status = snapshot == null ? "Waiting for the server ledger." : complete ? "Assembled ship in berth. Inspect it or launch when ready."
-                : snapshot.manualHull() ? "Manual ship in berth. Inspect it before launch." : snapshot.status();
+        String status = snapshot == null ? I18n.get("gui.skydock.waiting_ledger") : complete ? I18n.get("gui.skydock.assembled_hint")
+                : snapshot.manualHull() ? I18n.get("gui.skydock.manual_hint") : Component.translatable(snapshot.status()).getString();
         drawWrapped(graphics, status, x, y, imageWidth - 32, snapshot != null && (snapshot.spaceClear() || hullPresent) ? MUTED : MISSING, 3);
         if (snapshot != null) {
-            String berthState = complete ? "Assembled ship in berth" : snapshot.manualHull() ? "Manual ship in berth"
-                    : snapshot.spaceClear() ? "Berth envelope clear" : "Berth envelope obstructed";
+            String berthState = I18n.get(complete ? "gui.skydock.berth_assembled" : snapshot.manualHull() ? "gui.skydock.berth_manual"
+                    : snapshot.spaceClear() ? "gui.skydock.berth_clear" : "gui.skydock.berth_obstructed");
             graphics.drawString(font, berthState, x, y + 34, snapshot.spaceClear() || hullPresent ? TEAL : MISSING, false);
         }
         graphics.disableScissor();
     }
 
     private int paragraph(GuiGraphics graphics, String text, int x, int y, int width) {
-        List<FormattedCharSequence> lines = font.split(Component.literal(text), width);
+        List<FormattedCharSequence> lines = font.split(FormattedText.of(text), width);
         for (FormattedCharSequence line : lines) { graphics.drawString(font, line, x, y, MUTED, false); y += 10; }
         return y;
     }
 
     private void drawWrapped(GuiGraphics graphics, String text, int x, int y, int width, int color, int maxLines) {
-        List<FormattedCharSequence> lines = font.split(Component.literal(text), width);
+        List<FormattedCharSequence> lines = font.split(FormattedText.of(text), width);
         for (int i = 0; i < Math.min(maxLines, lines.size()); i++) graphics.drawString(font, lines.get(i), x, y + i * 10, color, false);
     }
 

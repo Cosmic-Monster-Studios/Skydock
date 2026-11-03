@@ -5,6 +5,7 @@ import dev.skydock.menu.DeviceMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 
@@ -20,12 +21,12 @@ public final class DeviceScreen extends AbstractContainerScreen<DeviceMenu> {
     private static boolean actionable(DeviceBlock.Kind kind) { return kind == DeviceBlock.Kind.HELM || kind == DeviceBlock.Kind.CLAMP || kind == DeviceBlock.Kind.SEAT; }
     private Component actionLabel() {
         int flags = menu.flags();
-        return Component.literal(switch (menu.view.kind()) {
-            case HELM -> (flags & 8) != 0 ? "Release helm (" + SkydockClient.releaseKey() + ")" : "Engage helm";
-            case CLAMP -> (flags & 1) != 0 ? "Release mooring clamp" : "Secure mooring clamp";
-            case SEAT -> (flags & 32) != 0 ? "Stand up (" + SkydockClient.releaseKey() + ")" : "Take seat";
-            default -> "";
-        });
+        return switch (menu.view.kind()) {
+            case HELM -> (flags & 8) != 0 ? Component.translatable("gui.skydock.helm_release", SkydockClient.releaseKey()) : Component.translatable("gui.skydock.helm_engage");
+            case CLAMP -> Component.translatable((flags & 1) != 0 ? "gui.skydock.clamp_release" : "gui.skydock.clamp_secure");
+            case SEAT -> (flags & 32) != 0 ? Component.translatable("gui.skydock.seat_stand", SkydockClient.releaseKey()) : Component.translatable("gui.skydock.seat_take");
+            default -> Component.empty();
+        };
     }
     private void action() { if (minecraft.gameMode != null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, 0); }
     @Override protected void containerTick() { super.containerTick(); if (primaryAction != null) primaryAction.setMessage(actionLabel()); }
@@ -39,7 +40,7 @@ public final class DeviceScreen extends AbstractContainerScreen<DeviceMenu> {
         g.drawString(font, title, 16, 13, CANVAS, false);
         String[] paragraphs = lines(); int y = 42;
         for (int paragraph = 0; paragraph < paragraphs.length; paragraph++) {
-            for (var line : font.split(Component.literal(paragraphs[paragraph]), imageWidth - 48)) {
+            for (var line : font.split(net.minecraft.network.chat.FormattedText.of(paragraphs[paragraph]), imageWidth - 48)) {
                 g.drawString(font, line, 24, y, paragraph == 0 ? BRASS : 0xFFFFFFFF, false); y += 12;
             }
             y += 2;
@@ -48,14 +49,14 @@ public final class DeviceScreen extends AbstractContainerScreen<DeviceMenu> {
     private String[] lines() {
         var view = menu.view; int flags = menu.flags();
         return switch (view.kind()) {
-            case HELM -> new String[] { (flags & 8) != 0 ? "Helm engaged by you" : (flags & 4) != 0 ? "Helm occupied" : "Helm ready",
-                    String.format(java.util.Locale.ROOT, "Ship speed: %.1f blocks/s", menu.speed()),
-                    (flags & 2) != 0 ? "Cruise control active" : SkydockClient.thrustKeys() + " thrust, " + SkydockClient.turnKeys() + " turn, " + SkydockClient.altitudeKeys() + " altitude",
-                    SkydockClient.cruiseKey() + " toggles cruise" };
-            case CLAMP -> new String[] { (flags & 1) != 0 ? "Mooring clamp secured" : "Mooring clamp released", "Locks the ship only near its reserved berth", "Securing stops motion and cruise" };
-            case SEAT -> new String[] { (flags & 32) != 0 ? "You are seated" : (flags & 16) != 0 ? "Seat occupied" : "Seat available", "Seats carry crew with the moving deck", "Press " + SkydockClient.releaseKey() + " at any time to stand" };
-            case LIFT -> new String[] { menu.amount() + (menu.amount() == 1 ? " connected canvas lift cell" : " connected canvas lift cells"), String.format(java.util.Locale.ROOT, "Cluster lift: %.0f kg", menu.value()), "Connect cells on any face to expand." };
-            case BALLAST -> new String[] { String.format(java.util.Locale.ROOT, "Block mass: %.0f kg", menu.value()), "Ballast adds stable hull mass", "Ship lift must exceed total mass" };
+            case HELM -> new String[] { I18n.get((flags & 8) != 0 ? "gui.skydock.helm_yours" : (flags & 4) != 0 ? "gui.skydock.helm_occupied" : "gui.skydock.helm_ready"),
+                    I18n.get("gui.skydock.ship_speed", String.format(java.util.Locale.ROOT, "%.1f", menu.speed())),
+                    (flags & 2) != 0 ? I18n.get("gui.skydock.cruise_active") : I18n.get("gui.skydock.helm_controls", SkydockClient.thrustKeys(), SkydockClient.turnKeys(), SkydockClient.altitudeKeys()),
+                    I18n.get("gui.skydock.cruise_toggle", SkydockClient.cruiseKey()) };
+            case CLAMP -> new String[] { I18n.get((flags & 1) != 0 ? "gui.skydock.clamp_state_secured" : "gui.skydock.clamp_state_released"), I18n.get("gui.skydock.clamp_note1"), I18n.get("gui.skydock.clamp_note2") };
+            case SEAT -> new String[] { I18n.get((flags & 32) != 0 ? "gui.skydock.seat_seated" : (flags & 16) != 0 ? "gui.skydock.seat_occupied" : "gui.skydock.seat_available"), I18n.get("gui.skydock.seat_note1"), I18n.get("gui.skydock.seat_note2", SkydockClient.releaseKey()) };
+            case LIFT -> new String[] { I18n.get(menu.amount() == 1 ? "gui.skydock.lift_one" : "gui.skydock.lift_many", menu.amount()), I18n.get("gui.skydock.lift_cluster", String.format(java.util.Locale.ROOT, "%.0f", menu.value())), I18n.get("gui.skydock.lift_note") };
+            case BALLAST -> new String[] { I18n.get("gui.skydock.ballast_mass", String.format(java.util.Locale.ROOT, "%.0f", menu.value())), I18n.get("gui.skydock.ballast_note1"), I18n.get("gui.skydock.ballast_note2") };
         };
     }
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) { super.render(g, mouseX, mouseY, partialTick); renderTooltip(g, mouseX, mouseY); }

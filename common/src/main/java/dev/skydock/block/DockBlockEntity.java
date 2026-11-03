@@ -24,7 +24,7 @@ public final class DockBlockEntity extends BlockEntity implements MenuProvider {
     private ResourceLocation selectedPattern;
     private boolean decorations = true;
     private int revision;
-    private String status = "Ready.";
+    private String status = "status.skydock.ready";
     private AssemblyJob assemblyJob;
     private String hullMarker = "";
     private int hullBlocks;
@@ -52,12 +52,12 @@ public final class DockBlockEntity extends BlockEntity implements MenuProvider {
         if (selected.isEmpty() || selected.get().tier() != tier() || assemblyJob != null) return false;
         if (pattern.equals(selectedPattern()) && this.decorations == decorations) return true;
         selectedPattern = pattern; this.decorations = decorations; hullMarker = ""; hullBlocks = 0;
-        revision++; status = "Ready."; setChanged(); return true;
+        revision++; status = "status.skydock.ready"; setChanged(); return true;
     }
     public void setStatus(String status) { this.status = status; revision++; setChanged(); }
     public void beginAssembly(AssemblyJob job) {
         assemblyJob = job; selectedPattern = job.pattern; decorations = job.decorations;
-        hullMarker = ""; hullBlocks = 0; status = "Assembly in progress."; revision++; setChanged();
+        hullMarker = ""; hullBlocks = 0; status = "status.skydock.in_progress"; revision++; setChanged();
     }
     public void markAssemblyProgress() { revision++; setChanged(); }
     public void finishAssembly(String status) {
@@ -65,12 +65,12 @@ public final class DockBlockEntity extends BlockEntity implements MenuProvider {
     }
     public void completeAssembly(int blocks) {
         assemblyJob = null; hullMarker = "assembly"; hullBlocks = Math.max(0, blocks);
-        status = "Assembly complete. Inspect and launch when ready."; revision++; setChanged();
+        status = "status.skydock.complete"; revision++; setChanged();
     }
     public void markManualHull(int blocks) {
         if (!assemblyComplete()) {
             hullMarker = "manual"; hullBlocks = Math.max(0, blocks);
-            status = "Manual hull detected. Inspect and launch when ready."; revision++; setChanged();
+            status = "status.skydock.manual_hull"; revision++; setChanged();
         }
     }
     public void clearHullMarker(String status) {
@@ -100,7 +100,7 @@ public final class DockBlockEntity extends BlockEntity implements MenuProvider {
         selectedPattern = ResourceLocation.tryParse(tag.getString("Pattern"));
         decorations = !tag.contains("Decorations") || tag.getBoolean("Decorations");
         revision = Math.max(0, tag.getInt("Revision"));
-        status = tag.contains("Status") ? tag.getString("Status") : "Ready.";
+        status = tag.contains("Status") ? tag.getString("Status") : "status.skydock.ready";
         hullMarker = tag.getString("HullMarker");
         if (!hullMarker.equals("assembly") && !hullMarker.equals("manual")) hullMarker = "";
         hullBlocks = Math.max(0, tag.getInt("HullBlocks"));

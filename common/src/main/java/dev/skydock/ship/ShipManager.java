@@ -54,7 +54,7 @@ public final class ShipManager {
     /** Launch and redock each flush the journal and chunks to disk, so one berth cannot be cycled every tick. */
     private static boolean settling(ServerPlayer player, BlockPos pos) {
         Long last = LAST_TRANSFER.get(GlobalPos.of(player.level().dimension(), pos));
-        if (last != null && player.level().getGameTime() - last < 100) { tell(player, "The berth is still settling; try again in a few seconds."); return true; }
+        if (last != null && player.level().getGameTime() - last < 100) { tell(player, "message.skydock.berth_settling"); return true; }
         return false;
     }
     private static void transferred(ServerPlayer player, BlockPos pos) { LAST_TRANSFER.put(GlobalPos.of(player.level().dimension(), pos.immutable()), player.level().getGameTime()); }
@@ -171,14 +171,14 @@ public final class ShipManager {
         }
         if (departing) attachment.detach(player, true);
     }
-    public static void tell(Player player, String text) { player.displayClientMessage(Component.literal(text), false); }
+    public static void tell(Player player, String key, Object... args) { player.displayClientMessage(Component.translatable(key, args), false); }
     public static void tell(Player player, Component text) { player.displayClientMessage(text, false); }
     private static DockBlockEntity dock(ServerPlayer player, BlockPos pos) {
-        if (player.level().dimension().equals(SHIPYARD)) { tell(player, "Docks cannot operate inside the shipyard."); return null; }
-        if (!(player.level().getBlockEntity(pos) instanceof DockBlockEntity dock)) { tell(player, "No dock controller at that position."); return null; }
-        if (!canReachDock(player, dock)) { tell(player, "Stand within 8 blocks of the dock controller, or use a helm inside its envelope."); return null; }
+        if (player.level().dimension().equals(SHIPYARD)) { tell(player, "message.skydock.no_docks_in_shipyard"); return null; }
+        if (!(player.level().getBlockEntity(pos) instanceof DockBlockEntity dock)) { tell(player, "message.skydock.no_dock"); return null; }
+        if (!canReachDock(player, dock)) { tell(player, "message.skydock.dock_out_of_reach"); return null; }
         if (dock.owner == null) dock.claim(player);
-        if (!dock.canManage(player)) { tell(player, "Only the dock owner or their team can manage this berth."); return null; }
+        if (!dock.canManage(player)) { tell(player, "message.skydock.dock_not_owner"); return null; }
         return dock;
     }
     public static boolean permitted(Player player, Ship ship) {
@@ -188,19 +188,19 @@ public final class ShipManager {
         DockBlockEntity dock = dock(player, pos); if (dock == null) return;
         DockValidation result = DockValidation.scan(player.serverLevel(), dock);
         if (!result.blocks().isEmpty()) dock.markManualHull(result.blocks().size());
-        else if (dock.manualHull() || dock.assemblyComplete()) dock.clearHullMarker("Ready.");
+        else if (dock.manualHull() || dock.assemblyComplete()) dock.clearHullMarker("status.skydock.ready");
         tell(player, result.summary());
-        tell(player, "Interior: " + dock.tier().origin(pos).toShortString() + " through " + dock.tier().origin(pos).offset(dock.tier().width - 1, dock.tier().height - 1, dock.tier().length - 1).toShortString());
+        tell(player, "message.skydock.dock_interior", dock.tier().origin(pos).toShortString(), dock.tier().origin(pos).offset(dock.tier().width - 1, dock.tier().height - 1, dock.tier().length - 1).toShortString());
     }
     public static void launch(ServerPlayer player, BlockPos pos) {
         DockBlockEntity dock = dock(player, pos); if (dock == null) return;
-        if (dock.assemblyJob() != null) { tell(player, "Wait for assembly to finish before launching."); return; }
+        if (dock.assemblyJob() != null) { tell(player, "message.skydock.wait_assembly"); return; }
         if (settling(player, pos)) return;
         MinecraftServer server = player.getServer(); ShipSavedData data = ShipSavedData.get(server);
-        if (data.ships.values().stream().anyMatch(s -> s.dimension.equals(player.level().dimension()) && s.dock.equals(pos))) { tell(player, "This berth is reserved by its launched ship."); return; }
+        if (data.ships.values().stream().anyMatch(s -> s.dimension.equals(player.level().dimension()) && s.dock.equals(pos))) { tell(player, "message.skydock.berth_reserved_launched"); return; }
         DockValidation result = DockValidation.scan(player.serverLevel(), dock);
         if (!result.valid()) { tell(player, result.summary()); return; }
-        if (server.getLevel(SHIPYARD) == null) { tell(player, "Shipyard dimension is missing. Restore the Skydock datapack and restart."); return; }
+        if (server.getLevel(SHIPYARD) == null) { tell(player, "message.skydock.shipyard_missing"); return; }
         Ship ship = new Ship(); ship.owner = dock.owner; ship.team = dock.team; ship.tier = dock.tier();
         ship.dimension = player.level().dimension(); ship.dock = pos.immutable();
         BlockPos origin = ship.tier.origin(pos);
@@ -208,40 +208,40 @@ public final class ShipManager {
         ship.initializePivot();
         ship.pose = new ShipPose(origin.getX() + ship.center().x, origin.getY(), origin.getZ() + ship.center().z, 0);
         ship.previousPose = ship.pose;
-        if (ships(player.level()).stream().anyMatch(s -> s.bounds().intersects(ship.bounds()))) { tell(player, "Another ship occupies the launch envelope."); return; }
+        if (ships(player.level()).stream().anyMatch(s -> s.bounds().intersects(ship.bounds()))) { tell(player, "message.skydock.envelope_occupied"); return; }
         int region = data.nextRegion++;
-        if (region >= 1_000_000) { tell(player, "Shipyard region capacity reached."); return; }
+        if (region >= 1_000_000) { tell(player, "message.skydock.shipyard_full"); return; }
         ship.yard = new BlockPos((region % 1000) * 256, 64, (region / 1000) * 256);
         ShipTransfer.snapshot(ship, player.serverLevel(), origin);
         ship.phase = "launching"; ship.transferOrigin = origin; ship.transferDock = pos; ship.transferDimension = ship.dimension;
         data.ships.put(ship.id, ship); ShipTransfer.flush(server);
         try {
             forceTickets(server, ship); ShipTransfer.complete(server, ship); transferred(player, pos); ShipNetwork.resync(server);
-            dock.clearHullMarker("Ship launched.");
-            tell(player, "Launched " + ship.blocks.size() + " real blocks. Use the helm to take control; your berth remains reserved.");
+            dock.clearHullMarker("status.skydock.launched");
+            tell(player, "message.skydock.launched", ship.blocks.size());
         } catch (Exception ex) {
             Skydock.LOGGER.error("Launch retained in journal for {}", ship.id, ex);
-            tell(player, "Launch paused for recovery. The transfer journal is saved; see the server log.");
+            tell(player, "message.skydock.launch_paused");
         }
     }
     public static void redockNearest(ServerPlayer player, BlockPos pos) {
         DockBlockEntity dock = dock(player, pos); if (dock == null) return;
-        if (dock.assemblyJob() != null) { tell(player, "Cancel or finish the active assembly before redocking."); return; }
+        if (dock.assemblyJob() != null) { tell(player, "message.skydock.cancel_before_redock"); return; }
         if (settling(player, pos)) return;
         Ship ship = ships(player.level()).stream().filter(s -> permitted(player, s))
                 .min(Comparator.comparingDouble(s -> s.bounds().getCenter().distanceToSqr(Vec3.atCenterOf(pos)))).orElse(null);
-        if (ship == null) { tell(player, "No owned ship is available in this dimension."); return; }
-        if (dock.tier().ordinal() < ship.tier.ordinal()) { tell(player, "The berth must be the same tier or larger."); return; }
+        if (ship == null) { tell(player, "message.skydock.no_owned_ship"); return; }
+        if (dock.tier().ordinal() < ship.tier.ordinal()) { tell(player, "message.skydock.berth_too_small"); return; }
         ShipSavedData data = ShipSavedData.get(player.getServer());
-        if (data.ships.values().stream().anyMatch(s -> !s.id.equals(ship.id) && s.dimension.equals(ship.dimension) && s.dock.equals(pos))) { tell(player, "This berth is reserved by another ship."); return; }
+        if (data.ships.values().stream().anyMatch(s -> !s.id.equals(ship.id) && s.dimension.equals(ship.dimension) && s.dock.equals(pos))) { tell(player, "message.skydock.berth_reserved_other"); return; }
         BlockPos origin = dock.tier().origin(pos).offset((dock.tier().width - ship.tier.width) / 2, 0, (dock.tier().length - ship.tier.length) / 2);
         Vec3 destination = Vec3.atLowerCornerOf(origin).add(ship.center());
         double yawError = Math.abs(net.minecraft.util.Mth.wrapDegrees(ship.pose.yaw()));
         if (destination.distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 16 || yawError > 10 || ship.velocity.length() > .08) {
-            tell(player, "Align within 4 blocks of the berth center, yaw within 10 degrees of north, and slow below 1.6 blocks/second."); return;
+            tell(player, "message.skydock.redock_alignment"); return;
         }
         ServerLevel world = player.serverLevel();
-        for (BlockPos p : ship.blocks.keySet()) if (!world.getBlockState(origin.offset(p)).isAir()) { tell(player, "The berth is obstructed at " + origin.offset(p).toShortString() + ". Clear it first."); return; }
+        for (BlockPos p : ship.blocks.keySet()) if (!world.getBlockState(origin.offset(p)).isAir()) { tell(player, "message.skydock.berth_obstructed", origin.offset(p).toShortString()); return; }
         refresh(player.getServer(), ship); ShipTransfer.snapshot(ship, player.getServer().getLevel(SHIPYARD), ship.yard);
         ShipPose old = ship.pose; ship.pose = new ShipPose(destination.x, destination.y, destination.z, 0);
         carry(world, ship, old);
@@ -252,9 +252,9 @@ public final class ShipManager {
         try {
             ShipTransfer.complete(player.getServer(), ship); transferred(player, pos); ShipNetwork.resync(player.getServer());
             dock.markManualHull(ship.blocks.size());
-            tell(player, "Redocked. Real blocks and inventories are back in the berth; rebuilding is enabled.");
+            tell(player, "message.skydock.redocked");
         }
-        catch (Exception ex) { Skydock.LOGGER.error("Redock retained in journal for {}", ship.id, ex); tell(player, "Redock paused for recovery. The transfer journal is saved."); }
+        catch (Exception ex) { Skydock.LOGGER.error("Redock retained in journal for {}", ship.id, ex); tell(player, "message.skydock.redock_paused"); }
     }
     public static boolean canReachDock(Player player, DockBlockEntity dock) {
         if (player.distanceToSqr(Vec3.atCenterOf(dock.getBlockPos())) <= 64) return true;
@@ -264,7 +264,7 @@ public final class ShipManager {
                 && dock.tier().envelope(dock.getBlockPos()).contains(Vec3.atCenterOf(block.getBlockPos()));
     }
     public static void deviceOnGround(ServerPlayer player, DeviceBlock.Kind kind, BlockPos pos) {
-        if (kind != DeviceBlock.Kind.HELM) { tell(player, "This device operates aboard a launched ship."); return; }
+        if (kind != DeviceBlock.Kind.HELM) { tell(player, "message.skydock.device_aboard"); return; }
         if (player.level().dimension().equals(SHIPYARD)) return;
         List<DockBlockEntity> candidates = new ArrayList<>();
         ChunkPos center = new ChunkPos(pos);
@@ -273,8 +273,8 @@ public final class ShipManager {
             if (chunk != null) for (var entity : chunk.getBlockEntities().values())
                 if (entity instanceof DockBlockEntity dock && dock.tier().envelope(dock.getBlockPos()).contains(Vec3.atCenterOf(pos))) candidates.add(dock);
         }
-        if (candidates.isEmpty()) { tell(player, "Build this helm inside a dock envelope before launching."); return; }
-        if (candidates.size() > 1) { tell(player, "Several dock envelopes cover this helm. Use the intended dock controller."); return; }
+        if (candidates.isEmpty()) { tell(player, "message.skydock.helm_no_dock"); return; }
+        if (candidates.size() > 1) { tell(player, "message.skydock.helm_many_docks"); return; }
         DockBlockEntity dock = dock(player, candidates.getFirst().getBlockPos());
         if (dock != null) dev.architectury.registry.menu.MenuRegistry.openExtendedMenu(player, dock, buffer -> buffer.writeBlockPos(dock.getBlockPos()));
     }
@@ -290,7 +290,7 @@ public final class ShipManager {
             if (player.getUUID().equals(ship.pilot)) {
                 ship.pilot = null; ship.pilotAnchor = null; ship.throttle = ship.steering = ship.climb = 0;
                 if (ship.cruise) tell(player, Component.translatable("message.skydock.helm_released_cruise", Component.keybind("key.skydock.cruise")));
-                else tell(player, "Helm released.");
+                else tell(player, "message.skydock.helm_released");
             }
             ship.seated.remove(player.getUUID());
         }
@@ -299,11 +299,11 @@ public final class ShipManager {
         Ship ship = ships(player.level()).stream().filter(s -> permitted(player, s))
                 .filter(s -> player.getUUID().equals(s.pilot) || s.pose.toWorld(s.hullBounds()).inflate(1).contains(player.position()))
                 .min(Comparator.comparingDouble(s -> player.getUUID().equals(s.pilot) ? -1 : s.pose.toWorld(s.hullBounds()).distanceToSqr(player.position()))).orElse(null);
-        if (ship == null) { tell(player, "Board your ship to operate cruise control."); return; }
-        if (ship.cruise) { ship.cruise = false; tell(player, "Cruise disengaged. The ship will coast to a stop."); }
+        if (ship == null) { tell(player, "message.skydock.cruise_board"); return; }
+        if (ship.cruise) { ship.cruise = false; tell(player, "message.skydock.cruise_off"); }
         else {
-            if (ship.moored) { tell(player, "Release the mooring clamp or engage the helm first."); return; }
-            if (ship.engines == 0) { tell(player, "Cruise control needs a fueled engine."); return; }
+            if (ship.moored) { tell(player, "message.skydock.cruise_unmoor"); return; }
+            if (ship.engines == 0) { tell(player, "message.skydock.cruise_no_engine"); return; }
             double speed = ship.velocity.dot(ShipPose.rotate(new Vec3(0, 0, -1), ship.pose.yaw()));
             double speedLimit = ShipPhysics.installedMaxSpeed(ship);
             ship.cruiseSpeed = Math.abs(speed) < .03 ? .18 : Math.clamp(speed, -speedLimit, speedLimit);

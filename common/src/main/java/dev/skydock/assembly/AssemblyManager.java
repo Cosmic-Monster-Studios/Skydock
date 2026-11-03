@@ -1,5 +1,6 @@
 package dev.skydock.assembly;
 
+import net.minecraft.network.chat.Component;
 import dev.skydock.block.DockBlockEntity;
 import dev.skydock.block.SkydockBlocks;
 import dev.skydock.data.MassTable;
@@ -33,6 +34,8 @@ import java.util.Map;
 public final class AssemblyManager {
     public static final int BLOCKS_PER_STEP = 4;
     public static final int STEP_TICKS = 2;
+    /** Prefixes of the error and status keys; assembly failures derive their cancelled_/paused_ status from the error key. */
+    private static final String E = "error.skydock.", STATUS = "status.skydock.";
     private static final Map<ServerLevel, Map<BlockPos, DockBlockEntity>> ACTIVE = new IdentityHashMap<>();
 
     private AssemblyManager() {}
@@ -44,7 +47,7 @@ public final class AssemblyManager {
             AssemblyJob job = dock.assemblyJob();
             ShipPattern catalog = ShipPatterns.get(job.pattern).orElse(null);
             String name = catalog == null ? job.pattern.getPath() : catalog.name();
-            String description = catalog == null ? "Assembly restored from its persisted build journal." : catalog.description();
+            String description = catalog == null ? "pattern.skydock.restored.description" : catalog.description();
             return new ShipPattern(job.pattern, name, description, dock.tier(), job.cells.stream()
                     .map(cell -> new ShipPattern.Block(cell.pos(), cell.state(), cell.decoration())).toList());
         }
@@ -53,31 +56,31 @@ public final class AssemblyManager {
     }
 
     public static Check validate(ServerLevel level, DockBlockEntity dock, ShipPattern pattern, boolean decorations) {
-        if (pattern.tier() != dock.tier()) return new Check(false, "That pattern does not fit this dock tier.");
+        if (pattern.tier() != dock.tier()) return new Check(false, "error.skydock.assembly_tier");
         if (dock.assemblyJob() == null && ShipManager.berthReserved(level, dock.getBlockPos()))
-            return new Check(false, "This berth is reserved by its launched ship.");
+            return new Check(false, "error.skydock.assembly_reserved");
         List<ShipPattern.Block> cells = pattern.included(decorations);
-        if (cells.size() > MassTable.cap(dock.tier())) return new Check(false, "This pattern exceeds the dock's block limit.");
+        if (cells.size() > MassTable.cap(dock.tier())) return new Check(false, "error.skydock.assembly_limit");
         ShipPattern.Stats stats = pattern.stats(decorations);
         long helms = cells.stream().filter(cell -> cell.state().is(SkydockBlocks.HELM.get())).count();
-        if (helms != 1) return new Check(false, "The pattern must contain exactly one helm.");
-        if (stats.engines() < 1) return new Check(false, "The pattern requires at least one engine.");
-        if (stats.cells() < 1) return new Check(false, "The pattern requires lift cells.");
+        if (helms != 1) return new Check(false, "error.skydock.assembly_helm");
+        if (stats.engines() < 1) return new Check(false, "error.skydock.assembly_engine");
+        if (stats.cells() < 1) return new Check(false, "error.skydock.assembly_cells");
         int requiredCells = (stats.structuralBlocks() + MassTable.blocksPerCell() - 1) / MassTable.blocksPerCell();
-        if (stats.cells() < requiredCells) return new Check(false, "The pattern needs more lift cells for its structural block count.");
-        if (stats.mass() > stats.lift()) return new Check(false, "The current mass rules make this pattern too heavy to launch.");
+        if (stats.cells() < requiredCells) return new Check(false, "error.skydock.assembly_more_cells");
+        if (stats.mass() > stats.lift()) return new Check(false, "error.skydock.assembly_heavy");
         AABB local = pattern.bounds(decorations);
         BlockPos origin = dock.tier().origin(dock.getBlockPos());
         AABB footprint = local.move(origin);
         if (footprint.minY < level.getMinBuildHeight() || footprint.maxY > level.getMaxBuildHeight())
-            return new Check(false, "The ship would cross the world build height.");
-        if (!level.getWorldBorder().isWithinBounds(footprint)) return new Check(false, "The ship would cross the world border.");
+            return new Check(false, "error.skydock.assembly_height");
+        if (!level.getWorldBorder().isWithinBounds(footprint)) return new Check(false, "error.skydock.assembly_border");
         int minChunkX = ((int) Math.floor(footprint.minX)) >> 4;
         int maxChunkX = ((int) Math.ceil(footprint.maxX) - 1) >> 4;
         int minChunkZ = ((int) Math.floor(footprint.minZ)) >> 4;
         int maxChunkZ = ((int) Math.ceil(footprint.maxZ) - 1) >> 4;
         for (int x = minChunkX; x <= maxChunkX; x++) for (int z = minChunkZ; z <= maxChunkZ; z++)
-            if (!level.hasChunk(x, z)) return new Check(false, "Load the entire assembly footprint before building.");
+            if (!level.hasChunk(x, z)) return new Check(false, "error.skydock.assembly_unloaded");
         String occupant = occupant(level, footprint);
         if (occupant != null) return new Check(false, occupant);
 
@@ -93,42 +96,42 @@ public final class AssemblyManager {
             if (state.isAir()) continue;
             BlockState expected = allowed.get(worldPos);
             if (expected == null || !state.equals(expected))
-                return new Check(false, "Clear every block from the ship's assembly footprint.");
+                return new Check(false, "error.skydock.assembly_blocked");
         }
-        return new Check(true, "Space is clear.");
+        return new Check(true, "status.skydock.space_clear");
     }
 
     /** Things that can move out of the way on their own, so a running assembly waits for them rather than failing. */
     private static String occupant(ServerLevel level, AABB footprint) {
         if (!level.getEntities((Entity) null, footprint, entity -> !entity.isSpectator()).isEmpty())
-            return "Move players, mobs, and vehicles out of the assembly footprint.";
+            return "error.skydock.assembly_entities";
         for (Ship ship : ShipManager.ships(level)) if (ship.pose.toWorld(ship.hullBounds()).intersects(footprint))
-            return "Another launched ship overlaps the assembly footprint.";
+            return "error.skydock.assembly_ship";
         return null;
     }
 
     public static boolean start(ServerPlayer player, DockBlockEntity dock) {
         ServerLevel level = player.serverLevel();
-        if (dock.assemblyJob() != null) { ShipManager.tell(player, "This dock is already assembling a ship."); return false; }
+        if (dock.assemblyJob() != null) { ShipManager.tell(player, "message.skydock.assembly_busy"); return false; }
         ShipPattern pattern = selected(dock);
         Check check = validate(level, dock, pattern, dock.decorations());
         if (!check.clear()) { dock.setStatus(check.message()); ShipManager.tell(player, check.message()); return false; }
         Map<Item, Integer> cost = pattern.cost(dock.decorations());
         Map<Item, Integer> available = AssemblyInventory.available(level, dock.getBlockPos());
         for (Map.Entry<Item, Integer> requirement : cost.entrySet()) if (available.getOrDefault(requirement.getKey(), 0) < requirement.getValue()) {
-            dock.setStatus("The adjacent chest is missing required materials.");
+            dock.setStatus("status.skydock.resources_missing");
             ShipManager.tell(player, dock.status());
             return false;
         }
         List<ItemStack> escrow = AssemblyInventory.extract(level, dock.getBlockPos(), cost);
         if (escrow.isEmpty() && !cost.isEmpty()) {
-            dock.setStatus("Chest contents changed before assembly could start.");
+            dock.setStatus("status.skydock.chest_changed");
             ShipManager.tell(player, dock.status());
             return false;
         }
         dock.beginAssembly(new AssemblyJob(pattern.id(), dock.decorations(), pattern.included(dock.decorations()), escrow));
         register(level, dock);
-        ShipManager.tell(player, "Assembly started: " + pattern.name() + ".");
+        ShipManager.tell(player, "message.skydock.assembly_started", Component.translatable(pattern.name()));
         return true;
     }
 
@@ -142,12 +145,12 @@ public final class AssemblyManager {
         AABB footprint = pattern.bounds(job.decorations).move(dock.tier().origin(dock.getBlockPos()));
         boolean loaded = chunksLoaded(level, footprint);
         String occupant = loaded ? occupant(level, footprint) : null;
-        String paused = !loaded ? "Assembly paused until its footprint is loaded." : occupant != null ? "Assembly paused. " + occupant : null;
+        String paused = !loaded ? "status.skydock.paused_unloaded" : occupant != null ? STATUS + "paused_" + occupant.substring(E.length()) : null;
         if (paused != null) {
             if (!dock.status().equals(paused)) dock.setStatus(paused);
             return;
         }
-        if (dock.status().startsWith("Assembly paused")) dock.setStatus("Assembly in progress.");
+        if (dock.status().startsWith(STATUS + "paused") || dock.status().startsWith("Assembly paused")) dock.setStatus("status.skydock.in_progress");
         BlockPos origin = dock.tier().origin(dock.getBlockPos());
         boolean recovered = false;
         // A world chunk may have saved just ahead of the dock journal. Adopt only the contiguous
@@ -155,7 +158,7 @@ public final class AssemblyManager {
         while (!job.complete()) {
             AssemblyJob.Cell cell = job.cells.get(job.placed);
             if (!level.getBlockState(origin.offset(cell.pos())).equals(cell.state())) break;
-            if (!job.spend(Item.byBlock(cell.state().getBlock()))) { fail(level, dock, "The assembly escrow is incomplete."); return; }
+            if (!job.spend(Item.byBlock(cell.state().getBlock()))) { fail(level, dock, "error.skydock.assembly_escrow"); return; }
             job.placed++;
             recovered = true;
         }
@@ -166,11 +169,11 @@ public final class AssemblyManager {
         while (!job.complete() && placedThisStep++ < BLOCKS_PER_STEP) {
             AssemblyJob.Cell cell = job.cells.get(job.placed);
             BlockPos worldPos = origin.offset(cell.pos());
-            if (!level.getBlockState(worldPos).isAir()) { fail(level, dock, "The assembly footprint became obstructed."); return; }
-            if (!job.spend(Item.byBlock(cell.state().getBlock()))) { fail(level, dock, "The assembly escrow is incomplete."); return; }
+            if (!level.getBlockState(worldPos).isAir()) { fail(level, dock, "error.skydock.assembly_obstructed"); return; }
+            if (!job.spend(Item.byBlock(cell.state().getBlock()))) { fail(level, dock, "error.skydock.assembly_escrow"); return; }
             if (!level.setBlock(worldPos, cell.state(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE)) {
                 AssemblyInventory.merge(job.escrow, job.undoLastSpend());
-                fail(level, dock, "A ship block could not be placed."); return;
+                fail(level, dock, "error.skydock.assembly_place"); return;
             }
             job.placed++;
             level.sendParticles(ParticleTypes.END_ROD, worldPos.getX() + .5, worldPos.getY() + .5, worldPos.getZ() + .5,
@@ -179,7 +182,7 @@ public final class AssemblyManager {
         dock.markAssemblyProgress();
         if (job.complete()) {
             for (AssemblyJob.Cell cell : job.cells) if (!level.getBlockState(origin.offset(cell.pos())).equals(cell.state())) {
-                fail(level, dock, "The completed ship did not match its assembly plan."); return;
+                fail(level, dock, "error.skydock.assembly_mismatch"); return;
             }
             dock.completeAssembly(job.total());
             unregister(level, dock);
@@ -197,7 +200,7 @@ public final class AssemblyManager {
     }
 
     private static void fail(ServerLevel level, DockBlockEntity dock, String reason) {
-        rollback(level, dock, "Assembly cancelled: " + reason);
+        rollback(level, dock, STATUS + "cancelled_" + reason.substring(E.length()));
     }
 
     private static void rollback(ServerLevel level, DockBlockEntity dock, String reason) {

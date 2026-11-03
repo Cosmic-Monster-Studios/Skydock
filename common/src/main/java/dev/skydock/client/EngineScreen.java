@@ -3,6 +3,7 @@ package dev.skydock.client;
 import dev.skydock.menu.EngineMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 
@@ -24,14 +25,14 @@ public final class EngineScreen extends AbstractContainerScreen<EngineMenu> {
     @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         var tier = menu.tier();
         g.drawString(font, title, 14, 11, CANVAS, false);
-        g.drawString(font, "Thrust", 14, 28, BRASS, false);
-        g.drawString(font, "Fuel time", 99, 28, BRASS, false);
-        g.drawString(font, "Speed limit", 184, 28, BRASS, false);
-        g.drawString(font, String.format(java.util.Locale.ROOT, "%.1fx", tier.thrustMultiplier), 14, 40, 0xFFFFFFFF, false);
-        g.drawString(font, String.format(java.util.Locale.ROOT, "%.2fx", tier.fuelEfficiency), 99, 40, 0xFFFFFFFF, false);
-        g.drawString(font, String.format(java.util.Locale.ROOT, "%.1f blocks/s", tier.maxSpeed * 20), 184, 40, 0xFFFFFFFF, false);
-        g.drawString(font, menu.burnTicks() > 0 ? "Fuel manifold burning: " + menu.burnTicks() + " ticks remain" : "Fuel manifold idle: add furnace fuel", 14, 54, menu.burnTicks() > 0 ? 0xFF8BE2C8 : 0xFFE7B98E, false);
-        g.drawString(font, "Inventory", 60, 94, CANVAS, false);
+        g.drawString(font, I18n.get("gui.skydock.engine_thrust"), 14, 28, BRASS, false);
+        g.drawString(font, I18n.get("gui.skydock.engine_fuel"), 99, 28, BRASS, false);
+        g.drawString(font, I18n.get("gui.skydock.engine_speed_limit"), 184, 28, BRASS, false);
+        g.drawString(font, I18n.get("gui.skydock.multiplier", String.format(java.util.Locale.ROOT, "%.1f", tier.thrustMultiplier)), 14, 40, 0xFFFFFFFF, false);
+        g.drawString(font, I18n.get("gui.skydock.multiplier", String.format(java.util.Locale.ROOT, "%.2f", tier.fuelEfficiency)), 99, 40, 0xFFFFFFFF, false);
+        g.drawString(font, I18n.get("gui.skydock.blocks_per_second", String.format(java.util.Locale.ROOT, "%.1f", tier.maxSpeed * 20)), 184, 40, 0xFFFFFFFF, false);
+        g.drawString(font, menu.burnTicks() > 0 ? I18n.get("gui.skydock.engine_burning", menu.burnTicks()) : I18n.get("gui.skydock.engine_idle"), 14, 54, menu.burnTicks() > 0 ? 0xFF8BE2C8 : 0xFFE7B98E, false);
+        g.drawString(font, I18n.get("gui.skydock.inventory"), 60, 94, CANVAS, false);
     }
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) { super.render(g, mouseX, mouseY, partialTick); renderTooltip(g, mouseX, mouseY); }
 }

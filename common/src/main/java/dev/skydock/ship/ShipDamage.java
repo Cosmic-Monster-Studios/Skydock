@@ -90,7 +90,7 @@ public final class ShipDamage {
         }
         ServerPlayer pilot = ship.pilot == null ? null : server.getPlayerList().getPlayer(ship.pilot);
         if (pilot != null && broken > 0)
-            pilot.displayClientMessage(Component.literal("Hull breached: " + broken + (broken == 1 ? " block" : " blocks") + " lost in the collision."), true);
+            pilot.displayClientMessage(broken == 1 ? Component.translatable("message.skydock.hull_breached_one") : Component.translatable("message.skydock.hull_breached", broken), true);
     }
 
     /** Cells of {@code target} (at its current pose) that the striking ship's collision boxes overlap at {@code pose}. */
