@@ -80,7 +80,9 @@ public final class ShipInteractions {
         ShipManager.wake(player.getServer(), ship);
         ItemStack held = player.getMainHandItem();
         if (held.is(SkydockBlocks.SHIPWRIGHT_HAMMER.get())) { ShipRepair.repair(player, ship, held); return; }
+        if (held.is(SkydockBlocks.CARGO_POD_ITEM.get())) { dev.skydock.cargo.PodLoading.place(player, ship, hit); return; }
         BlockState state = ship.state(local);
+        if (held.isEmpty() && state.is(SkydockBlocks.CARGO_POD.get())) { dev.skydock.cargo.PodLoading.take(player, ship, local); return; }
         DeviceBlock.Kind kind = deviceKind(state);
         // On a device the anchor stays out of the way, so the helm and seats still work with it in hand.
         if (kind == null && held.is(SkydockBlocks.WARP_ANCHOR.get())) { dev.skydock.item.WarpAnchorItem.bind(player, held, ship.dimension, ship.dock); return; }

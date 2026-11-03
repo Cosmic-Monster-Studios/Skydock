@@ -454,7 +454,7 @@ public final class ShipManager {
         if (!ship.dormant) return;
         ship.dormant = false; ship.idleTicks = 0; forceTickets(server, ship);
     }
-    static void refresh(MinecraftServer server, Ship ship) {
+    public static void refresh(MinecraftServer server, Ship ship) {
         ServerLevel yard = server.getLevel(SHIPYARD); if (yard == null) return;
         ship.mass = 0; ship.cells = 0; ship.engines = 0; boolean changed = false;
         for (var entry : ship.blocks.entrySet()) {
