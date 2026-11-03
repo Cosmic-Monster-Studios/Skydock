@@ -29,7 +29,13 @@ import java.util.function.Predicate;
  * must be a {@code palette} key naming a block state; {@code decorations} lists the palette keys that are decorations.
  */
 public final class PatternJson {
-    private static final String CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    /** Writer palette: ASCII letters and digits first, then every BMP letter in U+00C0-U+1FFF (about 4,000), each a single UTF-16 unit. */
+    private static final String CHARACTERS = characters();
+    private static String characters() {
+        StringBuilder text = new StringBuilder("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        for (char c = 0xC0; c <= 0x1FFF; c++) if (Character.isLetter(c)) text.append(c);
+        return text.toString();
+    }
     private PatternJson() {}
 
     /** Parses against Skydock's helm; production passes {@link #state} as {@code states}. */
@@ -90,7 +96,7 @@ public final class PatternJson {
         return new ShipPattern(id, name, description, tier, blocks);
     }
 
-    /** Palette characters come from {@code a-zA-Z0-9}; a block that appears both as hull and decoration gets two. */
+    /** Palette characters come from {@link #CHARACTERS}; a block that appears both as hull and decoration gets two. */
     public static JsonObject write(ShipPattern pattern, Function<BlockState, String> states) {
         Map<ShipPattern.Block, Character> keys = new LinkedHashMap<>(); // keyed by (state, decoration) with pos zeroed
         int maxX = 0, maxY = 0, maxZ = 0;

@@ -17,4 +17,13 @@ class ShipSleepTest {
         assertTrue(ShipSleep.sleeps(true, false, 600));
         assertFalse(ShipSleep.sleeps(true, true, 10_000));
     }
+    @Test void idleTimeOnlyBuildsWhileRestfulAndNobodyIsNear() {
+        assertEquals(20, ShipSleep.nextIdle(true, false, 0));
+        assertEquals(0, ShipSleep.nextIdle(true, true, 580), "a nearby player resets the count");
+        assertEquals(0, ShipSleep.nextIdle(false, false, 580));
+        long idle = 0;
+        for (int i = 0; i < 100; i++) idle = ShipSleep.nextIdle(true, true, idle);
+        idle = ShipSleep.nextIdle(true, false, idle);
+        assertFalse(ShipSleep.sleeps(true, false, idle), "leaving range must not put the ship to sleep at once");
+    }
 }

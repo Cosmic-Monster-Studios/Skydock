@@ -152,6 +152,7 @@
   "message.skydock.ready_to_launch": "Ready to launch.",
   "message.skydock.blueprint_saved": "Saved the hull as pattern %s. The first time, run /datapack enable \"file/%s\"; then run /reload to add it to the dock screens.",
   "message.skydock.blueprint_bad_name": "Blueprint names use 1 to 32 lowercase letters, digits and underscores.",
+  "message.skydock.usage": "Skydock: inspect / launch / redock <controller x y z>; use; release; cruise; control <thrust -1..1> <yaw -1..1> <climb -1..1>; status; blueprint export <controller x y z> <name> (operators)",
   "message.skydock.blueprint_exists": "A pattern named %s already exists. Choose another name.",
   "message.skydock.blueprint_invalid": "Only a hull that passes inspection can be saved: %s",
   "message.skydock.blueprint_unsupported": "This hull cannot be saved as a pattern: %s",

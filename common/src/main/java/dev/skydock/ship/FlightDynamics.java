@@ -15,6 +15,11 @@ public final class FlightDynamics {
     public static double engineLoad(double appliedThrottle, double steering) {
         return Math.clamp(Math.max(Math.abs(appliedThrottle), .35 * Math.abs(steering)), 0, 1);
     }
+    /** Engine load for the tick: a held throttle or cruise keeps a floor load, so reversing through zero never runs unpowered. */
+    public static double effectiveLoad(double appliedThrottle, double steering, double throttle, boolean cruise) {
+        double load = engineLoad(appliedThrottle, steering);
+        return cruise || Math.abs(throttle) > .001 ? Math.max(load, .05) : load;
+    }
     public static double turnRate(double mass, double hullLength) {
         return Math.clamp(1.8 / Math.max(1, Math.sqrt(mass / 20000) * Math.max(1, hullLength / 48)), .45, 1.8);
     }

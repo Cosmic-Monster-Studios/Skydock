@@ -355,7 +355,7 @@ public final class ShipManager {
                     forceTickets(server, ship); refresh(server, ship);
                     boolean crewed = ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship.equals(ship.id));
                     boolean restful = ShipSleep.restful(crewed, ship.cruise, ship.velocity.lengthSqr(), ship.moored, ship.lift, ship.mass);
-                    ship.idleTicks = restful ? ship.idleTicks + 20 : 0;
+                    ship.idleTicks = ShipSleep.nextIdle(restful, near, ship.idleTicks);
                     if (ShipSleep.sleeps(restful, near, ship.idleTicks)) { releaseTickets(server, ship); ship.dormant = true; }
                 }
             }
@@ -374,7 +374,7 @@ public final class ShipManager {
             carry(level, ship, ship.previousPose);
             ShipDamage.ram(level, ship);
             if (tick % 2 == 0) ShipNetwork.syncPose(server, ship, false);
-            SavedState state = new SavedState(ship.pose, ship.velocity, ship.phase, ship.moored, ship.cruise, ship.pilot, ship.seated.size(), ship.revision, ship.mass, ship.lift);
+            SavedState state = new SavedState(ship.pose, ship.velocity, ship.phase, ship.moored, ship.cruise, ship.pilot, ship.seated.size(), ship.revision, ship.mass, ship.lift, ship.holdAltitude, ship.headingLock, ship.cruiseSpeed);
             if (!state.equals(ship.savedState)) { ship.savedState = state; changed = true; }
         }
         // Region tickets load chunks, but an empty dimension otherwise stops BE ticks after 300 ticks.
@@ -383,7 +383,7 @@ public final class ShipManager {
         if (tick % 20 == 0) ShipNetwork.syncPlayers(server);
         if (changed) data.setDirty();
     }
-    private record SavedState(ShipPose pose, Vec3 velocity, String phase, boolean moored, boolean cruise, UUID pilot, int seated, int revision, double mass, double lift) {}
+    private record SavedState(ShipPose pose, Vec3 velocity, String phase, boolean moored, boolean cruise, UUID pilot, int seated, int revision, double mass, double lift, double holdAltitude, double headingLock, double cruiseSpeed) {}
     private static boolean playerNear(MinecraftServer server, Ship ship) {
         double range = ShipSleep.WAKE_RANGE * ShipSleep.WAKE_RANGE; AABB box = ship.bounds();
         for (ServerPlayer player : server.getPlayerList().getPlayers())

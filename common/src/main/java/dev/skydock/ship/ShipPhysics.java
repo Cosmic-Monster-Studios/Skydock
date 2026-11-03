@@ -30,8 +30,7 @@ public final class ShipPhysics {
         double poweredThrust = 0;
         if (ship.cruise || Math.abs(ship.throttle) > .001 || Math.abs(ship.appliedThrottle) > .001 || Math.abs(steeringInput) > .01) {
             ServerLevel yard = server.getLevel(ShipManager.SHIPYARD);
-            double load = FlightDynamics.engineLoad(ship.appliedThrottle, steeringInput);
-            if (ship.cruise) load = Math.max(load, .05);
+            double load = FlightDynamics.effectiveLoad(ship.appliedThrottle, steeringInput, ship.throttle, ship.cruise);
             for (BlockPos p : ship.enginePositions()) if (yard.getBlockEntity(ship.yard.offset(p)) instanceof EngineBlockEntity engine && engine.burn(load)) {
                 EngineTier tier = engine.tier();
                 poweredThrust += tier.thrustMultiplier;

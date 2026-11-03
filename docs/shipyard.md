@@ -54,7 +54,7 @@ The mooring clamp can secure a ship only within five blocks of its reserved bert
 
 ## Repair
 
-Use a **Shipwright's Hammer** (three iron ingots over two sticks, like an iron pickaxe) aboard a ship you may operate, within 8 blocks of the hull. Each use restores up to 16 missing blocks, nearest first, to the hull recorded at launch. Every block costs one of its item, taken from containers aboard and then from your inventory, and one point of the hammer's 250 durability. Blocks without an item form, places already filled, and places a creature stands in are skipped. Restored containers start empty.
+Use a **Shipwright's Hammer** (three iron ingots and two sticks, set diagonally: ingots at top middle, top right and middle right; sticks at middle and bottom left) aboard a ship you may operate, within 8 blocks of the hull. Each use restores up to 16 missing blocks, nearest first, to the hull recorded at launch. Every block costs one of its item, taken from containers aboard and then from your inventory, and one point of the hammer's 250 durability. Blocks without an item form, places already filled, and places a creature stands in are skipped. Restored containers start empty.
 
 ## Docking
 

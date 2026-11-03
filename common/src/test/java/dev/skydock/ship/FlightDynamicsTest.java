@@ -11,6 +11,13 @@ class FlightDynamicsTest {
         assertEquals(12.298, FlightDynamics.inertia(245_760), .001);
         for (double m = 0; m < 250_000; m += 500) assertTrue(FlightDynamics.inertia(m + 500) > FlightDynamics.inertia(m));
     }
+    @Test void reversingThroughZeroStillLoadsTheEngines() {
+        assertEquals(.05, FlightDynamics.effectiveLoad(0, 0, 1, false), 1e-9, "throttle held, applied crossing zero");
+        assertEquals(.05, FlightDynamics.effectiveLoad(0, 0, 0, true), 1e-9, "cruise floor");
+        assertEquals(0, FlightDynamics.effectiveLoad(0, 0, 0, false), 1e-9);
+        assertEquals(.7, FlightDynamics.effectiveLoad(.7, 0, 1, false), 1e-9);
+    }
+
     @Test void engineLoadFollowsThrottleAndSteering() {
         assertEquals(1, FlightDynamics.engineLoad(1, 0), 1e-9);
         assertEquals(.1, FlightDynamics.engineLoad(.1, 0), 1e-9);

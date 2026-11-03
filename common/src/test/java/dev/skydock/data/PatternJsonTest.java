@@ -10,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -95,6 +96,26 @@ class PatternJsonTest {
         assertEquals(pattern, PatternJson.parse(ID, written, STATES, HELM));
         for (String key : written.getAsJsonObject("palette").keySet())
             assertTrue(key.length() == 1 && Character.isLetterOrDigit(key.charAt(0)), key);
+    }
+
+    @Test void hullsWithManyDistinctStatesRoundTrip() {
+        java.util.List<BlockState> states = new java.util.ArrayList<>();
+        for (Block stairs : new Block[] {Blocks.OAK_STAIRS, Blocks.STONE_STAIRS, Blocks.BRICK_STAIRS})
+            for (BlockState state : stairs.getStateDefinition().getPossibleStates()) states.add(state);
+        for (BlockState state : Blocks.OAK_FENCE.getStateDefinition().getPossibleStates()) states.add(state);
+        for (BlockState state : Blocks.BIRCH_FENCE.getStateDefinition().getPossibleStates()) states.add(state);
+        states.addAll(BuiltInRegistries.BLOCK.stream().map(Block::defaultBlockState).limit(120).toList());
+        java.util.List<BlockState> distinct = states.stream().distinct().limit(250).toList();
+        assertTrue(distinct.size() > 200, "need more than 200 distinct states, have " + distinct.size());
+        java.util.List<ShipPattern.Block> cells = new java.util.ArrayList<>();
+        for (int i = 0; i < distinct.size(); i++) cells.add(new ShipPattern.Block(new BlockPos(i % 16, 0, i / 16), distinct.get(i), false));
+        cells.set(0, new ShipPattern.Block(BlockPos.ZERO, Blocks.LECTERN.defaultBlockState(), false));
+        ShipPattern pattern = new ShipPattern(ID, "big", "d", DockTier.SCOUT, cells);
+        JsonObject written = PatternJson.write(pattern, BlockStateParser::serialize);
+        assertTrue(written.getAsJsonObject("palette").size() > 200);
+        String text = new com.google.gson.GsonBuilder().disableHtmlEscaping().create().toJson(written);
+        ShipPattern parsed = PatternJson.parse(ID, JsonParser.parseString(text).getAsJsonObject(), STATES, HELM);
+        assertEquals(Set.copyOf(pattern.blocks()), Set.copyOf(parsed.blocks()));
     }
 
     @Test void builtInCatalogRoundTrips() {

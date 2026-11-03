@@ -10,9 +10,9 @@
     }
   },
   "pattern": [
-    "III",
-    " S ",
-    " S "
+    " II",
+    " SI",
+    "S  "
   ],
   "result": {
     "id": "skydock:shipwright_hammer",

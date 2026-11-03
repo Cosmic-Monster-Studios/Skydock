@@ -37,7 +37,7 @@ public final class SkydockCommands {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         var root = literal("skydock").executes(ctx -> {
-            ctx.getSource().sendSuccess(() -> Component.literal("Skydock: inspect / launch / redock <controller x y z>; use; release; cruise; control <thrust -1..1> <yaw -1..1> <climb -1..1>; status; blueprint export <controller x y z> <name> (operators)"), false); return 1;
+            ctx.getSource().sendSuccess(() -> Component.translatable("message.skydock.usage"), false); return 1;
         });
         root.then(literal("inspect").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.inspect(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));
         root.then(literal("launch").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.launch(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));

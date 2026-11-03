@@ -14,5 +14,7 @@ public final class ShipSleep {
     public static boolean restful(boolean crewed, boolean cruise, double speedSq, boolean moored, double lift, double mass) {
         return !crewed && !cruise && speedSq < STILL && (moored || lift >= mass);
     }
+    /** The idle count after one once-a-second check: only restful time with nobody near counts, so it must be unbroken for {@link #SLEEP_AFTER}. */
+    public static long nextIdle(boolean restful, boolean playerNear, long idleTicks) { return restful && !playerNear ? idleTicks + 20 : 0; }
     public static boolean sleeps(boolean restful, boolean playerNear, long idleTicks) { return restful && !playerNear && idleTicks >= SLEEP_AFTER; }
 }
