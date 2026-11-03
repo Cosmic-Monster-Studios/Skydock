@@ -20,6 +20,11 @@ public final class Navigation {
     }
     /** Rounds a yaw to the nearest 15 degrees, in 0-360. */
     public static double snapHeading(double yaw) { return Math.floorMod(Math.round(yaw / 15) * 15, 360); }
+    /** HUD text for the berth line: distance, bearing (0-359), signed height difference and signed yaw error, all whole numbers. */
+    public static String[] berthText(Berth berth) {
+        return new String[]{String.valueOf(Math.round(berth.distance)), String.valueOf(Math.floorMod(Math.round(berth.bearing), 360L)),
+                String.format(java.util.Locale.ROOT, "%+d", Math.round(berth.dy)), String.format(java.util.Locale.ROOT, "%+d", Math.round(berth.yawError))};
+    }
     /** The 8-point compass name of a yaw. */
     public static String compass(double yaw) { return POINTS[(int) Math.floorMod(Math.round(yaw / 45), 8L)]; }
 }

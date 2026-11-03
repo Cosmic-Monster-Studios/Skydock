@@ -20,6 +20,8 @@ public final class FlightDynamics {
     }
     /** Climb input that holds an altitude: proportional to the error, damped by vertical speed. */
     public static double holdClimb(double targetY, double y, double vy) { return Math.clamp(.6 * (targetY - y) - 4 * vy, -1, 1); }
+    /** Moves an altitude-hold target by the climb input (.15 blocks/tick), never more than 8 blocks from the ship so it cannot wind up out of reach. */
+    public static double moveHoldTarget(double target, double y, double climb) { return Math.clamp(target + climb * .15, y - 8, y + 8); }
     /** Steering input that turns the short way to a heading, damped by the current turn rate. */
     public static double headingSteer(double targetYaw, double yaw, double yawVelocity) {
         return Math.clamp(net.minecraft.util.Mth.wrapDegrees(targetYaw - yaw) / 15 - yawVelocity / 2, -1, 1);

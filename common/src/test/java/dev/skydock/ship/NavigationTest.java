@@ -37,6 +37,10 @@ class NavigationTest {
         assertEquals(345, Navigation.snapHeading(-10), 1e-9);
         assertEquals(90, Navigation.snapHeading(450), 1e-9);
     }
+    @Test void berthTextIsWholeNumbersAndWrapsTheBearing() {
+        assertArrayEquals(new String[]{"12", "0", "-4", "+15"}, Navigation.berthText(new Navigation.Berth(12.2, 359.8, -3.6, 14.7)));
+        assertArrayEquals(new String[]{"3", "90", "+0", "-10"}, Navigation.berthText(new Navigation.Berth(3, 90, 0, -10)));
+    }
     @Test void compassHasEightPoints() {
         assertEquals("N", Navigation.compass(0));
         assertEquals("NE", Navigation.compass(45));

@@ -44,7 +44,7 @@
   "message.skydock.no_owned_ship": "No owned ship is available in this dimension.",
   "message.skydock.berth_too_small": "The berth must be the same tier or larger.",
   "message.skydock.berth_reserved_other": "This berth is reserved by another ship.",
-  "message.skydock.redock_alignment": "Align within 4 blocks of the berth center, yaw within 10 degrees of north, and slow below 1.6 blocks/second.",
+  "message.skydock.redock_alignment": "Align within 4 blocks of the berth center, yaw within 10 degrees of the berth's heading, and slow below 1.6 blocks/second.",
   "message.skydock.redocked": "Redocked. Real blocks and inventories are back in the berth; rebuilding is enabled.",
   "message.skydock.redock_paused": "Redock paused for recovery. The transfer journal is saved.",
   "message.skydock.device_aboard": "This device operates aboard a launched ship.",

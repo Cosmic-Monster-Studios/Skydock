@@ -28,6 +28,12 @@ class FlightDynamicsTest {
         assertTrue(FlightDynamics.holdClimb(100, 100, .1) < 0);
         assertTrue(FlightDynamics.holdClimb(100, 100, -.1) > 0);
     }
+    @Test void holdTargetFollowsInputButStaysWithinEightBlocks() {
+        assertEquals(100.15, FlightDynamics.moveHoldTarget(100, 100, 1), 1e-9);
+        assertEquals(108, FlightDynamics.moveHoldTarget(107.95, 100, 1), 1e-9);
+        assertEquals(92, FlightDynamics.moveHoldTarget(92.05, 100, -1), 1e-9);
+        assertEquals(108, FlightDynamics.moveHoldTarget(150, 100, 0), 1e-9, "a target already out of reach is pulled back in");
+    }
     @Test void headingSteerTurnsTheShortWay() {
         assertTrue(FlightDynamics.headingSteer(10, 350, 0) > 0);
         assertTrue(FlightDynamics.headingSteer(350, 10, 0) < 0);

@@ -73,8 +73,7 @@ public final class SkydockClient {
                 // The client knows the ship's reserved berth from its header; show the line only to those flying or seated aboard.
                 ShipPose home = ship.homePose();
                 Navigation.Berth berth = Navigation.berth(ship.pose, new Vec3(home.x(), home.y(), home.z()), home.yaw());
-                status.add(I18n.get("hud.skydock.berth", String.format(Locale.ROOT, "%.0f", berth.distance()), String.format(Locale.ROOT, "%.0f", Math.floorMod(Math.round(berth.bearing()), 360L)),
-                        String.format(Locale.ROOT, "%+.0f", berth.dy()), String.format(Locale.ROOT, "%+.0f", berth.yawError())));
+                status.add(I18n.get("hud.skydock.berth", (Object[]) Navigation.berthText(berth)));
                 if (Navigation.redockReady(berth, ship.velocity.length())) status.add(I18n.get("hud.skydock.redock_ready"));
             }
             if (ship.cruise) status.add(I18n.get("hud.skydock.cruise", String.format(Locale.ROOT, "%.1f", ship.cruiseSpeed * 20)));

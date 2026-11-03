@@ -19,7 +19,7 @@ public final class ShipPhysics {
         // Holds drive local copies of the pilot's inputs; the raw input fields stay the pilot's.
         double climbInput = ship.climb, steeringInput = ship.steering;
         if (!Double.isNaN(ship.holdAltitude)) {
-            ship.holdAltitude += ship.climb * .15;
+            ship.holdAltitude = FlightDynamics.moveHoldTarget(ship.holdAltitude, ship.pose.y(), ship.climb);
             climbInput = FlightDynamics.holdClimb(ship.holdAltitude, ship.pose.y(), ship.velocity.y);
         }
         if (!Double.isNaN(ship.headingLock)) {
