@@ -190,7 +190,10 @@ public final class ShipRenderer {
         if (nearest != null) LevelRenderer.renderLineBox(outlines, buffers.getBuffer(RenderType.lines()), nearest.getValue().envelope(), .35f, .9f, .76f, .8f);
         if (mc.player.getMainHandItem().getItem() instanceof net.minecraft.world.item.BlockItem item && item.getBlock() instanceof DockControllerBlock dock
                 && mc.hitResult instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
-            LevelRenderer.renderLineBox(outlines, buffers.getBuffer(RenderType.lines()), new dev.skydock.data.DockFrame(hit.getBlockPos().relative(hit.getDirection()), mc.player.getDirection(), dock.tier).envelope(), .5f, .75f, 1, .8f);
+            var context = new net.minecraft.world.item.context.BlockPlaceContext(mc.player, net.minecraft.world.InteractionHand.MAIN_HAND, mc.player.getMainHandItem(), hit);
+            var frame = new dev.skydock.data.DockFrame(context.getClickedPos(), context.getHorizontalDirection(), dock.tier);
+            boolean clear = previewClear(mc.level, frame);
+            LevelRenderer.renderLineBox(outlines, buffers.getBuffer(RenderType.lines()), frame.envelope(), clear ? .35f : 1, clear ? 1 : .3f, clear ? .45f : .3f, .9f);
         }
         ShipInteractions.Hit hit = ShipInteractions.pick(mc.player);
         if (hit != null) {
@@ -200,5 +203,16 @@ public final class ShipRenderer {
             LevelRenderer.renderLineBox(selection, buffers.getBuffer(RenderType.lines()), new AABB(hit.localHit().getBlockPos()).inflate(.003), .9f, 1, 1, .9f);
         }
         buffers.endBatch(RenderType.lines());
+    }
+    private static dev.skydock.data.DockFrame previewFrame;
+    private static long previewTick;
+    private static boolean previewClear;
+    /** Placement scans the whole berth, so the preview rescans only when the frame moves or twice a second. */
+    private static boolean previewClear(net.minecraft.world.level.Level level, dev.skydock.data.DockFrame frame) {
+        long now = level.getGameTime();
+        if (!frame.equals(previewFrame) || now - previewTick >= 10 || now < previewTick) {
+            previewFrame = frame; previewTick = now; previewClear = DockControllerBlock.clearance(level, frame).clear();
+        }
+        return previewClear;
     }
 }
