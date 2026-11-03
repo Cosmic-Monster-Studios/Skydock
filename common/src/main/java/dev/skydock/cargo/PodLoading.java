@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import java.util.Map;
@@ -49,10 +50,11 @@ public final class PodLoading {
         if (!world.getEntitiesOfClass(LivingEntity.class, box, e -> e.isAlive() && !e.isSpectator()).isEmpty()) { ShipManager.tell(player, "message.skydock.pod_occupied"); return; }
         BlockPos at = ship.yard.offset(cell); BlockState state = SkydockBlocks.CARGO_POD.get().defaultBlockState();
         if (!yard.setBlock(at, state, FLAGS)) return;
-        if (yard.getBlockEntity(at) instanceof CargoPodBlockEntity pod) pod.setCargo(cargo);
+        if (!(yard.getBlockEntity(at) instanceof CargoPodBlockEntity pod)) { yard.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS); return; }
+        pod.setCargo(cargo);
         ship.blocks.put(cell.immutable(), state); ship.blueprint.put(cell.immutable(), state);
         yard.updateNeighborsAt(at, state.getBlock());
-        if (!player.getAbilities().instabuild) held.shrink(1);
+        held.shrink(1);
         ship.revision++; ShipManager.refresh(server, ship); ShipNetwork.syncPlayers(server);
     }
 
@@ -62,13 +64,17 @@ public final class PodLoading {
     public static void take(ServerPlayer player, Ship ship, BlockPos local) {
         var server = player.getServer(); ServerLevel yard = server.getLevel(ShipManager.SHIPYARD); if (yard == null) return;
         BlockPos at = ship.yard.offset(local);
-        if (!(yard.getBlockEntity(at) instanceof CargoPodBlockEntity pod) || pod.cargo() == null) return;
+        if (!(yard.getBlockEntity(at) instanceof CargoPodBlockEntity pod) || pod.cargo() == null) {
+            ShipManager.tell(player, "message.skydock.pod_empty");
+            yard.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS); forget(ship, local);
+            ship.revision++; ShipManager.refresh(server, ship); ShipNetwork.syncPlayers(server); return;
+        }
         PodCargo cargo = pod.cargo(); PodTag tag = cargo.tag();
         var holder = CargoSavedData.get(server).findContract(tag.contract());
         boolean mine = holder != null && holder.getKey().equals(player.getUUID());
         if (!(mine || tag.ejected() || holder == null)) { ShipManager.tell(player, "message.skydock.pod_not_yours"); return; }
         if (!ship.moored) { ShipManager.tell(player, "message.skydock.pod_moor_first"); return; }
-        yard.setBlock(at, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), FLAGS);
+        yard.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS);
         forget(ship, local);
         ItemStack item = CargoPodItem.create(tag, cargo.cargoKey(), cargo.destination());
         if (!player.getInventory().add(item)) player.drop(item, false);
