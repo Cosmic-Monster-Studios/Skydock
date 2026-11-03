@@ -4,7 +4,8 @@ Run from the repository root: python3 assets-source/structures/cargo_outpost.py
 
 Template frame (terminal faces north, toward the pad):
   x 1..9, z 1..9  the 9 x 9 landing pad at y=0, painted border, clear air above
-  x 3..7, z 10..14 the 5 x 5 terminal building, door in its north wall
+  x 3..7, z 10..14 the 5 x 5 terminal building; its north wall, on the pad edge, holds the door
+                   and the terminal beside it, facing the pad
   x 0, z 0        lamp post with a brass lantern, off the pad's north-west corner
 Cells not listed are structure void, so the terrain there is kept."""
 import gzip, os, struct
@@ -13,7 +14,7 @@ OUT = "common/src/main/resources/data/skydock/structure/cargo_outpost/outpost.nb
 SIZE = (11, 6, 15)
 PAD = range(1, 10)
 BUILDING_X, BUILDING_Z = range(3, 8), range(10, 15)
-TERMINAL = (5, 1, 12)
+TERMINAL = (4, 1, 10)
 PAD_TOP_CENTRE = (5, 1, 5)
 
 

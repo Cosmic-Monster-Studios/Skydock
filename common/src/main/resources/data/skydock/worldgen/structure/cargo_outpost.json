@@ -10,5 +10,6 @@
   },
   "start_pool": "skydock:cargo_outpost/start",
   "step": "surface_structures",
-  "terrain_adaptation": "beard_box"
+  "terrain_adaptation": "beard_box",
+  "use_expansion_hack": false
 }

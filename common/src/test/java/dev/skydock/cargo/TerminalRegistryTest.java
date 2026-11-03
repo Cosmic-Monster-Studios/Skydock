@@ -48,8 +48,10 @@ class TerminalRegistryTest {
         assertEquals("skydock:cargo_terminal", terminal.getCompound("nbt").getString("id"));
         ListTag p = terminal.getList("pos", Tag.TAG_INT); int[] offset = terminal.getCompound("nbt").getIntArray("PadOffset");
         BlockPos pad = new BlockPos(p.getInt(0) + offset[0], p.getInt(1) + offset[1] - 1, p.getInt(2) + offset[2]);
-        CompoundTag surface = blocks.stream().map(CompoundTag.class::cast).filter(b -> { ListTag q = b.getList("pos", Tag.TAG_INT); return q.getInt(0) == pad.getX() && q.getInt(1) == pad.getY() && q.getInt(2) == pad.getZ(); }).findFirst().orElseThrow();
-        assertEquals("minecraft:smooth_stone", palette.getCompound(surface.getInt("state")).getString("Name"));
+        java.util.function.Function<BlockPos, String> nameAt = at -> blocks.stream().map(CompoundTag.class::cast).filter(b -> { ListTag q = b.getList("pos", Tag.TAG_INT); return q.getInt(0) == at.getX() && q.getInt(1) == at.getY() && q.getInt(2) == at.getZ(); })
+                .map(b -> palette.getCompound(b.getInt("state")).getString("Name")).findFirst().orElse("structure_void");
+        assertEquals("minecraft:smooth_stone", nameAt.apply(pad));
+        assertEquals("minecraft:yellow_concrete", nameAt.apply(new BlockPos(p.getInt(0), p.getInt(1) - 1, p.getInt(2) - 1)), "the terminal stands at the pad's painted edge");
         assertEquals(3955, template.getInt("DataVersion"));
     }
 }
