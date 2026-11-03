@@ -15,7 +15,7 @@ public final class ShipPhysics {
     public static void step(MinecraftServer server, ServerLevel world, Ship ship) {
         if (ship.moored) { ship.velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.cruise = false; ship.appliedThrottle = ship.appliedClimb = 0; return; }
         Vec3 forward = ShipPose.rotate(new Vec3(0, 0, -1), ship.pose.yaw());
-        double inertia = Math.max(1, ship.mass / 20000);
+        double inertia = FlightDynamics.inertia(ship.mass);
         EngineTier poweredTier = null;
         double poweredThrust = 0;
         if (ship.cruise || Math.abs(ship.throttle) > .001 || Math.abs(ship.appliedThrottle) > .001 || Math.abs(ship.steering) > .01) {

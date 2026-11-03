@@ -9,6 +9,8 @@ public final class FlightDynamics {
     public static double approach(double current, double target, double step) {
         return current + Math.clamp(target - current, -step, step);
     }
+    /** Acceleration divisor: smooth in mass, .5 for an empty hull and ~mass/20000 for heavy ones. */
+    public static double inertia(double mass) { return Math.sqrt(.25 + Math.pow(mass / 20000, 2)); }
     public static double turnRate(double mass, double hullLength) {
         return Math.clamp(1.8 / Math.max(1, Math.sqrt(mass / 20000) * Math.max(1, hullLength / 48)), .45, 1.8);
     }
