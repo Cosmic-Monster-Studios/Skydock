@@ -16,11 +16,21 @@ public final class ShipPhysics {
         if (ship.moored) { ship.velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.cruise = false; ship.appliedThrottle = ship.appliedClimb = 0; return; }
         Vec3 forward = ShipPose.rotate(new Vec3(0, 0, -1), ship.pose.yaw());
         double inertia = FlightDynamics.inertia(ship.mass);
+        // Holds drive local copies of the pilot's inputs; the raw input fields stay the pilot's.
+        double climbInput = ship.climb, steeringInput = ship.steering;
+        if (!Double.isNaN(ship.holdAltitude)) {
+            ship.holdAltitude += ship.climb * .15;
+            climbInput = FlightDynamics.holdClimb(ship.holdAltitude, ship.pose.y(), ship.velocity.y);
+        }
+        if (!Double.isNaN(ship.headingLock)) {
+            ship.headingLock = Mth.positiveModulo(ship.headingLock + ship.steering * 1.5, 360);
+            steeringInput = FlightDynamics.headingSteer(ship.headingLock, ship.pose.yaw(), ship.yawVelocity);
+        }
         EngineTier poweredTier = null;
         double poweredThrust = 0;
-        if (ship.cruise || Math.abs(ship.throttle) > .001 || Math.abs(ship.appliedThrottle) > .001 || Math.abs(ship.steering) > .01) {
+        if (ship.cruise || Math.abs(ship.throttle) > .001 || Math.abs(ship.appliedThrottle) > .001 || Math.abs(steeringInput) > .01) {
             ServerLevel yard = server.getLevel(ShipManager.SHIPYARD);
-            double load = FlightDynamics.engineLoad(ship.appliedThrottle, ship.steering);
+            double load = FlightDynamics.engineLoad(ship.appliedThrottle, steeringInput);
             if (ship.cruise) load = Math.max(load, .05);
             for (BlockPos p : ship.enginePositions()) if (yard.getBlockEntity(ship.yard.offset(p)) instanceof EngineBlockEntity engine && engine.burn(load)) {
                 EngineTier tier = engine.tier();
@@ -39,7 +49,7 @@ public final class ShipPhysics {
         if (ship.cruise) ship.cruiseSpeed = Math.clamp(ship.cruiseSpeed + ship.throttle * .006, -speedLimit, speedLimit);
         double requested = ship.cruise ? FlightDynamics.cruiseThrottle(ship.velocity.dot(forward), ship.cruiseSpeed) * inertia : ship.throttle;
         ship.appliedThrottle = FlightDynamics.approach(ship.appliedThrottle, Math.clamp(requested, -1, 1), .1);
-        ship.appliedClimb = FlightDynamics.approach(ship.appliedClimb, ship.climb, .12);
+        ship.appliedClimb = FlightDynamics.approach(ship.appliedClimb, climbInput, .12);
         double thrust = powered ? ship.appliedThrottle * FlightDynamics.ACCELERATION * poweredThrust / inertia : 0;
         Vec3 lateral = new Vec3(ship.velocity.x, 0, ship.velocity.z).subtract(forward.scale(ship.velocity.dot(forward)));
         Vec3 velocity = ship.velocity.multiply(.97, .9, .97).subtract(lateral.scale(.12)).add(forward.scale(thrust));
@@ -50,7 +60,7 @@ public final class ShipPhysics {
             double scale = speedLimit / velocity.horizontalDistance(); velocity = new Vec3(velocity.x * scale, velocity.y, velocity.z * scale);
         }
         double hullLength = Math.max(ship.hullBounds().getXsize(), ship.hullBounds().getZsize());
-        double desiredTurn = powered ? ship.steering * FlightDynamics.turnRate(ship.mass, hullLength) : 0;
+        double desiredTurn = powered ? steeringInput * FlightDynamics.turnRate(ship.mass, hullLength) : 0;
         ship.yawVelocity = FlightDynamics.approach(ship.yawVelocity, desiredTurn, desiredTurn == 0 ? .28 : .18);
         double turn = ship.yawVelocity;
         // A hovering hull cannot move into terrain, so skip the full-envelope collision scan.
@@ -79,6 +89,7 @@ public final class ShipPhysics {
             if (!clear && collides(world, ship, next, terrain == Terrain.SOLID, neighbors, inside)) {
                 Vec3 impact = velocity;
                 ship.blocked = true; velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.cruise = false; ship.appliedThrottle = 0;
+                ship.holdAltitude = ship.headingLock = Double.NaN;
                 ShipDamage.impact(server, world, ship, next, impact, turn, neighbors);
                 break;
             }

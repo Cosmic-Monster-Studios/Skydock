@@ -18,6 +18,12 @@ public final class FlightDynamics {
     public static double turnRate(double mass, double hullLength) {
         return Math.clamp(1.8 / Math.max(1, Math.sqrt(mass / 20000) * Math.max(1, hullLength / 48)), .45, 1.8);
     }
+    /** Climb input that holds an altitude: proportional to the error, damped by vertical speed. */
+    public static double holdClimb(double targetY, double y, double vy) { return Math.clamp(.6 * (targetY - y) - 4 * vy, -1, 1); }
+    /** Steering input that turns the short way to a heading, damped by the current turn rate. */
+    public static double headingSteer(double targetYaw, double yaw, double yawVelocity) {
+        return Math.clamp(net.minecraft.util.Mth.wrapDegrees(targetYaw - yaw) / 15 - yawVelocity / 2, -1, 1);
+    }
     public static double cruiseThrottle(double speed, double target) {
         return Math.clamp((.03 * target + .2 * (target - speed)) / ACCELERATION, -1, 1);
     }

@@ -27,6 +27,8 @@ public final class SkydockClient {
     private static final Map<UUID, ShipMotion> motions = new HashMap<>();
     private static final KeyMapping RELEASE = new KeyMapping("key.skydock.release", 82, "key.categories.skydock");
     private static final KeyMapping CRUISE = new KeyMapping("key.skydock.cruise", 67, "key.categories.skydock");
+    private static final KeyMapping ALTITUDE_HOLD = new KeyMapping("key.skydock.altitude_hold", 72, "key.categories.skydock");
+    private static final KeyMapping HEADING_LOCK = new KeyMapping("key.skydock.heading_lock", 74, "key.categories.skydock");
     private static boolean inWorld;
     /** Entity collision asks for the level's ships on every move; rebuilt only when the ship map changes. */
     private static List<Ship> levelShips;
@@ -51,6 +53,8 @@ public final class SkydockClient {
         SkydockBlocks.ENGINE_MENU.listen(type -> MenuRegistry.registerScreenFactory(type, EngineScreen::new));
         KeyMappingRegistry.register(RELEASE);
         KeyMappingRegistry.register(CRUISE);
+        KeyMappingRegistry.register(ALTITUDE_HOLD);
+        KeyMappingRegistry.register(HEADING_LOCK);
         ShipCamera.init();
         ClientTickEvent.CLIENT_PRE.register(SkydockClient::tick);
         ClientTickEvent.CLIENT_POST.register(SkydockClient::moveShips);
@@ -61,6 +65,18 @@ public final class SkydockClient {
             if (ship == null) return;
             List<String> status = new ArrayList<>(List.of(I18n.get("hud.skydock.title"), I18n.get("hud.skydock.speed", String.format(Locale.ROOT, "%.1f", ship.velocity.length() * 20)),
                     I18n.get("hud.skydock.altitude", String.format(Locale.ROOT, "%.0f", ship.pose.y()))));
+            double heading = Math.floorMod(Math.round(ship.pose.yaw()), 360);
+            status.add(I18n.get("hud.skydock.heading", String.format(Locale.ROOT, "%.0f", heading), Navigation.compass(heading)));
+            if (!Double.isNaN(ship.holdAltitude)) status.add(I18n.get("hud.skydock.alt_hold", String.format(Locale.ROOT, "%.0f", ship.holdAltitude)));
+            if (!Double.isNaN(ship.headingLock)) status.add(I18n.get("hud.skydock.heading_lock", String.format(Locale.ROOT, "%.0f", ship.headingLock)));
+            if (ship == piloted || ship == seated) {
+                // The client knows the ship's reserved berth from its header; show the line only to those flying or seated aboard.
+                ShipPose home = ship.homePose();
+                Navigation.Berth berth = Navigation.berth(ship.pose, new Vec3(home.x(), home.y(), home.z()), home.yaw());
+                status.add(I18n.get("hud.skydock.berth", String.format(Locale.ROOT, "%.0f", berth.distance()), String.format(Locale.ROOT, "%.0f", Math.floorMod(Math.round(berth.bearing()), 360L)),
+                        String.format(Locale.ROOT, "%+.0f", berth.dy()), String.format(Locale.ROOT, "%+.0f", berth.yawError())));
+                if (Navigation.redockReady(berth, ship.velocity.length())) status.add(I18n.get("hud.skydock.redock_ready"));
+            }
             if (ship.cruise) status.add(I18n.get("hud.skydock.cruise", String.format(Locale.ROOT, "%.1f", ship.cruiseSpeed * 20)));
             if (ship.blocked) status.add(I18n.get("hud.skydock.obstructed"));
             String view = ShipCamera.active() ? I18n.get("hud.skydock.zoom", keyLabel(ShipCamera.ZOOM_IN), keyLabel(ShipCamera.ZOOM_OUT))
@@ -148,6 +164,9 @@ public final class SkydockClient {
         if (!stale.isEmpty() && tick % 60 == 0) ShipNetwork.input(3, 0, 0, 0);
         if (mc.screen == null && RELEASE.consumeClick()) ShipNetwork.input(2, 0, 0, 0);
         if (mc.screen == null && CRUISE.consumeClick()) ShipNetwork.input(4, 0, 0, 0);
+        boolean piloting = piloted() != null;
+        if (mc.screen == null && ALTITUDE_HOLD.consumeClick() && piloting) ShipNetwork.input(5, 0, 0, 0);
+        if (mc.screen == null && HEADING_LOCK.consumeClick() && piloting) ShipNetwork.input(6, 0, 0, 0);
         ShipCamera.tick(mc);
         Ship pilot = piloted();
         if (pilot != null && tick % 2 == 0) {

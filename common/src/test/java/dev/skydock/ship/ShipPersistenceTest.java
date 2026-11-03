@@ -92,4 +92,21 @@ class ShipPersistenceTest {
         assertEquals(Direction.WEST, reloaded.transferFacing);
         assertEquals(new dev.skydock.data.DockFrame(BlockPos.ZERO, Direction.EAST, DockTier.SCOUT), reloaded.berthFrame());
     }
+
+    @Test void legacyShipHasNoHolds() {
+        CompoundTag legacy = hull().save(registries, true);
+        legacy.remove("HoldAltitude"); legacy.remove("HeadingLock");
+        Ship loaded = Ship.loadPersisted(legacy, registries);
+        assertTrue(Double.isNaN(loaded.holdAltitude));
+        assertTrue(Double.isNaN(loaded.headingLock));
+        CompoundTag saved = hull().save(registries, true);
+        assertFalse(saved.contains("HoldAltitude"));
+        assertFalse(saved.contains("HeadingLock"));
+    }
+    @Test void holdsRoundTrip() {
+        Ship ship = hull(); ship.holdAltitude = 91.5; ship.headingLock = 255;
+        Ship loaded = Ship.loadPersisted(ship.save(registries, true), registries);
+        assertEquals(91.5, loaded.holdAltitude, 1e-9);
+        assertEquals(255, loaded.headingLock, 1e-9);
+    }
 }

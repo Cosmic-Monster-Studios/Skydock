@@ -114,6 +114,8 @@ public final class ShipNetwork {
                     ShipManager.prepareBoarding(player); sent.remove(player.getUUID()); syncPlayer(player);
                 }
                 case 4 -> ShipManager.toggleCruise(player);
+                case 5 -> ShipManager.toggleAltitudeHold(player);
+                case 6 -> ShipManager.toggleHeadingLock(player);
             }
         }));
     }

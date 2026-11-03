@@ -23,16 +23,16 @@ public record ShipState(UUID id, long tick, double x, double y, double z, double
     public static final StreamCodec<FriendlyByteBuf, ShipState> CODEC = StreamCodec.of(ShipState::write, ShipState::read);
 
     public static ShipState of(Ship ship, long tick) {
-        // Task 10 replaces the NaN holds with the ship's altitude and heading targets.
         return new ShipState(ship.id, tick, ship.pose.x(), ship.pose.y(), ship.pose.z(), ship.pose.yaw(), ship.velocity, ship.yawVelocity,
                 ship.cruise, ship.cruiseSpeed, ship.moored, ship.blocked, ship.pilot, ship.pilot == null ? null : ship.pilotAnchor,
-                new LinkedHashMap<>(ship.seated), ship.mass, ship.lift, Double.NaN, Double.NaN);
+                new LinkedHashMap<>(ship.seated), ship.mass, ship.lift, ship.holdAltitude, ship.headingLock);
     }
     /** Copies the motion and crew fields onto the client's ship; the timeline sample is fed by the caller. */
     public void apply(Ship ship) {
         ship.velocity = velocity; ship.yawVelocity = yawVelocity; ship.cruise = cruise; ship.cruiseSpeed = cruiseSpeed;
         ship.pilot = pilot; ship.pilotAnchor = pilotAnchor;
         ship.lift = lift; ship.mass = mass; ship.blocked = blocked; ship.moored = moored;
+        ship.holdAltitude = holdAltitude; ship.headingLock = headingLock;
         ship.seated.clear(); ship.seated.putAll(seated);
     }
     /** Every field except the tick; an unchanged ship only sends a heartbeat. */

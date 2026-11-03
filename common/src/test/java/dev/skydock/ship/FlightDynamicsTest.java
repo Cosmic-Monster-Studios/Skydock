@@ -17,4 +17,22 @@ class FlightDynamicsTest {
         assertEquals(.35, FlightDynamics.engineLoad(0, 1), 1e-9);
         assertEquals(.5, FlightDynamics.engineLoad(-.5, 1), 1e-9);
     }
+    @Test void holdClimbPushesTowardTarget() {
+        assertTrue(FlightDynamics.holdClimb(100, 99, 0) > 0);
+        assertTrue(FlightDynamics.holdClimb(100, 101, 0) < 0);
+        assertEquals(0, FlightDynamics.holdClimb(100, 100, 0), 1e-9);
+        assertEquals(1, FlightDynamics.holdClimb(200, 100, 0), 1e-9);
+        assertEquals(-1, FlightDynamics.holdClimb(0, 100, 0), 1e-9);
+    }
+    @Test void holdClimbDampsVerticalSpeed() {
+        assertTrue(FlightDynamics.holdClimb(100, 100, .1) < 0);
+        assertTrue(FlightDynamics.holdClimb(100, 100, -.1) > 0);
+    }
+    @Test void headingSteerTurnsTheShortWay() {
+        assertTrue(FlightDynamics.headingSteer(10, 350, 0) > 0);
+        assertTrue(FlightDynamics.headingSteer(350, 10, 0) < 0);
+        assertEquals(0, FlightDynamics.headingSteer(90, 90, 0), 1e-9);
+        assertEquals(1, FlightDynamics.headingSteer(170, 0, 0), 1e-9);
+        assertTrue(FlightDynamics.headingSteer(90, 90, 1) < 0, "damps an ongoing turn");
+    }
 }

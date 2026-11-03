@@ -35,6 +35,8 @@ public final class Ship {
     public double appliedThrottle, appliedClimb, yawVelocity;
     public boolean cruise;
     public double cruiseSpeed;
+    /** Altitude and heading targets of the navigation holds; NaN when off. */
+    public double holdAltitude = Double.NaN, headingLock = Double.NaN;
     public Vec3 pilotAnchor;
     private Vec3 pivot;
     private AABB cachedHullBounds;
@@ -65,6 +67,11 @@ public final class Ship {
     public static ShipPose berthPose(DockFrame frame, BlockPos offset, Vec3 pivot) {
         Vec3 at = frame.toWorld(Vec3.atLowerCornerOf(offset).add(pivot));
         return new ShipPose(at.x, at.y, at.z, frame.yaw());
+    }
+    /** The pose this hull takes when centred in its own reserved berth, as redock places it. */
+    public ShipPose homePose() {
+        DockFrame frame = berthFrame();
+        return berthPose(frame, new BlockPos((frame.tier().width - tier.width) / 2, 0, (frame.tier().length - tier.length) / 2), center());
     }
     public Vec3 center() { return pivot == null ? legacyCenter() : pivot; }
     private Vec3 legacyCenter() { return new Vec3(tier.width / 2.0, 0, tier.length / 2.0); }
@@ -182,6 +189,8 @@ public final class Ship {
         Vec3 center = center(); tag.putDouble("PivotX", center.x); tag.putDouble("PivotZ", center.z);
         tag.putDouble("Vx", velocity.x); tag.putDouble("Vy", velocity.y); tag.putDouble("Vz", velocity.z);
         tag.putDouble("YawVelocity", yawVelocity); tag.putBoolean("Cruise", cruise); tag.putDouble("CruiseSpeed", cruiseSpeed);
+        if (!Double.isNaN(holdAltitude)) tag.putDouble("HoldAltitude", holdAltitude);
+        if (!Double.isNaN(headingLock)) tag.putDouble("HeadingLock", headingLock);
         tag.putDouble("Mass", mass); tag.putDouble("Lift", lift); tag.putBoolean("Moored", moored);
         tag.putBoolean("Blocked", blocked); tag.putInt("Revision", revision); tag.putInt("Cells", cells); tag.putInt("Engines", engines);
         tag.putString("Phase", phase);
@@ -231,6 +240,8 @@ public final class Ship {
         ship.velocity = new Vec3(tag.getDouble("Vx"), tag.getDouble("Vy"), tag.getDouble("Vz"));
         ship.yawVelocity = tag.getDouble("YawVelocity"); ship.cruise = tag.getBoolean("Cruise");
         ship.cruiseSpeed = Math.clamp(tag.getDouble("CruiseSpeed"), -FlightDynamics.MAX_TIER_SPEED, FlightDynamics.MAX_TIER_SPEED);
+        ship.holdAltitude = tag.contains("HoldAltitude") ? tag.getDouble("HoldAltitude") : Double.NaN;
+        ship.headingLock = tag.contains("HeadingLock") ? tag.getDouble("HeadingLock") : Double.NaN;
         ship.mass = tag.getDouble("Mass"); ship.lift = tag.getDouble("Lift"); ship.moored = tag.getBoolean("Moored");
         ship.blocked = tag.getBoolean("Blocked"); ship.revision = tag.getInt("Revision"); ship.cells = tag.getInt("Cells"); ship.engines = tag.getInt("Engines");
         ship.phase = tag.getString("Phase");

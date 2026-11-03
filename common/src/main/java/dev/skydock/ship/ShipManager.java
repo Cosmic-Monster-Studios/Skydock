@@ -243,8 +243,7 @@ public final class ShipManager {
         BlockPos offset = new BlockPos((frame.tier().width - ship.tier.width) / 2, 0, (frame.tier().length - ship.tier.length) / 2);
         BlockPos origin = frame.toWorld(offset);
         ShipPose berth = Ship.berthPose(frame, offset, ship.center());
-        double yawError = Math.abs(net.minecraft.util.Mth.wrapDegrees(ship.pose.yaw() - frame.yaw()));
-        if (new Vec3(berth.x(), berth.y(), berth.z()).distanceToSqr(new Vec3(ship.pose.x(), ship.pose.y(), ship.pose.z())) > 16 || yawError > 10 || ship.velocity.length() > .08) {
+        if (!Navigation.redockReady(Navigation.berth(ship.pose, new Vec3(berth.x(), berth.y(), berth.z()), frame.yaw()), ship.velocity.length())) {
             tell(player, "message.skydock.redock_alignment"); return;
         }
         ServerLevel world = player.serverLevel();
@@ -321,6 +320,19 @@ public final class ShipManager {
             tell(player, Component.translatable("message.skydock.cruise_engaged", Component.keybind("key.forward"), Component.keybind("key.back"),
                     Component.keybind("key.skydock.release"), Component.keybind("key.skydock.cruise")));
         }
+        ShipNetwork.syncPose(player.getServer(), ship);
+    }
+    private static Ship piloting(ServerPlayer player) { return ships(player.level()).stream().filter(s -> player.getUUID().equals(s.pilot)).findFirst().orElse(null); }
+    public static void toggleAltitudeHold(ServerPlayer player) {
+        Ship ship = piloting(player); if (ship == null) { tell(player, "message.skydock.hold_helm"); return; }
+        if (Double.isNaN(ship.holdAltitude)) { ship.holdAltitude = ship.pose.y(); tell(player, "message.skydock.altitude_hold_on", String.format(java.util.Locale.ROOT, "%.0f", ship.holdAltitude)); }
+        else { ship.holdAltitude = Double.NaN; tell(player, "message.skydock.altitude_hold_off"); }
+        ShipNetwork.syncPose(player.getServer(), ship);
+    }
+    public static void toggleHeadingLock(ServerPlayer player) {
+        Ship ship = piloting(player); if (ship == null) { tell(player, "message.skydock.hold_helm"); return; }
+        if (Double.isNaN(ship.headingLock)) { ship.headingLock = Navigation.snapHeading(ship.pose.yaw()); tell(player, "message.skydock.heading_lock_on", String.format(java.util.Locale.ROOT, "%.0f", ship.headingLock)); }
+        else { ship.headingLock = Double.NaN; tell(player, "message.skydock.heading_lock_off"); }
         ShipNetwork.syncPose(player.getServer(), ship);
     }
     public static void tick(MinecraftServer server) {
