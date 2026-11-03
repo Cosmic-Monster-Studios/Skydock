@@ -76,6 +76,7 @@ public final class ShipInteractions {
     public static void use(ServerPlayer player, Hit hit) {
         Ship ship = hit.ship; BlockPos local = hit.localHit.getBlockPos();
         if (!ShipManager.permitted(player, ship)) { ShipManager.tell(player, "message.skydock.device_not_permitted"); return; }
+        ShipManager.wake(player.getServer(), ship);
         BlockState state = ship.state(local);
         DeviceBlock.Kind kind = deviceKind(state);
         if (player.isShiftKeyDown() && kind != null) {
@@ -122,7 +123,9 @@ public final class ShipInteractions {
     public static boolean activateFromMenu(ServerPlayer player, UUID shipId, BlockPos local, DeviceBlock.Kind expected) {
         Ship ship = ShipManager.get(player.getServer(), shipId);
         if (ship == null || !ship.phase.equals("active") || !ship.dimension.equals(player.level().dimension()) || !ShipManager.permitted(player, ship)
-                || player.position().distanceToSqr(ship.blockToWorld(Vec3.atCenterOf(local))) >= 64 || deviceKind(ship.state(local)) != expected) return false;
+                || player.position().distanceToSqr(ship.blockToWorld(Vec3.atCenterOf(local))) >= 64) return false;
+        ShipManager.wake(player.getServer(), ship);
+        if (deviceKind(ship.state(local)) != expected) return false;
         return activate(player, ship, local, expected);
     }
     private static void openRemoteBlockMenu(ServerPlayer player, Ship ship, BlockPos local, BlockState state, BlockHitResult localHit) {
@@ -143,6 +146,7 @@ public final class ShipInteractions {
         if (remote == null || remote.menu != menu || player.getServer() == null) return false;
         Ship ship = ShipManager.get(player.getServer(), remote.ship);
         if (ship == null || !ship.phase.equals("active") || !ship.dimension.equals(player.level().dimension()) || !ShipManager.permitted(player, ship)) return false;
+        ShipManager.wake(player.getServer(), ship);
         ServerLevel yard = player.getServer().getLevel(ShipManager.SHIPYARD);
         return yard != null && yard.getBlockState(ship.yard.offset(remote.pos)).is(remote.state.getBlock()) && player.isAlive()
                 && player.position().distanceToSqr(ship.blockToWorld(Vec3.atCenterOf(remote.pos))) < 64;

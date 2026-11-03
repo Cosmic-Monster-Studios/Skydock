@@ -86,6 +86,7 @@ public final class ShipDamage {
         int broken = damageHull(server, world, ship, pose, contacts, speed - rules.minSpeed(), velocity, rules);
         if (rules.damageOtherShips()) for (Ship other : struck) {
             double relative = (velocity.subtract(other.velocity).length() + Math.abs(Math.toRadians(turn)) * radius) * 20;
+            ShipManager.wake(server, other);
             damageHull(server, world, other, other.pose, cellsTouching(other, ship, pose), relative - rules.minSpeed(), velocity.reverse(), rules);
         }
         ServerPlayer pilot = ship.pilot == null ? null : server.getPlayerList().getPlayer(ship.pilot);

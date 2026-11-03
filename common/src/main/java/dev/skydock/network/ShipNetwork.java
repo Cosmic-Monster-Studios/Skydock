@@ -137,6 +137,7 @@ public final class ShipNetwork {
             // A wider release range keeps a player on the boundary from receiving the whole hull again and again.
             double range = seen.containsKey(ship.id) ? UNTRACK_RANGE : TRACK_RANGE;
             if (ship.bounds().distanceToSqr(player.position()) > range * range) continue;
+            ShipManager.wake(player.getServer(), ship);
             active.add(ship.id); CompoundTag id = new CompoundTag(); id.putUUID("Id", ship.id); manifest.add(id);
             if (!Objects.equals(seen.get(ship.id), ship.revision)) { sendShip(player, ship); seen.put(ship.id, ship.revision); }
         }

@@ -371,9 +371,9 @@ public final class ShipManager {
     }
     /** Call before touching a ship's shipyard blocks: a dormant ship holds no chunk tickets, so reading them would load chunks synchronously. */
     public static void wake(MinecraftServer server, Ship ship) {
-        ship.idleTicks = 0;
+        // Cheap no-op for an awake ship; its idle count is left alone because a nearby player already prevents sleep.
         if (!ship.dormant) return;
-        ship.dormant = false; forceTickets(server, ship);
+        ship.dormant = false; ship.idleTicks = 0; forceTickets(server, ship);
     }
     static void refresh(MinecraftServer server, Ship ship) {
         ServerLevel yard = server.getLevel(SHIPYARD); if (yard == null) return;
