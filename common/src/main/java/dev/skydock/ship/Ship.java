@@ -45,6 +45,11 @@ public final class Ship {
     private int enginesRevision = -1, surfaceRevision = -1;
     public long lastInputTick;
     public boolean moored = true, blocked;
+    /** Transient: a dormant ship skips ticking and holds no chunk tickets. Never saved; every ship starts awake. */
+    public boolean dormant;
+    public long idleTicks;
+    /** Transient: state as of the last tick, to mark saved data dirty only on change. */
+    Object savedState;
     public String phase = "active";
     public ResourceKey<Level> transferDimension;
     public BlockPos transferOrigin, transferDock;

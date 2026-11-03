@@ -69,6 +69,7 @@ public final class ShipManager {
                 if (Math.abs(surface.maxY - player.getY()) > .6 || surface.maxY > player.getY() + .3) continue;
                 Vec3 at = new Vec3(player.getX(), surface.maxY, player.getZ());
                 BOARDING.put(player.getUUID(), new Boarding(ship.id, ship.worldToBlock(at)));
+                wake(player.getServer(), ship);
                 return;
             }
         }
@@ -231,6 +232,7 @@ public final class ShipManager {
         Ship ship = ships(player.level()).stream().filter(s -> permitted(player, s))
                 .min(Comparator.comparingDouble(s -> s.bounds().getCenter().distanceToSqr(Vec3.atCenterOf(pos)))).orElse(null);
         if (ship == null) { tell(player, "message.skydock.no_owned_ship"); return; }
+        wake(player.getServer(), ship);
         if (dock.tier().ordinal() < ship.tier.ordinal()) { tell(player, "message.skydock.berth_too_small"); return; }
         ShipSavedData data = ShipSavedData.get(player.getServer());
         if (data.ships.values().stream().anyMatch(s -> !s.id.equals(ship.id) && s.dimension.equals(ship.dimension) && s.dock.equals(pos))) { tell(player, "message.skydock.berth_reserved_other"); return; }
@@ -319,14 +321,25 @@ public final class ShipManager {
         BOARDING.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) prepareBoarding(player);
         ServerLevel yard = server.getLevel(SHIPYARD);
-        // Region tickets load chunks, but an empty dimension otherwise stops BE ticks after 300 ticks.
-        if (yard != null && data.ships.values().stream().anyMatch(s -> s.phase.equals("active"))) yard.resetEmptyTime();
         long tick = server.overworld().getGameTime();
+        boolean awake = false, changed = false;
         for (Ship ship : List.copyOf(data.ships.values())) {
             if (!ship.phase.equals("active")) continue;
             ServerLevel level = server.getLevel(ship.dimension); if (level == null) continue;
-            // Spread the once-a-second hull refresh across ticks so a large fleet does not rescan all at once.
-            if ((tick + Math.floorMod(ship.id.hashCode(), 20)) % 20 == 0) { forceTickets(server, ship); refresh(server, ship); }
+            // Spread the once-a-second work across ticks so a large fleet does not rescan all at once.
+            if ((tick + Math.floorMod(ship.id.hashCode(), 20)) % 20 == 0) {
+                boolean near = playerNear(server, ship);
+                if (ship.dormant && near) wake(server, ship);
+                if (!ship.dormant) {
+                    forceTickets(server, ship); refresh(server, ship);
+                    boolean crewed = ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship.equals(ship.id));
+                    boolean restful = ShipSleep.restful(crewed, ship.cruise, ship.velocity.lengthSqr(), ship.moored, ship.lift, ship.mass);
+                    ship.idleTicks = restful ? ship.idleTicks + 20 : 0;
+                    if (ShipSleep.sleeps(restful, near, ship.idleTicks)) { releaseTickets(server, ship); ship.dormant = true; }
+                }
+            }
+            if (ship.dormant) continue;
+            awake = true;
             ship.previousPose = ship.pose;
             if (ship.pilot != null) {
                 ServerPlayer pilot = server.getPlayerList().getPlayer(ship.pilot);
@@ -340,10 +353,27 @@ public final class ShipManager {
             carry(level, ship, ship.previousPose);
             ShipDamage.ram(level, ship);
             if (tick % 2 == 0) ShipNetwork.syncPose(server, ship, false);
+            SavedState state = new SavedState(ship.pose, ship.velocity, ship.phase, ship.moored, ship.cruise, ship.pilot, ship.seated.size(), ship.revision, ship.mass, ship.lift);
+            if (!state.equals(ship.savedState)) { ship.savedState = state; changed = true; }
         }
+        // Region tickets load chunks, but an empty dimension otherwise stops BE ticks after 300 ticks.
+        if (yard != null && awake) yard.resetEmptyTime();
         ShipInteractions.tick(server);
         if (tick % 20 == 0) ShipNetwork.syncPlayers(server);
-        if (!data.ships.isEmpty()) data.setDirty();
+        if (changed) data.setDirty();
+    }
+    private record SavedState(ShipPose pose, Vec3 velocity, String phase, boolean moored, boolean cruise, UUID pilot, int seated, int revision, double mass, double lift) {}
+    private static boolean playerNear(MinecraftServer server, Ship ship) {
+        double range = ShipSleep.WAKE_RANGE * ShipSleep.WAKE_RANGE; AABB box = ship.bounds();
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (player.level().dimension().equals(ship.dimension) && box.distanceToSqr(player.position()) <= range) return true;
+        return false;
+    }
+    /** Call before touching a ship's shipyard blocks: a dormant ship holds no chunk tickets, so reading them would load chunks synchronously. */
+    public static void wake(MinecraftServer server, Ship ship) {
+        ship.idleTicks = 0;
+        if (!ship.dormant) return;
+        ship.dormant = false; forceTickets(server, ship);
     }
     static void refresh(MinecraftServer server, Ship ship) {
         ServerLevel yard = server.getLevel(SHIPYARD); if (yard == null) return;
