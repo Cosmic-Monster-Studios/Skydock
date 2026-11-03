@@ -1,0 +1,16 @@
+package dev.skydock.ship;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
+import org.junit.jupiter.api.Test;
+import java.util.List;
+import java.util.Set;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class ShipTransferTest {
+    @Test void chunksCoverEveryCellAndNothingElse() {
+        var cells = List.of(new BlockPos(0,0,0), new BlockPos(15,3,15), new BlockPos(16,0,0), new BlockPos(0,0,31));
+        assertEquals(Set.of(new ChunkPos(-1,-1), new ChunkPos(0,0), new ChunkPos(0,-1), new ChunkPos(-1,1)),
+                ShipTransfer.chunksOf(cells, new BlockPos(-8, 64, -8)));
+    }
+}
