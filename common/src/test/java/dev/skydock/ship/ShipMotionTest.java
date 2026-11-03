@@ -98,4 +98,11 @@ class ShipMotionTest {
         }
         assertEquals(-1.8, turn, 1e-9);
     }
+    @Test void aJumpSnapsInsteadOfInterpolating() {
+        ShipMotion motion = new ShipMotion();
+        for (int tick = 0; tick <= 20; tick += 2) { motion.accept(tick, new ShipPose(tick * .3, 80, 0, 0), new Vec3(.3, 0, 0), 0); motion.advance(); motion.advance(); }
+        motion.accept(22, new ShipPose(500, 90, -300, 45), Vec3.ZERO, 0);
+        ShipPose pose = motion.advance();
+        assertEquals(500, pose.x(), 1e-9); assertEquals(90, pose.y(), 1e-9); assertEquals(-300, pose.z(), 1e-9); assertEquals(45, pose.yaw(), 1e-9);
+    }
 }
