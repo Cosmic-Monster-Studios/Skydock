@@ -6,6 +6,7 @@ import dev.architectury.registry.menu.MenuRegistry;
 import dev.skydock.block.SkydockBlocks;
 import dev.skydock.network.DockNetwork;
 import dev.skydock.network.ShipNetwork;
+import dev.skydock.network.ShipState;
 import dev.skydock.ship.*;
 import net.minecraft.client.*;
 import net.minecraft.client.player.LocalPlayer;
@@ -32,6 +33,7 @@ public final class SkydockClient {
         dev.architectury.registry.ReloadListenerRegistry.register(net.minecraft.server.packs.PackType.CLIENT_RESOURCES,
                 (net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> Minecraft.getInstance().execute(ShipRenderer::clear), dev.skydock.Skydock.id("hull_meshes"));
         ShipNetwork.clientReceiver = SkydockClient::receive;
+        ShipNetwork.poseReceiver = SkydockClient::receivePose;
         DockNetwork.clientReceiver = DockView::receive;
         ShipManager.ClientShipAccess.provider = level -> {
             if (levelShips == null || levelShipsDimension != level.dimension()) {
@@ -206,18 +208,13 @@ public final class SkydockClient {
                     ShipNetwork.boardReady(id);
                 }
             }
-        } else if (data.getString("Kind").equals("pose")) {
-            Ship ship = SHIPS.get(id); if (ship == null) return;
-            ship.velocity = new net.minecraft.world.phys.Vec3(data.getDouble("Vx"), data.getDouble("Vy"), data.getDouble("Vz"));
-            ship.yawVelocity = data.getDouble("YawVelocity"); ship.cruise = data.getBoolean("Cruise"); ship.cruiseSpeed = data.getDouble("CruiseSpeed");
-            motions.computeIfAbsent(id, key -> new ShipMotion()).accept(data.getLong("Tick"),
-                    new ShipPose(data.getDouble("X"), data.getDouble("Y"), data.getDouble("Z"), data.getDouble("Yaw")), ship.velocity, ship.yawVelocity);
-            ship.pilot = data.hasUUID("Pilot") ? data.getUUID("Pilot") : null;
-            ship.pilotAnchor = data.contains("AnchorX") ? new net.minecraft.world.phys.Vec3(data.getDouble("AnchorX"), data.getDouble("AnchorY"), data.getDouble("AnchorZ")) : null;
-            ship.lift = data.getDouble("Lift"); ship.mass = data.getDouble("Mass"); ship.blocked = data.getBoolean("Blocked"); ship.moored = data.getBoolean("Moored");
-            ship.seated.clear(); for (Tag e : data.getList("Seated", Tag.TAG_COMPOUND)) {
-                CompoundTag tag = (CompoundTag) e; ship.seated.put(tag.getUUID("Player"), BlockPos.of(tag.getLong("Pos")));
-            }
         }
+    }
+    private static void receivePose(ShipState state) {
+        if (Minecraft.getInstance().level == null) return;
+        Ship ship = SHIPS.get(state.id()); if (ship == null) return;
+        state.apply(ship);
+        motions.computeIfAbsent(state.id(), key -> new ShipMotion()).accept(state.tick(),
+                new ShipPose(state.x(), state.y(), state.z(), state.yaw()), ship.velocity, ship.yawVelocity);
     }
 }

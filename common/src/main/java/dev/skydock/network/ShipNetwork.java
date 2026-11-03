@@ -20,11 +20,12 @@ import java.util.function.Consumer;
 
 public final class ShipNetwork {
     public static Consumer<CompoundTag> clientReceiver = tag -> {};
+    public static Consumer<ShipState> poseReceiver = state -> {};
     private static final Map<UUID, Map<UUID, Integer>> sent = new HashMap<>();
     /** Hull payloads are built once per revision and shared by every player that needs them. */
     private record HullParts(int revision, long built, List<ListTag> parts) {}
     private static final Map<UUID, HullParts> hulls = new HashMap<>();
-    private record PoseSent(CompoundTag message, long tick) {}
+    private record PoseSent(ShipState state, long tick) {}
     private static final Map<UUID, PoseSent> poses = new HashMap<>();
     private static final Map<UUID, Long> hellos = new HashMap<>();
     private static final double TRACK_RANGE = 256, UNTRACK_RANGE = 288;
@@ -77,6 +78,9 @@ public final class ShipNetwork {
         if (Platform.getEnvironment() == Env.CLIENT) NetworkManager.registerReceiver(NetworkManager.Side.S2C, Snapshot.TYPE, Snapshot.CODEC,
                 (packet, context) -> context.queue(() -> clientReceiver.accept(packet.data)));
         else NetworkManager.registerS2CPayloadType(Snapshot.TYPE, Snapshot.CODEC);
+        if (Platform.getEnvironment() == Env.CLIENT) NetworkManager.registerReceiver(NetworkManager.Side.S2C, ShipState.TYPE, ShipState.CODEC,
+                (packet, context) -> context.queue(() -> poseReceiver.accept(packet)));
+        else NetworkManager.registerS2CPayloadType(ShipState.TYPE, ShipState.CODEC);
         NetworkManager.registerReceiver(NetworkManager.Side.C2S, BoardReady.TYPE, BoardReady.CODEC, (packet, context) -> context.queue(() -> {
             if (context.getPlayer() instanceof ServerPlayer player) ShipManager.completeBoarding(player, packet.ship);
         }));
@@ -185,13 +189,11 @@ public final class ShipNetwork {
     public static void syncPose(MinecraftServer server, Ship ship) { syncPose(server, ship, true); }
     /** With {@code always} false, an unchanged ship only sends a heartbeat once a second instead of ten poses. */
     public static void syncPose(MinecraftServer server, Ship ship, boolean always) {
-        CompoundTag msg = ship.save(server.registryAccess(), false); msg.putString("Kind", "pose");
-        ListTag seats = new ListTag(); ship.seated.forEach((id, p) -> { CompoundTag tag = new CompoundTag(); tag.putUUID("Player", id); tag.putLong("Pos", p.asLong()); seats.add(tag); }); msg.put("Seated", seats);
         long now = server.overworld().getGameTime();
+        ShipState next = ShipState.of(ship, ship.history.latestTick(now));
         PoseSent last = poses.get(ship.id);
-        if (!always && last != null && now - last.tick < 20 && last.message.equals(msg)) return;
-        poses.put(ship.id, new PoseSent(msg.copy(), now));
-        msg.putLong("Tick", ship.history.latestTick(now));
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) if (player.level().dimension().equals(ship.dimension) && sent.getOrDefault(player.getUUID(), Map.of()).containsKey(ship.id)) send(player, msg);
+        if (!always && last != null && now - last.tick < 20 && last.state.sameMotion(next)) return;
+        poses.put(ship.id, new PoseSent(next, now));
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) if (player.level().dimension().equals(ship.dimension) && sent.getOrDefault(player.getUUID(), Map.of()).containsKey(ship.id)) NetworkManager.sendToPlayer(player, next);
     }
 }
