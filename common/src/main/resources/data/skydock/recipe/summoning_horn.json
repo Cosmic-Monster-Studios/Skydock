@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "G": {
+      "item": "minecraft:gold_ingot"
+    },
+    "C": {
+      "item": "minecraft:copper_ingot"
+    },
+    "H": {
+      "item": "minecraft:goat_horn"
+    }
+  },
+  "pattern": [
+    " G ",
+    "CHC",
+    " G "
+  ],
+  "result": {
+    "id": "skydock:summoning_horn",
+    "count": 1
+  }
+}

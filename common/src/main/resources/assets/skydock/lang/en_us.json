@@ -291,5 +291,16 @@
   "error.skydock.berth_border": "The berth would cross the world border.",
   "error.skydock.berth_unloaded": "Move closer: part of the berth is not loaded.",
   "error.skydock.berth_overlaps_dock": "The berth would overlap another dock's berth.",
-  "error.skydock.berth_overlaps_ship": "A ship is in the way of the berth."
+  "error.skydock.berth_overlaps_ship": "A ship is in the way of the berth.",
+  "item.skydock.summoning_horn": "Summoning Horn",
+  "item.skydock.summoning_horn.bound": "Bound to the dock at %s (%s)",
+  "item.skydock.summoning_horn.unbound": "Use on your dock controller or ship to bind",
+  "message.skydock.horn_bound": "Summoning Horn bound to the dock at %s.",
+  "message.skydock.horn_unbound": "Bind the horn first: use it on your dock controller or your ship.",
+  "message.skydock.summon_dimension": "Your ship is in another dimension.",
+  "message.skydock.summon_no_ship": "No ship is out from that dock. Launch it first.",
+  "message.skydock.summon_not_permitted": "That ship is not yours to summon.",
+  "message.skydock.summon_aboard": "Someone is aboard that ship, so it cannot be summoned.",
+  "message.skydock.summon_no_room": "No room for your ship here. Find open sky.",
+  "message.skydock.summoned": "Your ship has arrived."
 }

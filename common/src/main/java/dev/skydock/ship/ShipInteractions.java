@@ -80,6 +80,7 @@ public final class ShipInteractions {
         ShipManager.wake(player.getServer(), ship);
         ItemStack held = player.getMainHandItem();
         if (held.is(SkydockBlocks.SHIPWRIGHT_HAMMER.get())) { ShipRepair.repair(player, ship, held); return; }
+        if (held.is(SkydockBlocks.SUMMONING_HORN.get())) { dev.skydock.item.SummoningHornItem.bind(player, held, ship.dimension, ship.dock); return; }
         BlockState state = ship.state(local);
         DeviceBlock.Kind kind = deviceKind(state);
         if (player.isShiftKeyDown() && kind != null) {

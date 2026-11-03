@@ -42,6 +42,10 @@ public final class SkydockCommands {
         root.then(literal("inspect").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.inspect(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));
         root.then(literal("launch").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.launch(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));
         root.then(literal("redock").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.redockNearest(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));
+        root.then(literal("summon").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> {
+            ServerPlayer player = ctx.getSource().getPlayerOrException();
+            return ShipManager.summon(player, player.level().dimension(), BlockPosArgument.getBlockPos(ctx, "controller")) ? 1 : 0;
+        })));
         root.then(literal("use").executes(ctx -> { ShipInteractions.useFromLook(ctx.getSource().getPlayerOrException()); return 1; }));
         root.then(literal("target").executes(ctx -> {
             var hit = ShipInteractions.pick(ctx.getSource().getPlayerOrException());

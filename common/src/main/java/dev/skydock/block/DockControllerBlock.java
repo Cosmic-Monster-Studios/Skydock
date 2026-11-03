@@ -85,6 +85,10 @@ public final class DockControllerBlock extends HorizontalDirectionalBlock implem
             for (BlockPos plant : clearance(level, dock.frame()).clearable()) level.destroyBlock(plant, true, player);
         }
     }
+    /** A summoning horn binds to the dock rather than opening its screen. */
+    @Override protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+        return stack.getItem() instanceof dev.skydock.item.SummoningHornItem ? ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION : super.useItemOn(stack, state, level, pos, player, hand, hit);
+    }
     @Override protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (player instanceof ServerPlayer serverPlayer && level.getBlockEntity(pos) instanceof DockBlockEntity dock) {
             if (dock.owner == null) dock.claim(player);

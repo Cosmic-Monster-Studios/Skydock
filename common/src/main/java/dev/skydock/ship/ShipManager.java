@@ -11,6 +11,7 @@ import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.*;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.*;
@@ -265,6 +266,58 @@ public final class ShipManager {
             tell(player, "message.skydock.redocked");
         }
         catch (Exception ex) { Skydock.LOGGER.error("Redock retained in journal for {}", ship.id, ex); tell(player, "message.skydock.redock_paused"); }
+    }
+    /** The launched ship whose home berth is {@code dock} in {@code dimension}: the one a horn bound to that dock summons. */
+    static boolean summonable(Ship ship, ResourceKey<Level> dimension, BlockPos dock) {
+        return ship.phase.equals("active") && ship.dimension.equals(dimension) && dock.equals(ship.dock);
+    }
+    /** Brings the ship launched from {@code dock} to hover beside the player, stopped and moored; true when it came. */
+    public static boolean summon(ServerPlayer player, ResourceKey<Level> dimension, BlockPos dock) {
+        if (!player.level().dimension().equals(dimension)) { tell(player, "message.skydock.summon_dimension"); return false; }
+        MinecraftServer server = player.getServer(); ServerLevel level = player.serverLevel();
+        Ship ship = ShipSavedData.get(server).ships.values().stream().filter(s -> summonable(s, dimension, dock)).findFirst().orElse(null);
+        if (ship == null) { tell(player, "message.skydock.summon_no_ship"); return false; }
+        if (!permitted(player, ship)) { tell(player, "message.skydock.summon_not_permitted"); return false; }
+        if (aboard(level, ship)) { tell(player, "message.skydock.summon_aboard"); return false; }
+        ShipPose spot = null;
+        for (ShipPose pose : SummonPlacement.candidates(player.position(), player.getYRot(), ship.hullBounds()))
+            if (roomFor(level, ship, pose)) { spot = pose; break; }
+        if (spot == null) { tell(player, "message.skydock.summon_no_room"); return false; }
+        wake(server, ship);
+        Vec3 from = ship.hullWorldBounds().getCenter();
+        ship.pose = spot; ship.previousPose = spot;
+        ship.velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.appliedThrottle = ship.appliedClimb = 0;
+        ship.throttle = ship.steering = ship.climb = 0; ship.cruise = false; ship.cruiseSpeed = 0;
+        ship.holdAltitude = Double.NaN; ship.headingLock = Double.NaN; ship.moored = true; ship.blocked = false; ship.idleTicks = 0;
+        long tick = server.overworld().getGameTime();
+        ship.history.accept(tick, ship.pose, ship.velocity, ship.yawVelocity);
+        fleetChanged(); forceTickets(server, ship);
+        ShipNetwork.syncPose(server, ship); ShipNetwork.syncPlayers(server);
+        ShipSavedData.get(server).setDirty();
+        var horn = net.minecraft.sounds.SoundEvents.GOAT_HORN_SOUND_VARIANTS.getFirst();
+        level.playSound(null, from.x, from.y, from.z, horn, net.minecraft.sounds.SoundSource.PLAYERS, 8, 1);
+        level.playSound(null, player.getX(), player.getY(), player.getZ(), horn, net.minecraft.sounds.SoundSource.PLAYERS, 8, 1);
+        tell(player, "message.skydock.summoned");
+        return true;
+    }
+    private static boolean aboard(ServerLevel level, Ship ship) {
+        if (ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship().equals(ship.id))) return true;
+        return !level.getEntities((Entity) null, ship.hullWorldBounds().inflate(2), e -> { Ship on = attachedShip(e); return on != null && on.id.equals(ship.id); }).isEmpty();
+    }
+    /** A summoned hull must land in loaded chunks, clear of terrain, fluids, other ships and every entity, the summoner included. */
+    private static boolean roomFor(ServerLevel level, Ship ship, ShipPose pose) {
+        AABB box = pose.toWorld(ship.hullBounds());
+        if (!level.hasChunksAt(Mth.floor(box.minX), Mth.floor(box.minZ), Mth.floor(box.maxX), Mth.floor(box.maxZ))) return false;
+        if (!level.getEntities((Entity) null, box, e -> !e.isSpectator()).isEmpty()) return false;
+        List<Ship> others = ships(level).stream().filter(s -> s != ship).toList();
+        if (ShipPhysics.collides(level, ship, pose, true, others, false)) return false;
+        // Surface boxes only see the shell; this also catches terrain or water inside the hull.
+        for (var entry : ship.blocks.entrySet()) if (!entry.getValue().isAir()) {
+            BlockPos at = BlockPos.containing(pose.toWorld(Vec3.atCenterOf(entry.getKey()).subtract(ship.center())));
+            BlockState there = level.getBlockState(at);
+            if (!there.getFluidState().isEmpty() || !there.getCollisionShape(level, at).isEmpty()) return false;
+        }
+        return true;
     }
     public static boolean canReachDock(Player player, DockBlockEntity dock) {
         if (player.distanceToSqr(Vec3.atCenterOf(dock.getBlockPos())) <= 64) return true;

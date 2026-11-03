@@ -116,7 +116,7 @@ public final class ShipPhysics {
         for (BlockPos p : ship.enginePositions()) result = Math.max(result, EngineTier.from(ship.state(p)).maxSpeed);
         return result;
     }
-    private static boolean collides(ServerLevel world, Ship ship, ShipPose pose, boolean terrain, List<Ship> neighbors, boolean inside) {
+    static boolean collides(ServerLevel world, Ship ship, ShipPose pose, boolean terrain, List<Ship> neighbors, boolean inside) {
         ShipPose.Transform transform = pose.transform();
         AABB bounds = transform.toWorld(ship.hullBounds());
         if (!inside && (bounds.minY < world.getMinBuildHeight() || bounds.maxY >= world.getMaxBuildHeight() || !world.getWorldBorder().isWithinBounds(bounds))) return true;
