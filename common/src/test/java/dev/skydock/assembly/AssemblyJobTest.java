@@ -62,4 +62,13 @@ class AssemblyJobTest {
         assertTrue(restored.spend(Blocks.IRON_BLOCK.asItem()));
         assertEquals(1022, restored.escrow.stream().mapToInt(ItemStack::getCount).sum());
     }
+
+    /** A job whose pattern vanished in a reload is cancelled (and refunded) rather than built from a stale plan. */
+    @Test void missingPatternCancelsAssembly() {
+        var kept = net.minecraft.resources.ResourceLocation.parse("skydock:scout_cutter");
+        var deleted = net.minecraft.resources.ResourceLocation.parse("skydock:saved_skiff");
+        java.util.Set<net.minecraft.resources.ResourceLocation> loaded = java.util.Set.of(kept);
+        assertTrue(AssemblyManager.stillValid(kept, loaded::contains));
+        org.junit.jupiter.api.Assertions.assertFalse(AssemblyManager.stillValid(deleted, loaded::contains));
+    }
 }

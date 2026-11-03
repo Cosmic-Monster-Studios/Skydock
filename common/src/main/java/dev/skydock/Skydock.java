@@ -10,6 +10,7 @@ import dev.architectury.registry.ReloadListenerRegistry;
 import dev.skydock.block.SkydockBlocks;
 import dev.skydock.command.SkydockCommands;
 import dev.skydock.data.MassTable;
+import dev.skydock.data.PatternLoader;
 import dev.skydock.network.ShipNetwork;
 import dev.skydock.network.DockNetwork;
 import dev.skydock.assembly.AssemblyManager;
@@ -31,6 +32,7 @@ public final class Skydock {
         ShipNetwork.init();
         DockNetwork.init();
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new MassTable(), id("mass"));
+        ReloadListenerRegistry.register(PackType.SERVER_DATA, new PatternLoader(), id("patterns"));
         CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> SkydockCommands.register(dispatcher));
         LifecycleEvent.SERVER_STARTED.register(ShipManager::start);
         LifecycleEvent.SERVER_STOPPED.register(ShipManager::stop);

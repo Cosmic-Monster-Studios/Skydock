@@ -53,17 +53,14 @@ public final class DockView {
         boolean sameCatalog = previous != null && previous.tier().equals(tier);
         boolean samePlan = sameCatalog && previous.selected().equals(selected) && previous.decorations() == decorations;
 
-        List<Pattern> patterns;
-        if (sameCatalog) patterns = previous.patterns();
-        else {
-            List<Pattern> parsed = new ArrayList<>();
-            for (Tag value : data.getList("Patterns", Tag.TAG_COMPOUND)) {
-                CompoundTag tag = (CompoundTag) value;
-                ResourceLocation id = ResourceLocation.tryParse(tag.getString("Id"));
-                if (id != null) parsed.add(new Pattern(id, tag.getString("Name"), tag.getString("Description")));
-            }
-            patterns = List.copyOf(parsed);
+        // Always re-read: a datapack reload can change the list while the screen is open.
+        List<Pattern> choices = new ArrayList<>();
+        for (Tag value : data.getList("Patterns", Tag.TAG_COMPOUND)) {
+            CompoundTag tag = (CompoundTag) value;
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("Id"));
+            if (id != null) choices.add(new Pattern(id, tag.getString("Name"), tag.getString("Description")));
         }
+        List<Pattern> patterns = List.copyOf(choices);
 
         List<PreviewBlock> preview;
         if (samePlan) preview = previous.preview();

@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** An immutable, trusted built-in ship recipe expressed in dock-local coordinates. {@code name} and {@code description} are translation keys. */
+/** An immutable ship recipe in north-frame dock-local coordinates, built in or loaded from a datapack. {@code name} and {@code description} are translation keys or plain text. */
 public record ShipPattern(ResourceLocation id, String name, String description, DockTier tier, List<Block> blocks) {
     public ShipPattern {
         Objects.requireNonNull(id, "id");

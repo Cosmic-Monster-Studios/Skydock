@@ -11,6 +11,7 @@ import dev.skydock.ship.Ship;
 import dev.skydock.ship.ShipManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
@@ -30,6 +31,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /** Server-authoritative assembly validation and the staged placement transaction. */
 public final class AssemblyManager {
@@ -135,9 +137,14 @@ public final class AssemblyManager {
         return true;
     }
 
+    /** A job may only continue while its pattern is still loaded; a datapack reload can remove it. */
+    public static boolean stillValid(ResourceLocation pattern, Predicate<ResourceLocation> loaded) { return loaded.test(pattern); }
+
     public static void tick(ServerLevel level, DockBlockEntity dock) {
         AssemblyJob job = dock.assemblyJob();
         if (job == null) { unregister(level, dock); return; }
+        // Checked lazily here rather than from the reload listener, whose apply may run off the server thread.
+        if (!stillValid(job.pattern, id -> ShipPatterns.get(id).isPresent())) { cancel(level, dock, "status.skydock.cancelled_pattern_removed"); return; }
         register(level, dock);
         if (level.getGameTime() - job.lastStep < STEP_TICKS) return;
         job.lastStep = level.getGameTime();

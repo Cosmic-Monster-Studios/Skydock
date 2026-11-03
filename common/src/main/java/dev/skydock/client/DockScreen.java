@@ -35,7 +35,11 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
     private final DockPreviewRenderer preview = new DockPreviewRenderer();
     private final List<ShipwrightButton> patternButtons = new ArrayList<>();
     private Page page = Page.DESIGNS;
-    private ShipwrightButton designsTab, manualTab, decorations, assemble, cancel, inspect, launch, redock;
+    private ShipwrightButton designsTab, manualTab, decorations, assemble, cancel, inspect, launch, redock, previousPage, nextPage;
+    /** Patterns show three to a page; the page opens on the selected pattern once, then follows the arrows. */
+    private static final int PER_PAGE = 3;
+    private int patternPage;
+    private boolean pageChosen;
     private DockView.Snapshot snapshot;
     private int seenRevision = Integer.MIN_VALUE;
     private int previewX, previewY, previewW, previewH;
@@ -59,10 +63,12 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         int tabY = topPos + 27;
         designsTab = addShipButton(leftPos + 9, tabY, 76, 18, "gui.skydock.tab_designs", () -> page = Page.DESIGNS);
         manualTab = addShipButton(leftPos + 87, tabY, 70, 18, "gui.skydock.tab_manual", () -> page = Page.MANUAL);
-        for (int i = 0; i < 3; i++) {
-            final int button = 10 + i;
-            patternButtons.add(addShipButton(0, 0, 10, 10, "gui.skydock.none", () -> menuButton(button)));
+        for (int i = 0; i < PER_PAGE; i++) {
+            final int slot = i;
+            patternButtons.add(addShipButton(0, 0, 10, 10, "gui.skydock.none", () -> menuButton(DockNetwork.PATTERN_BUTTON + patternPage * PER_PAGE + slot)));
         }
+        previousPage = addShipButton(0, 0, 10, 10, "gui.skydock.page_previous", () -> patternPage--);
+        nextPage = addShipButton(0, 0, 10, 10, "gui.skydock.page_next", () -> patternPage++);
         decorations = addShipButton(0, 0, 10, 10, "gui.skydock.decorations", () -> menuButton(5));
         assemble = addShipButton(0, 0, 10, 10, "gui.skydock.build", () -> menuButton(3));
         cancel = addShipButton(0, 0, 10, 10, "gui.skydock.cancel", () -> menuButton(4));
@@ -92,10 +98,18 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
             int leftX = leftPos + 9;
             for (int i = 0; i < patternButtons.size(); i++) patternButtons.get(i).setBounds(leftX, bodyY + 15 + i * 39, 114, 34);
             decorations.setBounds(leftX, bodyY + 136, 114, 20);
+            previousPage.setBounds(leftX + 80, bodyY, 16, 13);
+            nextPage.setBounds(leftX + 98, bodyY, 16, 13);
         } else {
-            int gap = 3, usable = imageWidth - 18, buttonW = (usable - gap * 3) / 4;
-            for (int i = 0; i < patternButtons.size(); i++) patternButtons.get(i).setBounds(leftPos + 9 + i * (buttonW + gap), bodyY, buttonW, 20);
-            decorations.setBounds(leftPos + 9 + 3 * (buttonW + gap), bodyY, buttonW, 20);
+            // Paging arrows flank the three pattern buttons; without paging the row keeps its four equal columns.
+            int gap = 3, usable = imageWidth - 18, arrows = pages() > 1 ? 2 * (14 + gap) : 0, buttonW = (usable - arrows - gap * 3) / 4;
+            int x = leftPos + 9;
+            previousPage.setBounds(x, bodyY, 14, 20);
+            if (arrows > 0) x += 14 + gap;
+            for (int i = 0; i < patternButtons.size(); i++) { patternButtons.get(i).setBounds(x, bodyY, buttonW, 20); x += buttonW + gap; }
+            nextPage.setBounds(x, bodyY, 14, 20);
+            if (arrows > 0) x += 14 + gap;
+            decorations.setBounds(x, bodyY, buttonW, 20);
         }
         int actionW = Math.min(102, Math.max(74, (imageWidth - 28) / 4));
         cancel.setBounds(leftPos + imageWidth - 9 - actionW, footerY + 3, actionW, 20);
@@ -133,13 +147,22 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         boolean complete = snapshot != null && snapshot.complete();
         designsTab.selected = designs;
         manualTab.selected = !designs;
+        if (snapshot != null && !pageChosen) {
+            pageChosen = true;
+            for (int i = 0; i < snapshot.patterns().size(); i++) if (snapshot.patterns().get(i).id().equals(snapshot.selected())) patternPage = i / PER_PAGE;
+        }
+        patternPage = Mth.clamp(patternPage, 0, pages() - 1);
+        previousPage.visible = nextPage.visible = designs && pages() > 1;
+        previousPage.active = patternPage > 0;
+        nextPage.active = patternPage < pages() - 1;
         for (int i = 0; i < patternButtons.size(); i++) {
             ShipwrightButton button = patternButtons.get(i);
             button.visible = designs;
-            boolean exists = snapshot != null && i < snapshot.patterns().size();
+            int index = patternPage * PER_PAGE + i;
+            boolean exists = snapshot != null && index < snapshot.patterns().size();
             button.active = exists && !waiting && !snapshot.active() && !complete;
             if (exists) {
-                DockView.Pattern pattern = snapshot.patterns().get(i);
+                DockView.Pattern pattern = snapshot.patterns().get(index);
                 button.setMessage(Component.translatable(pattern.name()));
                 button.selected = snapshot.selected().equals(pattern.id());
             } else {
@@ -160,6 +183,11 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         if (designs && complete) launch.setBounds(assemble.getX(), assemble.getY(), assemble.getWidth(), assemble.getHeight());
         inspect.active = redock.active = snapshot != null && !waiting && !snapshot.active();
         launch.active = snapshot != null && !waiting && !snapshot.active();
+    }
+
+    private int pages() {
+        int count = snapshot == null ? 0 : Math.min(snapshot.patterns().size(), DockNetwork.MAX_PATTERN_BUTTON - DockNetwork.PATTERN_BUTTON + 1);
+        return Math.max(1, (count + PER_PAGE - 1) / PER_PAGE);
     }
 
     @Override
@@ -209,7 +237,8 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         costsH = Math.max(20, bodyBottom - costsY);
 
         if (wide) {
-            graphics.drawString(font, I18n.get("gui.skydock.patterns"), leftPos + 12, bodyY + 3, INK, false);
+            String heading = pages() > 1 ? I18n.get("gui.skydock.patterns_page", patternPage + 1, pages()) : I18n.get("gui.skydock.patterns");
+            graphics.drawString(font, font.plainSubstrByWidth(heading, 76), leftPos + 12, bodyY + 3, INK, false);
             if (snapshot != null) {
                 DockView.Pattern selected = snapshot.patterns().stream().filter(p -> p.id().equals(snapshot.selected())).findFirst().orElse(null);
                 if (selected != null) drawWrapped(graphics, I18n.get(selected.description()), leftPos + 12, bodyY + 162, 110, MUTED, 3);

@@ -47,26 +47,61 @@ public final class ShipPatterns {
     private static final int FRONT_MARGIN = 3;
     private ShipPatterns() {}
 
-    public static List<ShipPattern> all() { return Catalog.ALL; }
+    /** Built-ins merged with datapack patterns; swapped whole by {@link #setData} so readers never see a partial reload. */
+    private static volatile Merged merged;
+
+    private record Merged(List<ShipPattern> all, Map<ResourceLocation, ShipPattern> byId, Map<DockTier, List<ShipPattern>> byTier) {
+        static Merged of(List<ShipPattern> patterns) { return new Merged(patterns, indexById(patterns), indexByTier(patterns)); }
+    }
+
+    private static Merged merged() {
+        Merged current = merged;
+        if (current == null) merged = current = Merged.of(Catalog.ALL);
+        return current;
+    }
+
+    public static List<ShipPattern> all() { return merged().all(); }
 
     public static List<ShipPattern> forTier(DockTier tier) {
-        return Catalog.BY_TIER.getOrDefault(tier, List.of());
+        return merged().byTier().getOrDefault(tier, List.of());
     }
 
     public static Optional<ShipPattern> get(ResourceLocation id) {
-        return Optional.ofNullable(Catalog.BY_ID.get(id));
+        return Optional.ofNullable(merged().byId().get(id));
+    }
+
+    /**
+     * Replaces the datapack patterns. A data pattern whose id matches a built-in of the same tier takes the
+     * built-in's place in the list; the rest follow the built-ins in id order.
+     */
+    public static void setData(Map<ResourceLocation, ShipPattern> patterns) {
+        merged = Merged.of(merge(Catalog.ALL, patterns));
+    }
+
+    static List<ShipPattern> merge(List<ShipPattern> builtIns, Map<ResourceLocation, ShipPattern> data) {
+        Map<ResourceLocation, ShipPattern> remaining = new java.util.TreeMap<>(data);
+        List<ShipPattern> result = new ArrayList<>(builtIns.size() + data.size());
+        for (ShipPattern builtIn : builtIns) {
+            ShipPattern replacement = remaining.remove(builtIn.id());
+            // Keeping the tier keeps every tier stocked, so a dock always has a default pattern.
+            if (replacement != null && replacement.tier() != builtIn.tier()) {
+                Skydock.LOGGER.error("Ship pattern {} replaces a {} built-in and must keep its tier; ignoring it", builtIn.id(), builtIn.tier().key());
+                replacement = null;
+            }
+            result.add(replacement != null ? replacement : builtIn);
+        }
+        result.addAll(remaining.values());
+        return List.copyOf(result);
     }
 
     public static ShipPattern defaultFor(DockTier tier) {
         List<ShipPattern> patterns = forTier(tier);
-        if (patterns.isEmpty()) throw new IllegalArgumentException("No built-in pattern for " + tier);
+        if (patterns.isEmpty()) throw new IllegalArgumentException("No pattern for " + tier);
         return patterns.getFirst();
     }
 
     private static final class Catalog {
         private static final List<ShipPattern> ALL = createCatalog(Palette.production());
-        private static final Map<ResourceLocation, ShipPattern> BY_ID = indexById(ALL);
-        private static final Map<DockTier, List<ShipPattern>> BY_TIER = indexByTier(ALL);
     }
 
     /** A loader-free catalog used by unit tests to exercise the exact production geometry. */

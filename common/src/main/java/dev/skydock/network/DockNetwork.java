@@ -38,6 +38,8 @@ public final class DockNetwork {
     public static final int INSPECT = 4;
     public static final int LAUNCH = 5;
     public static final int REDOCK = 6;
+    /** Menu buttons {@code PATTERN_BUTTON..MAX_PATTERN_BUTTON} select a pattern by its index in the tier's list. */
+    public static final int PATTERN_BUTTON = 10, MAX_PATTERN_BUTTON = 99;
 
     public static Consumer<CompoundTag> clientReceiver = ignored -> {};
     private static final Map<DockBlockEntity, Cached> SNAPSHOT_CACHE = new WeakHashMap<>();
@@ -139,13 +141,13 @@ public final class DockNetwork {
             case 3 -> AssemblyManager.start(player, dock);
             case 4 -> AssemblyManager.cancel(player.serverLevel(), dock, "status.skydock.cancelled_operator");
             case 5 -> dock.setSelection(dock.selectedPattern(), !dock.decorations());
-            case 10, 11, 12 -> {
-                int index = button - 10;
+            default -> {
+                // 10 + index selects the tier's pattern at that index, so up to 90 patterns per tier.
+                int index = button - PATTERN_BUTTON;
                 var patterns = ShipPatterns.forTier(dock.tier());
-                if (index >= patterns.size()) return false;
+                if (button < PATTERN_BUTTON || button > MAX_PATTERN_BUTTON || index >= patterns.size()) return false;
                 dock.setSelection(patterns.get(index).id(), dock.decorations());
             }
-            default -> { return false; }
         }
         sendSnapshot(player, menu, dock);
         return true;

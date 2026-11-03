@@ -62,6 +62,20 @@ class ShipPatternsTest {
         }
     }
 
+    @Test void dataPatternReplacesBuiltInInPlaceAndNewOnesFollow() {
+        List<ShipPattern> builtIns = catalog();
+        ShipPattern first = builtIns.getFirst();
+        ShipPattern replacement = new ShipPattern(first.id(), "Replaced", "", first.tier(), builtIns.get(1).blocks());
+        ShipPattern extra = new ShipPattern(net.minecraft.resources.ResourceLocation.parse("pack:extra"), "Extra", "", DockTier.SCOUT, first.blocks());
+        List<ShipPattern> merged = ShipPatterns.merge(builtIns, Map.of(extra.id(), extra, first.id(), replacement));
+        assertEquals(13, merged.size());
+        assertEquals(replacement, merged.getFirst());
+        assertEquals(extra, merged.getLast());
+        assertEquals(builtIns.subList(1, 12), merged.subList(1, 12));
+        ShipPattern retiered = new ShipPattern(first.id(), "Wrong tier", "", DockTier.BRIG, first.blocks());
+        assertEquals(builtIns, ShipPatterns.merge(builtIns, Map.of(first.id(), retiered)), "a replacement must keep the built-in's tier");
+    }
+
     @Test void everyPatternUsesThePromisedCanvasAndHullEnvelope() {
         for (ShipPattern pattern : catalog()) {
             Dimensions expected = DIMENSIONS.get(pattern.tier());
