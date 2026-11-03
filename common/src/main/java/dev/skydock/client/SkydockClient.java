@@ -20,6 +20,10 @@ import java.util.*;
 public final class SkydockClient {
     public static final Map<UUID, Ship> SHIPS = new LinkedHashMap<>();
     private static final Map<UUID, Ship> pending = new HashMap<>();
+    /** Hulls being assembled from a {@code blocks_delta}, built on a copy of the ship at the delta's From revision. */
+    private static final Map<UUID, Ship> pendingDeltas = new HashMap<>();
+    /** Ships whose copy missed a revision; a full resync is requested until their whole hull arrives. */
+    private static final Set<UUID> stale = new HashSet<>();
     private static final Map<UUID, ShipMotion> motions = new HashMap<>();
     private static final KeyMapping RELEASE = new KeyMapping("key.skydock.release", 82, "key.categories.skydock");
     private static final KeyMapping CRUISE = new KeyMapping("key.skydock.cruise", 67, "key.categories.skydock");
@@ -134,12 +138,14 @@ public final class SkydockClient {
     }
     private static void tick(Minecraft mc) {
         if (mc.level == null || mc.player == null) {
-            if (inWorld) { SHIPS.clear(); levelShips = null; pending.clear(); motions.clear(); ShipRenderer.clear(); }
+            if (inWorld) { SHIPS.clear(); levelShips = null; pending.clear(); pendingDeltas.clear(); stale.clear(); motions.clear(); ShipRenderer.clear(); }
             carriedYaw = 0;
             inWorld = false; return;
         }
         if (!inWorld) { ShipNetwork.input(3, 0, 0, 0); inWorld = true; }
         tick++;
+        // The server accepts one hello per 40 ticks, so a resync request that landed too soon is repeated.
+        if (!stale.isEmpty() && tick % 60 == 0) ShipNetwork.input(3, 0, 0, 0);
         if (mc.screen == null && RELEASE.consumeClick()) ShipNetwork.input(2, 0, 0, 0);
         if (mc.screen == null && CRUISE.consumeClick()) ShipNetwork.input(4, 0, 0, 0);
         ShipCamera.tick(mc);
@@ -182,32 +188,57 @@ public final class SkydockClient {
         }
         if (data.getString("Kind").equals("manifest")) {
             Set<UUID> active = new HashSet<>(); for (Tag e : data.getList("Ships", Tag.TAG_COMPOUND)) active.add(((CompoundTag) e).getUUID("Id"));
-            SHIPS.keySet().retainAll(active); levelShips = null; pending.keySet().retainAll(active); motions.keySet().retainAll(active); ShipRenderer.retain(active); return;
+            SHIPS.keySet().retainAll(active); levelShips = null; pending.keySet().retainAll(active); pendingDeltas.keySet().retainAll(active); stale.retainAll(active); motions.keySet().retainAll(active); ShipRenderer.retain(active); return;
         }
         UUID id = data.getUUID("Id");
         if (data.getString("Kind").equals("blocks")) {
             if (data.getInt("Part") == 0) pending.put(id, Ship.load(data, mc.level.registryAccess()));
             Ship ship = pending.get(id); if (ship == null) return;
-            for (Tag e : data.getList("CellsData", Tag.TAG_COMPOUND)) {
-                CompoundTag entry = (CompoundTag) e; BlockPos pos = BlockPos.of(entry.getLong("Pos"));
-                ship.blocks.put(pos, Block.stateById(entry.getInt("State")));
-                if (entry.contains("Data")) ship.blockEntities.put(pos, entry.getCompound("Data").copy());
+            applyCells(ship, data, false);
+            if (data.getInt("Part") + 1 == data.getInt("Parts")) { pending.remove(id); stale.remove(id); install(mc, id, ship, data); }
+            return;
+        }
+        if (data.getString("Kind").equals("blocks_delta")) {
+            if (data.getInt("Part") == 0) {
+                Ship base = SHIPS.get(id);
+                if (base == null || base.revision != data.getInt("From")) { pendingDeltas.remove(id); requestResync(id); return; }
+                Ship ship = Ship.load(data, mc.level.registryAccess());
+                ship.blocks.putAll(base.blocks); ship.blockEntities.putAll(base.blockEntities);
+                pendingDeltas.put(id, ship);
             }
+            Ship ship = pendingDeltas.get(id); if (ship == null) return;
+            applyCells(ship, data, true);
             if (data.getInt("Part") + 1 == data.getInt("Parts")) {
-                pending.remove(id);
-                ShipMotion motion = motions.computeIfAbsent(id, key -> new ShipMotion());
-                motion.accept(data.getLong("Tick"), ship.pose, ship.velocity, ship.yawVelocity);
-                Ship old = SHIPS.put(id, ship); levelShips = null;
-                if (old != null) { ship.pose = old.pose; ship.previousPose = old.previousPose; ship.seated.putAll(old.seated); }
-                ShipRenderer.invalidate(id);
-                if (data.getBoolean("Boarding") && mc.player != null) {
-                    mc.player.setPos(ship.blockToWorld(new net.minecraft.world.phys.Vec3(data.getDouble("BoardX"), data.getDouble("BoardY"), data.getDouble("BoardZ"))));
-                    mc.player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO); mc.player.setOnGround(true); mc.player.fallDistance = 0;
-                    ShipManager.attach(mc.player, ship);
-                    mc.player.setOldPosAndRot();
-                    ShipNetwork.boardReady(id);
-                }
+                pendingDeltas.remove(id);
+                Ship base = SHIPS.get(id);
+                if (base == null || base.revision != data.getInt("From")) { requestResync(id); return; }
+                install(mc, id, ship, data);
             }
+        }
+    }
+    private static void requestResync(UUID id) { if (stale.add(id)) ShipNetwork.input(3, 0, 0, 0); }
+    /** A delta replaces only the cells it carries, so a cell's old block-entity data goes unless the delta brings new data. */
+    private static void applyCells(Ship ship, CompoundTag data, boolean delta) {
+        for (Tag e : data.getList("CellsData", Tag.TAG_COMPOUND)) {
+            CompoundTag entry = (CompoundTag) e; BlockPos pos = BlockPos.of(entry.getLong("Pos"));
+            ship.blocks.put(pos, Block.stateById(entry.getInt("State")));
+            if (delta) ship.blockEntities.remove(pos);
+            if (entry.contains("Data")) ship.blockEntities.put(pos, entry.getCompound("Data").copy());
+        }
+    }
+    /** Puts a fully received hull in place; replacing the ship object is what makes {@code ShipRenderer} rebuild its mesh. */
+    private static void install(Minecraft mc, UUID id, Ship ship, CompoundTag data) {
+        ShipMotion motion = motions.computeIfAbsent(id, key -> new ShipMotion());
+        motion.accept(data.getLong("Tick"), ship.pose, ship.velocity, ship.yawVelocity);
+        Ship old = SHIPS.put(id, ship); levelShips = null;
+        if (old != null) { ship.pose = old.pose; ship.previousPose = old.previousPose; ship.seated.putAll(old.seated); }
+        ShipRenderer.invalidate(id);
+        if (data.getBoolean("Boarding") && mc.player != null) {
+            mc.player.setPos(ship.blockToWorld(new net.minecraft.world.phys.Vec3(data.getDouble("BoardX"), data.getDouble("BoardY"), data.getDouble("BoardZ"))));
+            mc.player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO); mc.player.setOnGround(true); mc.player.fallDistance = 0;
+            ShipManager.attach(mc.player, ship);
+            mc.player.setOldPosAndRot();
+            ShipNetwork.boardReady(id);
         }
     }
     private static void receivePose(ShipState state) {

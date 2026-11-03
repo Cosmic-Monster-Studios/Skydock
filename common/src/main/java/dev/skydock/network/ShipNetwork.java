@@ -14,6 +14,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import java.util.*;
 import java.util.function.Consumer;
@@ -22,8 +24,13 @@ public final class ShipNetwork {
     public static Consumer<CompoundTag> clientReceiver = tag -> {};
     public static Consumer<ShipState> poseReceiver = state -> {};
     private static final Map<UUID, Map<UUID, Integer>> sent = new HashMap<>();
-    /** Hull payloads are built once per revision and shared by every player that needs them. */
-    private record HullParts(int revision, long built, List<ListTag> parts) {}
+    /**
+     * Hull payloads are built once per revision and shared by every player that needs them. Each keeps the states it was
+     * built from and those of the revision before it, so a player holding {@code previous} gets only the {@code delta}.
+     * With no earlier revision known, {@code previous} equals {@code revision} and every send is a full hull.
+     */
+    private record HullParts(int revision, long built, Map<BlockPos, BlockState> states, List<ListTag> parts,
+                             int previous, Map<BlockPos, BlockState> previousStates, int changed, List<ListTag> delta) {}
     private static final Map<UUID, HullParts> hulls = new HashMap<>();
     private record PoseSent(ShipState state, long tick) {}
     private static final Map<UUID, PoseSent> poses = new HashMap<>();
@@ -143,13 +150,22 @@ public final class ShipNetwork {
             if (ship.bounds().distanceToSqr(player.position()) > range * range) continue;
             ShipManager.wake(player.getServer(), ship);
             active.add(ship.id); CompoundTag id = new CompoundTag(); id.putUUID("Id", ship.id); manifest.add(id);
-            if (!Objects.equals(seen.get(ship.id), ship.revision)) { sendShip(player, ship); seen.put(ship.id, ship.revision); }
+            Integer have = seen.get(ship.id);
+            if (!Objects.equals(have, ship.revision)) {
+                HullParts hull = hullParts(player.getServer(), ship);
+                switch (HullDiff.plan(have, hull.previous, hull.revision, hull.changed, hull.states.size())) {
+                    case DELTA -> sendShip(player, ship, "blocks_delta", hull.delta, hull.previous);
+                    case FULL -> sendShip(player, ship, "blocks", hull.parts, hull.previous);
+                    case NONE -> {}
+                }
+                seen.put(ship.id, hull.revision);
+            }
         }
         seen.keySet().retainAll(active);
         CompoundTag msg = new CompoundTag(); msg.putString("Kind", "manifest"); msg.put("Ships", manifest); send(player, msg);
     }
-    private static void sendShip(ServerPlayer player, Ship ship) {
-        List<ListTag> cells = hullParts(player.getServer(), ship);
+    /** Sends a full hull ({@code "blocks"}) or the cells changed since {@code from} ({@code "blocks_delta"}), in parts. */
+    private static void sendShip(ServerPlayer player, Ship ship, String kind, List<ListTag> cells, int from) {
         int parts = cells.size();
         for (int part = 0; part < parts; part++) {
             CompoundTag msg = ship.save(player.registryAccess(), false);
@@ -160,17 +176,32 @@ public final class ShipNetwork {
             }
             // Hull refreshes can run before this tick's physics; stamp the pose, not the send time.
             msg.putLong("Tick", ship.history.latestTick(player.getServer().overworld().getGameTime()));
-            msg.putString("Kind", "blocks"); msg.putInt("Part", part); msg.putInt("Parts", parts);
+            msg.putString("Kind", kind); msg.putInt("Part", part); msg.putInt("Parts", parts);
+            if (kind.equals("blocks_delta")) { msg.putInt("From", from); msg.putInt("To", ship.revision); }
             msg.put("CellsData", cells.get(part)); send(player, msg);
         }
     }
-    /** Cell lists in 256-block parts. Block-entity visuals can change without a revision, so a cached copy also ages out. */
-    private static List<ListTag> hullParts(MinecraftServer server, Ship ship) {
+    /**
+     * Cell lists in 256-block parts. Block-entity visuals can change without a revision, so a cached copy also ages out;
+     * that rebuild keeps the previous revision, so the delta stays based on what players were last sent.
+     */
+    private static HullParts hullParts(MinecraftServer server, Ship ship) {
         long now = server.overworld().getGameTime();
         HullParts cached = hulls.get(ship.id);
-        if (cached != null && cached.revision == ship.revision && now - cached.built < 200) return cached.parts;
-        List<Map.Entry<BlockPos, net.minecraft.world.level.block.state.BlockState>> blocks = new ArrayList<>(ship.blocks.entrySet());
+        if (cached != null && cached.revision == ship.revision && now - cached.built < 200) return cached;
+        Map<BlockPos, BlockState> states = new LinkedHashMap<>(ship.blocks);
+        int previous = ship.revision; Map<BlockPos, BlockState> previousStates = null;
+        if (cached != null && cached.revision != ship.revision) { previous = cached.revision; previousStates = cached.states; }
+        else if (cached != null) { previous = cached.previous; previousStates = cached.previousStates; }
         var yard = server.getLevel(ShipManager.SHIPYARD);
+        Map<BlockPos, BlockState> changed = previousStates == null ? Map.of() : HullDiff.diff(previousStates, states, Blocks.AIR.defaultBlockState());
+        HullParts hull = new HullParts(ship.revision, now, states, cellParts(server, yard, ship, states), previous, previousStates,
+                changed.size(), cellParts(server, yard, ship, changed));
+        hulls.put(ship.id, hull);
+        return hull;
+    }
+    private static List<ListTag> cellParts(MinecraftServer server, ServerLevel yard, Ship ship, Map<BlockPos, BlockState> cells) {
+        List<Map.Entry<BlockPos, BlockState>> blocks = new ArrayList<>(cells.entrySet());
         List<ListTag> parts = new ArrayList<>();
         for (int part = 0; part < Math.max(1, (blocks.size() + 255) / 256); part++) {
             ListTag list = new ListTag();
@@ -183,8 +214,7 @@ public final class ShipNetwork {
             }
             parts.add(list);
         }
-        hulls.put(ship.id, new HullParts(ship.revision, now, List.copyOf(parts)));
-        return parts;
+        return List.copyOf(parts);
     }
     public static void syncPose(MinecraftServer server, Ship ship) { syncPose(server, ship, true); }
     /** With {@code always} false, an unchanged ship only sends a heartbeat once a second instead of ten poses. */
