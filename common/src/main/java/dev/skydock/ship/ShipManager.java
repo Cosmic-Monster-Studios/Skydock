@@ -207,7 +207,8 @@ public final class ShipManager {
         ship.dimension = player.level().dimension(); ship.dock = pos.immutable();
         DockFrame frame = dock.frame(); ship.dockFacing = frame.facing();
         BlockPos origin = frame.origin();
-        ship.blocks.putAll(result.blocks()); ship.mass = result.mass(); ship.lift = result.lift(); ship.cells = result.cells(); ship.engines = result.engines();
+        ship.blocks.putAll(result.blocks()); result.blocks().forEach((p, state) -> { if (!state.isAir()) ship.blueprint.put(p, state); });
+        ship.mass = result.mass(); ship.lift = result.lift(); ship.cells = result.cells(); ship.engines = result.engines();
         ship.initializePivot();
         ship.pose = Ship.berthPose(frame, BlockPos.ZERO, ship.center());
         ship.previousPose = ship.pose;

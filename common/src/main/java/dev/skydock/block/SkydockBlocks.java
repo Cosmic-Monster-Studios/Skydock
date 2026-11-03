@@ -53,6 +53,7 @@ public final class SkydockBlocks {
     public static final RegistrySupplier<MenuType<DockMenu>> DOCK_MENU = MENUS.register("dock", () -> MenuRegistry.ofExtended(DockMenu::new));
     public static final RegistrySupplier<MenuType<DeviceMenu>> DEVICE_MENU = MENUS.register("device", () -> MenuRegistry.ofExtended(DeviceMenu::new));
     public static final RegistrySupplier<MenuType<EngineMenu>> ENGINE_MENU = MENUS.register("engine", () -> MenuRegistry.of(EngineMenu::new));
+    public static final RegistrySupplier<Item> SHIPWRIGHT_HAMMER = ITEMS.register("shipwright_hammer", () -> new dev.skydock.item.ShipwrightHammerItem(new Item.Properties().durability(250).stacksTo(1)));
     public static final RegistrySupplier<CreativeModeTab> TAB = TABS.register("skydock", () -> CreativeTabRegistry.create(
             Component.translatable("itemGroup.skydock"), () -> new ItemStack(HELM.get())));
     public static BlockBehaviour.Properties props() { return BlockBehaviour.Properties.of().strength(4).sound(SoundType.METAL).noOcclusion(); }
@@ -64,5 +65,6 @@ public final class SkydockBlocks {
     public static void init() {
         BLOCKS.register(); ITEMS.register(); ENTITIES.register(); MENUS.register(); TABS.register();
         CreativeTabRegistry.appendStack(TAB, ALL_ITEMS.stream().map(i -> (Supplier<ItemStack>) () -> new ItemStack(i.get())));
+        CreativeTabRegistry.appendStack(TAB, () -> new ItemStack(SHIPWRIGHT_HAMMER.get()));
     }
 }

@@ -109,4 +109,27 @@ class ShipPersistenceTest {
         assertEquals(91.5, loaded.holdAltitude, 1e-9);
         assertEquals(255, loaded.headingLock, 1e-9);
     }
+
+    @Test void legacyShipBlueprintIsItsCurrentHull() {
+        Ship source = hull();
+        source.blocks.put(new BlockPos(9, 5, 5), Blocks.AIR.defaultBlockState());
+        CompoundTag legacy = source.save(registries, true);
+        legacy.remove("BlueprintPalette"); legacy.remove("BlueprintPositions"); legacy.remove("BlueprintStates");
+        Ship loaded = Ship.loadPersisted(legacy, registries);
+        assertEquals(source.blocks.entrySet().stream().filter(e -> !e.getValue().isAir()).count(), loaded.blueprint.size());
+        assertFalse(loaded.blueprint.containsKey(new BlockPos(9, 5, 5)));
+        assertEquals(Blocks.SPRUCE_PLANKS.defaultBlockState(), loaded.blueprint.get(new BlockPos(0, 0, 0)));
+    }
+
+    @Test void blueprintSurvivesARoundTripWhenItDiffersFromTheHull() {
+        Ship source = hull();
+        source.blueprint.putAll(source.blocks);
+        source.blocks.put(new BlockPos(0, 0, 0), Blocks.AIR.defaultBlockState());
+        CompoundTag saved = source.save(registries, true);
+        Ship loaded = Ship.loadPersisted(saved, registries);
+        assertEquals(Blocks.AIR.defaultBlockState(), loaded.blocks.get(new BlockPos(0, 0, 0)));
+        assertEquals(Blocks.SPRUCE_PLANKS.defaultBlockState(), loaded.blueprint.get(new BlockPos(0, 0, 0)));
+        assertEquals(source.blueprint, loaded.blueprint);
+        assertFalse(source.save(registries, false).contains("BlueprintPalette"));
+    }
 }

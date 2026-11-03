@@ -26,6 +26,8 @@ public final class Ship {
     public Vec3 velocity = Vec3.ZERO;
     public final ShipMotion history = new ShipMotion();
     public final Map<BlockPos, BlockState> blocks = new LinkedHashMap<>();
+    /** The hull as launched (non-air states, north frame): what the Shipwright's Hammer restores. Legacy ships get their hull at load. */
+    public final Map<BlockPos, BlockState> blueprint = new LinkedHashMap<>();
     public final Map<BlockPos, CompoundTag> blockEntities = new HashMap<>();
     public double mass, lift;
     public int cells, engines, revision;
@@ -203,22 +205,36 @@ public final class Ship {
             tag.putDouble("AnchorX", pilotAnchor.x); tag.putDouble("AnchorY", pilotAnchor.y); tag.putDouble("AnchorZ", pilotAnchor.z);
         }
         if (includeBlocks) {
-            // One state compound per distinct state instead of per block keeps saves of large hulls small.
-            Map<BlockState, Integer> palette = new HashMap<>();
-            ListTag paletteTag = new ListTag();
-            long[] positions = new long[blocks.size()];
-            int[] states = new int[blocks.size()];
-            int i = 0;
-            for (var entry : blocks.entrySet()) {
-                positions[i] = entry.getKey().asLong();
-                states[i++] = palette.computeIfAbsent(entry.getValue(), state -> { paletteTag.add(NbtUtils.writeBlockState(state)); return paletteTag.size() - 1; });
-            }
-            tag.put("Palette", paletteTag); tag.putLongArray("BlockPositions", positions); tag.putIntArray("BlockStates", states);
+            writeStates(tag, "Palette", "BlockPositions", "BlockStates", blocks);
+            writeStates(tag, "BlueprintPalette", "BlueprintPositions", "BlueprintStates", blueprint);
             ListTag data = new ListTag();
             blockEntities.forEach((p, entity) -> { CompoundTag e = new CompoundTag(); e.putLong("Pos", p.asLong()); e.put("Data", entity.copy()); data.add(e); });
             tag.put("BlockData", data);
         }
         return tag;
+    }
+
+    /** One state compound per distinct state instead of per block keeps saves of large hulls small. */
+    private static void writeStates(CompoundTag tag, String paletteKey, String positionKey, String stateKey, Map<BlockPos, BlockState> map) {
+        Map<BlockState, Integer> palette = new HashMap<>();
+        ListTag paletteTag = new ListTag();
+        long[] positions = new long[map.size()];
+        int[] states = new int[map.size()];
+        int i = 0;
+        for (var entry : map.entrySet()) {
+            positions[i] = entry.getKey().asLong();
+            states[i++] = palette.computeIfAbsent(entry.getValue(), state -> { paletteTag.add(NbtUtils.writeBlockState(state)); return paletteTag.size() - 1; });
+        }
+        tag.put(paletteKey, paletteTag); tag.putLongArray(positionKey, positions); tag.putIntArray(stateKey, states);
+    }
+    private static void readStates(CompoundTag tag, HolderLookup<net.minecraft.world.level.block.Block> lookup, String paletteKey, String positionKey, String stateKey, Map<BlockPos, BlockState> into) {
+        ListTag paletteTag = tag.getList(paletteKey, Tag.TAG_COMPOUND);
+        BlockState[] palette = new BlockState[paletteTag.size()];
+        for (int i = 0; i < palette.length; i++) palette[i] = NbtUtils.readBlockState(lookup, paletteTag.getCompound(i));
+        long[] positions = tag.getLongArray(positionKey);
+        int[] states = tag.getIntArray(stateKey);
+        for (int i = 0; i < Math.min(positions.length, states.length); i++)
+            if (states[i] >= 0 && states[i] < palette.length) into.put(BlockPos.of(positions[i]), palette[states[i]]);
     }
 
     /** Saves from before facing docks have none: north, the original layout. */
@@ -254,13 +270,7 @@ public final class Ship {
         if (tag.contains("AnchorX")) ship.pilotAnchor = new Vec3(tag.getDouble("AnchorX"), tag.getDouble("AnchorY"), tag.getDouble("AnchorZ"));
         var lookup = registries.lookupOrThrow(Registries.BLOCK);
         if (tag.contains("Palette", Tag.TAG_LIST)) {
-            ListTag paletteTag = tag.getList("Palette", Tag.TAG_COMPOUND);
-            BlockState[] palette = new BlockState[paletteTag.size()];
-            for (int i = 0; i < palette.length; i++) palette[i] = NbtUtils.readBlockState(lookup, paletteTag.getCompound(i));
-            long[] positions = tag.getLongArray("BlockPositions");
-            int[] states = tag.getIntArray("BlockStates");
-            for (int i = 0; i < Math.min(positions.length, states.length); i++)
-                if (states[i] >= 0 && states[i] < palette.length) ship.blocks.put(BlockPos.of(positions[i]), palette[states[i]]);
+            readStates(tag, lookup, "Palette", "BlockPositions", "BlockStates", ship.blocks);
             for (Tag e : tag.getList("BlockData", Tag.TAG_COMPOUND)) {
                 CompoundTag entry = (CompoundTag) e;
                 ship.blockEntities.put(BlockPos.of(entry.getLong("Pos")), entry.getCompound("Data"));
@@ -270,6 +280,8 @@ public final class Ship {
             ship.blocks.put(p, NbtUtils.readBlockState(lookup, entry.getCompound("State")));
             if (entry.contains("Data")) ship.blockEntities.put(p, entry.getCompound("Data"));
         }
+        if (tag.contains("BlueprintPalette", Tag.TAG_LIST)) readStates(tag, lookup, "BlueprintPalette", "BlueprintPositions", "BlueprintStates", ship.blueprint);
+        else ship.blocks.forEach((p, state) -> { if (!state.isAir()) ship.blueprint.put(p, state); });
         if (migrateLegacy) ship.refreshRailingConnections();
         if (migrateLegacy && ship.pivot == null) ship.initializePivot();
         return ship;

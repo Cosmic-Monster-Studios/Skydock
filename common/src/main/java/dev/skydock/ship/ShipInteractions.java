@@ -7,6 +7,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.*;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -77,6 +78,8 @@ public final class ShipInteractions {
         Ship ship = hit.ship; BlockPos local = hit.localHit.getBlockPos();
         if (!ShipManager.permitted(player, ship)) { ShipManager.tell(player, "message.skydock.device_not_permitted"); return; }
         ShipManager.wake(player.getServer(), ship);
+        ItemStack held = player.getMainHandItem();
+        if (held.is(SkydockBlocks.SHIPWRIGHT_HAMMER.get())) { ShipRepair.repair(player, ship, held); return; }
         BlockState state = ship.state(local);
         DeviceBlock.Kind kind = deviceKind(state);
         if (player.isShiftKeyDown() && kind != null) {
