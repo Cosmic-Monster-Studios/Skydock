@@ -9,6 +9,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.*;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.*;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
@@ -42,6 +44,36 @@ public final class LiftCellBlock extends Block {
     @Override protected BlockState updateShape(BlockState state, Direction direction, BlockState neighbor, LevelAccessor level, BlockPos pos, BlockPos neighborPos) {
         return state.setValue(property(direction), connects(neighbor));
     }
+
+    private static final Direction[] HORIZONTAL = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
+
+    /** Moves each horizontal connection (indexed N, E, S, W) to the side it faces after the rotation. Pure so it can be tested without a registered block. */
+    static boolean[] rotateConnections(boolean[] nesw, Rotation rotation) {
+        boolean[] out = new boolean[4];
+        for (int i = 0; i < 4; i++) out[java.util.Arrays.asList(HORIZONTAL).indexOf(rotation.rotate(HORIZONTAL[i]))] = nesw[i];
+        return out;
+    }
+
+    /** Same idea for a mirror. */
+    static boolean[] mirrorConnections(boolean[] nesw, Mirror mirror) {
+        boolean[] out = new boolean[4];
+        for (int i = 0; i < 4; i++) out[java.util.Arrays.asList(HORIZONTAL).indexOf(mirror.mirror(HORIZONTAL[i]))] = nesw[i];
+        return out;
+    }
+
+    private static boolean[] horizontal(BlockState state) {
+        boolean[] nesw = new boolean[4];
+        for (int i = 0; i < 4; i++) nesw[i] = state.getValue(property(HORIZONTAL[i]));
+        return nesw;
+    }
+
+    private static BlockState withHorizontal(BlockState state, boolean[] nesw) {
+        for (int i = 0; i < 4; i++) state = state.setValue(property(HORIZONTAL[i]), nesw[i]);
+        return state;
+    }
+
+    @Override protected BlockState rotate(BlockState state, Rotation rotation) { return withHorizontal(state, rotateConnections(horizontal(state), rotation)); }
+    @Override protected BlockState mirror(BlockState state, Mirror mirror) { return withHorizontal(state, mirrorConnections(horizontal(state), mirror)); }
 
     private static boolean connects(BlockState state) { return state.is(SkydockBlocks.LIFT_CELLS); }
     private static BooleanProperty property(Direction direction) {
