@@ -307,5 +307,17 @@
   "rank.skydock.mate": "Mate",
   "rank.skydock.captain": "Captain",
   "rank.skydock.commodore": "Commodore",
-  "rank.skydock.admiral": "Admiral"
+  "rank.skydock.admiral": "Admiral",
+  "cargo.skydock.name.machine_parts": "Machine parts",
+  "cargo.skydock.name.silk": "Silk",
+  "cargo.skydock.name.spices": "Spices",
+  "cargo.skydock.name.glassware": "Glassware",
+  "cargo.skydock.name.lantern_oil": "Lantern oil",
+  "cargo.skydock.name.wool_bales": "Wool bales",
+  "cargo.skydock.name.tinned_fish": "Tinned fish",
+  "cargo.skydock.name.maps_charts": "Maps and charts",
+  "cargo.skydock.name.clockwork": "Clockwork",
+  "cargo.skydock.name.seed_stock": "Seed stock",
+  "cargo.skydock.name.medicine": "Medicine",
+  "cargo.skydock.name.mail": "Mail"
 }
