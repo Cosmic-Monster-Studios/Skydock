@@ -14,7 +14,18 @@ class FuelBurnerTest {
     }
     @Test void tenPercentLoadLastsTenTimesLonger() {
         FuelBurner b = new FuelBurner(); b.remaining = 100;
-        assertEquals(1000, lasts(b, .1, 5000), 1);
+        assertEquals(1000, lasts(b, .1, 5000));
+        assertEquals(0, b.remainingTicks());
+    }
+    @Test void fractionalDustDoesNotShowAsATick() {
+        FuelBurner b = new FuelBurner(); b.remaining = 100;
+        while (b.burn(.1, () -> 0)) { }
+        assertEquals(0, b.remainingTicks());
+        FuelBurner c = new FuelBurner(); c.remaining = 1600;
+        while (c.burn(.05, () -> 0)) { }
+        assertEquals(0, c.remainingTicks());
+        FuelBurner d = new FuelBurner(); d.remaining = .25;
+        assertEquals(0, d.remainingTicks());
     }
     @Test void noLoadBurnsNothing() {
         FuelBurner b = new FuelBurner(); b.remaining = 5;
