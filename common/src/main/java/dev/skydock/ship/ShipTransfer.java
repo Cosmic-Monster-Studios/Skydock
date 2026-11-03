@@ -1,6 +1,7 @@
 package dev.skydock.ship;
 
 import dev.skydock.Skydock;
+import dev.skydock.mixin.ChunkMapAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
@@ -10,21 +11,24 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.storage.LevelResource;
-import dev.skydock.mixin.ChunkMapAccessor;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.*;
-import java.util.*;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.storage.LevelResource;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.*;
+import java.util.*;
 
 /** Journal is flushed before either world is edited. Interrupted transfers can be replayed. */
 public final class ShipTransfer {
     private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
     public static boolean changing;
+    /** Writes a compressed NBT file durably before returning. The loader entry point replaces it; this default is the plain fallback. */
+    @FunctionalInterface public interface JournalWriter { void write(CompoundTag tag, Path file) throws IOException; }
+    public static JournalWriter journalWriter = ShipTransfer::writeDurably;
 
     public static void snapshot(Ship ship, ServerLevel level, BlockPos origin) {
         ship.blockEntities.clear();
@@ -41,23 +45,26 @@ public final class ShipTransfer {
         return chunks;
     }
     /**
-     * Writes only the Skydock journal, synchronously. Not SavedData.save(File): NeoForge queues that write on a worker
-     * thread, and the journal must be on disk before the world is edited. Written beside the target, then moved over it.
+     * Writes only the Skydock journal, and returns once it is durably on disk. It does not go through SavedData.save(File):
+     * NeoForge queues that on a worker thread, where an older autosave snapshot could land after this write.
      */
     public static void flush(MinecraftServer server) {
         ShipSavedData data = ShipSavedData.get(server); data.setDirty();
         Path file = server.getWorldPath(LevelResource.ROOT).resolve("data").resolve("skydock_ships.dat");
-        Path temp = file.resolveSibling("skydock_ships.dat.tmp");
         CompoundTag root = new CompoundTag();
         root.put("data", data.save(new CompoundTag(), server.registryAccess()));
         NbtUtils.addCurrentDataVersion(root);
-        try {
-            Files.createDirectories(file.getParent());
-            NbtIo.writeCompressed(root, temp);
-            try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
-            catch (AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
-        } catch (IOException e) { throw new UncheckedIOException("Could not write the Skydock journal", e); }
+        try { Files.createDirectories(file.getParent()); journalWriter.write(root, file); }
+        catch (IOException e) { throw new UncheckedIOException("Could not write the Skydock journal", e); }
         data.setDirty(false);
+    }
+    /** Fallback writer: temp file beside the target, fsynced, then atomically moved over it. */
+    private static void writeDurably(CompoundTag tag, Path file) throws IOException {
+        Path temp = file.resolveSibling(file.getFileName() + ".tmp");
+        NbtIo.writeCompressed(tag, temp);
+        try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) { channel.force(true); }
+        try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
+        catch (AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
     }
     /** Writes the journal, then the given chunks of a level a phase edited, and waits for those writes before the next phase begins. */
     public static void flush(MinecraftServer server, ServerLevel level, Set<ChunkPos> chunks) {
