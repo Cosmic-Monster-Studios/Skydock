@@ -62,7 +62,7 @@ public final class SkydockBlocks {
             BlockEntityType.Builder.of(dev.skydock.cargo.CargoPodBlockEntity::new, CARGO_POD.get()).build(null));
     public static final RegistrySupplier<net.minecraft.world.entity.EntityType<dev.skydock.cargo.PodEntity>> POD = ENTITY_TYPES.register("pod", () ->
             net.minecraft.world.entity.EntityType.Builder.<dev.skydock.cargo.PodEntity>of(dev.skydock.cargo.PodEntity::new, net.minecraft.world.entity.MobCategory.MISC)
-                    .sized(.9f, .9f).clientTrackingRange(16).updateInterval(2).build("pod"));
+                    .sized(.9f, .9f).fireImmune().clientTrackingRange(16).updateInterval(2).build("pod"));
     public static final RegistrySupplier<CreativeModeTab> TAB = TABS.register("skydock", () -> CreativeTabRegistry.create(
             Component.translatable("itemGroup.skydock"), () -> new ItemStack(HELM.get())));
     public static BlockBehaviour.Properties props() { return BlockBehaviour.Properties.of().strength(4).sound(SoundType.METAL).noOcclusion(); }

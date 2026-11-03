@@ -91,7 +91,7 @@ public final class ShipManager {
         return ((ShipAttachmentAccess) entity).skydock$attachment();
     }
     private static boolean attachable(Entity entity) {
-        return entity.isAlive() && !entity.isSpectator() && !entity.noPhysics && !entity.isPassenger()
+        return entity.isAlive() && !entity.isSpectator() && !entity.noPhysics && !entity.isPassenger() && !(entity instanceof dev.skydock.cargo.PodEntity)
                 && (!(entity instanceof Player player) || !player.getAbilities().flying);
     }
     private static Ship findShip(Level level, UUID id) {

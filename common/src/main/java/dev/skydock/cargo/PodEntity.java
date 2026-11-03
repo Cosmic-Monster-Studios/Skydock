@@ -61,6 +61,9 @@ public final class PodEntity extends Entity {
         return flat.lengthSqr() < 1e-8 ? Vec3.ZERO : flat.normalize().scale(.3);
     }
 
+    /** A pod comes to rest only on ground beneath it once the balloon is open; brushing a wall is not landing. */
+    public static boolean landsOn(boolean onGround, double vy, int age) { return onGround && vy <= 0 && age >= PodDrift.TUMBLE; }
+
     public PodCargo cargo() { return cargo; }
     public boolean open() { return entityData.get(OPEN); }
 
@@ -68,12 +71,16 @@ public final class PodEntity extends Entity {
         super.tick();
         if (!(level() instanceof ServerLevel world)) return;
         if (getY() < world.getMinBuildHeight()) { lose(world); return; }
-        if (landed) { setDeltaMovement(Vec3.ZERO); return; }
+        if (landed) {
+            setDeltaMovement(Vec3.ZERO);
+            if (tickCount % 10 == 0 && world.noCollision(this, getBoundingBox().move(0, -.05, 0))) landed = false;
+            else return;
+        }
         if (age == PodDrift.TUMBLE) world.playSound(null, getX(), getY(), getZ(), SoundEvents.WOOL_PLACE, SoundSource.NEUTRAL, 1, 1);
         if (age >= PodDrift.TUMBLE && !open()) entityData.set(OPEN, true);
         setDeltaMovement(PodDrift.step(getDeltaMovement(), age, CargoSavedData.get(world.getServer()).wind));
         move(MoverType.SELF, getDeltaMovement());
-        if (onGround() || horizontalCollision || verticalCollision) { landed = true; setDeltaMovement(Vec3.ZERO); }
+        if (landsOn(onGround(), getDeltaMovement().y, age)) { landed = true; setDeltaMovement(Vec3.ZERO); }
         if (age % 5 == 0) world.sendParticles(ParticleTypes.END_ROD, getX(), getY() + .5, getZ(), 1, .1, .1, .1, .01);
         age++;
     }

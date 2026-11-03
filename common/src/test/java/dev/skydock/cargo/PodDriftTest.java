@@ -22,9 +22,18 @@ class PodDriftTest {
         Vec3 v = new Vec3(0, .4, 0); boolean fast = false;
         for (int age = 0; age < 20; age++) { v = PodDrift.step(v, age, CALM); if (v.y < -.05) fast = true; }
         assertTrue(fast, "the tumble should fall faster than a block a second");
-        v = run(v, 20, 80, CALM);
-        assertEquals(-.05, v.y, .005);
+        v = run(v, 20, 35, CALM);
+        assertEquals(-.05, v.y, .005, "within 15 ticks of opening the fall is capped");
     }
+
+    @Test void landsOnlyOnTheGroundAfterTheTumble() {
+        assertTrue(PodEntity.landsOn(true, 0, PodDrift.TUMBLE));
+        assertTrue(PodEntity.landsOn(true, -.05, 100));
+        assertFalse(PodEntity.landsOn(true, 0, PodDrift.TUMBLE - 1), "no landing mid-tumble");
+        assertFalse(PodEntity.landsOn(true, .1, 100), "rising off a ledge is not landing");
+    }
+
+    @Test void wallContactIsNotLanding() { assertFalse(PodEntity.landsOn(false, -.05, 100)); }
 
     @Test void driftsWithTheWind() {
         CargoSavedData.Wind wind = new CargoSavedData.Wind(Math.PI / 3, 1.5, 0);

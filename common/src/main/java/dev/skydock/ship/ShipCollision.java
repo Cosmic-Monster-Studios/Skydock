@@ -45,7 +45,8 @@ public final class ShipCollision {
         return false;
     }
     public static Vec3 collide(Entity entity, Vec3 requested) {
-        if (entity.noPhysics || entity.isSpectator() || requested.lengthSqr() == 0) return requested;
+        // Ejected pods fall through hulls and land only on terrain.
+        if (entity.noPhysics || entity.isSpectator() || requested.lengthSqr() == 0 || entity instanceof dev.skydock.cargo.PodEntity) return requested;
         AABB box = entity.getBoundingBox();
         List<VoxelShape> shapes = new ArrayList<>();
         AABB area = box.expandTowards(requested).inflate(entity.maxUpStep() + .05);
