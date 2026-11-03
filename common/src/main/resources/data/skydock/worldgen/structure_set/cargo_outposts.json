@@ -1,0 +1,14 @@
+{
+  "placement": {
+    "type": "minecraft:random_spread",
+    "salt": 20261103,
+    "separation": 26,
+    "spacing": 48
+  },
+  "structures": [
+    {
+      "structure": "skydock:cargo_outpost",
+      "weight": 1
+    }
+  ]
+}

@@ -13,6 +13,7 @@
     "skydock:ballast",
     "skydock:mooring_clamp",
     "skydock:brass_lantern",
-    "skydock:cargo_pod"
+    "skydock:cargo_pod",
+    "skydock:cargo_terminal"
   ]
 }

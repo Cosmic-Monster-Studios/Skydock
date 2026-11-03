@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "skydock:block/cargo_terminal_front",
+    "side": "skydock:block/cargo_terminal_side",
+    "top": "skydock:block/cargo_terminal_side"
+  }
+}

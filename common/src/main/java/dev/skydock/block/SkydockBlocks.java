@@ -60,6 +60,9 @@ public final class SkydockBlocks {
     public static final RegistrySupplier<Item> CARGO_POD_ITEM = ITEMS.register("cargo_pod", () -> new dev.skydock.cargo.CargoPodItem(CARGO_POD.get(), new Item.Properties().stacksTo(1)));
     public static final RegistrySupplier<BlockEntityType<dev.skydock.cargo.CargoPodBlockEntity>> CARGO_POD_ENTITY = ENTITIES.register("cargo_pod", () ->
             BlockEntityType.Builder.of(dev.skydock.cargo.CargoPodBlockEntity::new, CARGO_POD.get()).build(null));
+    public static final RegistrySupplier<dev.skydock.cargo.CargoTerminalBlock> CARGO_TERMINAL = register("cargo_terminal", () -> new dev.skydock.cargo.CargoTerminalBlock(BlockBehaviour.Properties.of().strength(3.5f).sound(SoundType.METAL)));
+    public static final RegistrySupplier<BlockEntityType<dev.skydock.cargo.CargoTerminalBlockEntity>> CARGO_TERMINAL_ENTITY = ENTITIES.register("cargo_terminal", () ->
+            BlockEntityType.Builder.of(dev.skydock.cargo.CargoTerminalBlockEntity::new, CARGO_TERMINAL.get()).build(null));
     public static final RegistrySupplier<net.minecraft.world.entity.EntityType<dev.skydock.cargo.PodEntity>> POD = ENTITY_TYPES.register("pod", () ->
             net.minecraft.world.entity.EntityType.Builder.<dev.skydock.cargo.PodEntity>of(dev.skydock.cargo.PodEntity::new, net.minecraft.world.entity.MobCategory.MISC)
                     .sized(.9f, .9f).fireImmune().clientTrackingRange(16).updateInterval(2).build("pod"));

@@ -24,6 +24,12 @@ public final class CargoSavedData extends SavedData {
     public static CargoSavedData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(CargoSavedData::new, CargoSavedData::load, null), "skydock_cargo");
     }
+    /** Records a generated terminal, dropping any predicted site within 64 blocks horizontally in the same dimension. */
+    public void registerTerminal(GlobalPos pos, BlockPos pad) {
+        terminals.values().removeIf(t -> !t.generated() && t.pos().dimension().equals(pos.dimension()) && Offers.distance(t.pos().pos(), pos.pos()) <= 64);
+        terminals.put(pos, new Terminal(pos, pad, true)); setDirty();
+    }
+    public void removeTerminal(GlobalPos pos) { if (terminals.remove(pos) != null) setDirty(); }
     public CargoProfile profile(UUID id) { return profiles.computeIfAbsent(id, k -> { setDirty(); return new CargoProfile(); }); }
     /** The contract with this id and the player holding it, or null. */
     public Map.Entry<UUID, Contract> findContract(long id) {
