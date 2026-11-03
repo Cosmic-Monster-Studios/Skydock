@@ -64,16 +64,17 @@ public final class PodLoading {
     public static void take(ServerPlayer player, Ship ship, BlockPos local) {
         var server = player.getServer(); ServerLevel yard = server.getLevel(ShipManager.SHIPYARD); if (yard == null) return;
         BlockPos at = ship.yard.offset(local);
+        if (!ship.moored) { ShipManager.tell(player, "message.skydock.pod_moor_first"); return; }
         if (!(yard.getBlockEntity(at) instanceof CargoPodBlockEntity pod) || pod.cargo() == null) {
             ShipManager.tell(player, "message.skydock.pod_empty");
-            yard.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS); forget(ship, local);
+            if (yard.getBlockState(at).is(SkydockBlocks.CARGO_POD.get())) yard.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS);
+            forget(ship, local);
             ship.revision++; ShipManager.refresh(server, ship); ShipNetwork.syncPlayers(server); return;
         }
         PodCargo cargo = pod.cargo(); PodTag tag = cargo.tag();
         var holder = CargoSavedData.get(server).findContract(tag.contract());
         boolean mine = holder != null && holder.getKey().equals(player.getUUID());
         if (!(mine || tag.ejected() || holder == null)) { ShipManager.tell(player, "message.skydock.pod_not_yours"); return; }
-        if (!ship.moored) { ShipManager.tell(player, "message.skydock.pod_moor_first"); return; }
         yard.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS);
         forget(ship, local);
         ItemStack item = CargoPodItem.create(tag, cargo.cargoKey(), cargo.destination());
