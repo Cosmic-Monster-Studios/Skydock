@@ -44,4 +44,18 @@ class ShipRepairTest {
         List<BlockPos> picked = ShipRepair.missing(row(4), p -> true, p -> p.getX() == 1, Vec3.ZERO, 16);
         assertEquals(List.of(new BlockPos(0, 0, 0), new BlockPos(2, 0, 0), new BlockPos(3, 0, 0)), picked);
     }
+
+    @Test void anUnaffordableNearKindDoesNotStopFartherAffordableOnes() {
+        List<BlockPos> sorted = List.of(new BlockPos(0, 0, 0), new BlockPos(1, 0, 0), new BlockPos(2, 0, 0), new BlockPos(3, 0, 0), new BlockPos(4, 0, 0));
+        List<BlockPos> done = new ArrayList<>(); List<BlockPos> tried = new ArrayList<>();
+        int n = ShipRepair.restore(sorted, p -> p.getX() < 2 ? "lift" : "planks", (p, kind) -> { tried.add(p); if (kind.equals("lift")) return false; done.add(p); return true; }, 2);
+        assertEquals(2, n);
+        assertEquals(List.of(new BlockPos(2, 0, 0), new BlockPos(3, 0, 0)), done);
+        assertEquals(List.of(new BlockPos(0, 0, 0), new BlockPos(2, 0, 0), new BlockPos(3, 0, 0)), tried);
+    }
+
+    @Test void restoreWalksPastTheLimitOnlyWhenCellsFail() {
+        List<BlockPos> sorted = new ArrayList<>(row(40).keySet());
+        assertEquals(16, ShipRepair.restore(sorted, p -> "planks", (p, k) -> true, ShipRepair.PER_USE));
+    }
 }
