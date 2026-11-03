@@ -27,6 +27,7 @@
   "block.skydock.cargo_pod": "Cargo Pod",
   "item.skydock.cargo_pod.destination": "Destination: %s (%s)",
   "item.skydock.cargo_pod.ejected": "Ejected",
+  "entity.skydock.pod": "Cargo Pod",
   "message.skydock.pod_outside": "A pod has to sit inside the ship's interior.",
   "message.skydock.pod_occupied": "That space is taken.",
   "message.skydock.pod_unattached": "A pod needs a block to rest against.",

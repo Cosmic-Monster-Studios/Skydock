@@ -123,6 +123,8 @@ public final class ShipDamage {
             if (state.isAir() || state.is(SkydockBlocks.HELM.get())) continue;
             BlockPos at = ship.yard.offset(cell);
             if (!breaks(rules, excessSpeed, state.getDestroySpeed(yard, at))) continue;
+            // A pod is thrown clear under its balloon instead of breaking.
+            if (state.is(SkydockBlocks.CARGO_POD.get())) { dev.skydock.cargo.PodEntity.eject(world, yard, ship, pose, cell, direction); broken++; continue; }
             shatter(world, yard, ship, pose, cell, state);
             broken++;
         }

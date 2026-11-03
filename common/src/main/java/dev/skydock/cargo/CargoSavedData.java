@@ -13,6 +13,8 @@ public final class CargoSavedData extends SavedData {
     public record Terminal(GlobalPos pos, BlockPos pad, boolean generated) {}
     public record Wind(double angle, double speed, long changedAt) {}
 
+    public static final long WIND_PERIOD = 6_000;
+
     public final Map<GlobalPos, Terminal> terminals = new LinkedHashMap<>();
     public final Map<UUID, CargoProfile> profiles = new LinkedHashMap<>();
     public Wind wind = new Wind(0, 0, 0);
@@ -27,6 +29,16 @@ public final class CargoSavedData extends SavedData {
     public Map.Entry<UUID, Contract> findContract(long id) {
         for (Map.Entry<UUID, CargoProfile> e : profiles.entrySet()) { Contract c = e.getValue().contracts.get(id); if (c != null) return Map.entry(e.getKey(), c); }
         return null;
+    }
+    /** The wind holds for 6,000 ticks, then turns to a uniform new angle and a speed of 0 to 2 blocks per second. */
+    public static Wind nextWind(Wind wind, long now, net.minecraft.util.RandomSource random) {
+        boolean fresh = wind.changedAt() == 0 && wind.speed() == 0;
+        if (!fresh && now >= wind.changedAt() && now - wind.changedAt() < WIND_PERIOD) return wind;
+        return new Wind(random.nextDouble() * Math.PI * 2, random.nextDouble() * 2, now);
+    }
+    public static void tickWind(MinecraftServer server) {
+        CargoSavedData data = get(server); Wind next = nextWind(data.wind, server.overworld().getGameTime(), server.overworld().getRandom());
+        if (next != data.wind) { data.wind = next; data.setDirty(); }
     }
 
     private static CargoSavedData load(CompoundTag tag, HolderLookup.Provider registries) {

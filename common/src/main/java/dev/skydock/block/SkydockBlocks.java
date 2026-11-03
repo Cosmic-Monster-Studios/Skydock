@@ -24,6 +24,7 @@ public final class SkydockBlocks {
     private static final DeferredRegister<Item> ITEMS = DeferredRegister.create(Skydock.ID, Registries.ITEM);
     private static final DeferredRegister<BlockEntityType<?>> ENTITIES = DeferredRegister.create(Skydock.ID, Registries.BLOCK_ENTITY_TYPE);
     private static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Skydock.ID, Registries.MENU);
+    private static final DeferredRegister<net.minecraft.world.entity.EntityType<?>> ENTITY_TYPES = DeferredRegister.create(Skydock.ID, Registries.ENTITY_TYPE);
     private static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Skydock.ID, Registries.CREATIVE_MODE_TAB);
     public static final TagKey<Block> NOT_SHIP = TagKey.create(Registries.BLOCK, Skydock.id("not_ship"));
     public static final TagKey<Block> FORBIDDEN = TagKey.create(Registries.BLOCK, Skydock.id("forbidden"));
@@ -59,6 +60,9 @@ public final class SkydockBlocks {
     public static final RegistrySupplier<Item> CARGO_POD_ITEM = ITEMS.register("cargo_pod", () -> new dev.skydock.cargo.CargoPodItem(CARGO_POD.get(), new Item.Properties().stacksTo(1)));
     public static final RegistrySupplier<BlockEntityType<dev.skydock.cargo.CargoPodBlockEntity>> CARGO_POD_ENTITY = ENTITIES.register("cargo_pod", () ->
             BlockEntityType.Builder.of(dev.skydock.cargo.CargoPodBlockEntity::new, CARGO_POD.get()).build(null));
+    public static final RegistrySupplier<net.minecraft.world.entity.EntityType<dev.skydock.cargo.PodEntity>> POD = ENTITY_TYPES.register("pod", () ->
+            net.minecraft.world.entity.EntityType.Builder.<dev.skydock.cargo.PodEntity>of(dev.skydock.cargo.PodEntity::new, net.minecraft.world.entity.MobCategory.MISC)
+                    .sized(.9f, .9f).clientTrackingRange(16).updateInterval(2).build("pod"));
     public static final RegistrySupplier<CreativeModeTab> TAB = TABS.register("skydock", () -> CreativeTabRegistry.create(
             Component.translatable("itemGroup.skydock"), () -> new ItemStack(HELM.get())));
     public static BlockBehaviour.Properties props() { return BlockBehaviour.Properties.of().strength(4).sound(SoundType.METAL).noOcclusion(); }
@@ -68,7 +72,7 @@ public final class SkydockBlocks {
         return block;
     }
     public static void init() {
-        BLOCKS.register(); ITEMS.register(); ENTITIES.register(); MENUS.register(); TABS.register();
+        BLOCKS.register(); ITEMS.register(); ENTITIES.register(); ENTITY_TYPES.register(); MENUS.register(); TABS.register();
         CreativeTabRegistry.appendStack(TAB, ALL_ITEMS.stream().map(i -> (Supplier<ItemStack>) () -> new ItemStack(i.get())));
         CreativeTabRegistry.appendStack(TAB, () -> new ItemStack(SHIPWRIGHT_HAMMER.get()));
         CreativeTabRegistry.appendStack(TAB, () -> new ItemStack(WARP_ANCHOR.get()));
