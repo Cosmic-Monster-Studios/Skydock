@@ -2,23 +2,23 @@
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
   "key": {
-    "G": {
-      "item": "minecraft:gold_ingot"
-    },
     "C": {
       "item": "minecraft:copper_ingot"
     },
-    "H": {
-      "item": "minecraft:goat_horn"
+    "P": {
+      "item": "minecraft:ender_pearl"
+    },
+    "E": {
+      "item": "minecraft:echo_shard"
     }
   },
   "pattern": [
-    " G ",
-    "CHC",
-    " G "
+    " C ",
+    "CPC",
+    " E "
   ],
   "result": {
-    "id": "skydock:summoning_horn",
+    "id": "skydock:warp_anchor",
     "count": 1
   }
 }

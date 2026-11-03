@@ -27,13 +27,13 @@ import java.util.Optional;
 
 /**
  * Brings a launched ship to its owner. It binds to a dock (used on the controller, or on the hull of a ship launched from it)
- * rather than to a ship, because each relaunch makes a new ship; blown anywhere else, it summons that dock's ship.
+ * rather than to a ship, because each relaunch makes a new ship; activated anywhere else, it warps in that dock's ship.
  */
-public final class SummoningHornItem extends Item {
+public final class WarpAnchorItem extends Item {
     public static final int COOLDOWN = 1200;
-    public SummoningHornItem(Properties properties) { super(properties); }
+    public WarpAnchorItem(Properties properties) { super(properties); }
 
-    /** The dock a horn is bound to, kept in the stack's custom data. */
+    /** The dock an anchor is bound to, kept in the stack's custom data. */
     public record Binding(ResourceKey<Level> dimension, BlockPos dock) {
         public CompoundTag save() {
             CompoundTag tag = new CompoundTag();
@@ -49,7 +49,7 @@ public final class SummoningHornItem extends Item {
     public static Optional<Binding> binding(ItemStack stack) { return Binding.load(stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag()); }
     public static void bind(Player player, ItemStack stack, ResourceKey<Level> dimension, BlockPos dock) {
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(new Binding(dimension, dock.immutable()).save()));
-        ShipManager.tell(player, "message.skydock.horn_bound", dock.toShortString());
+        ShipManager.tell(player, "message.skydock.anchor_bound", dock.toShortString());
     }
 
     @Override public InteractionResult useOn(UseOnContext context) {
@@ -65,14 +65,14 @@ public final class SummoningHornItem extends Item {
         ItemStack stack = player.getItemInHand(hand);
         if (!(player instanceof ServerPlayer server)) return InteractionResultHolder.consume(stack);
         Binding bound = binding(stack).orElse(null);
-        if (bound == null) { ShipManager.tell(player, "message.skydock.horn_unbound"); return InteractionResultHolder.fail(stack); }
+        if (bound == null) { ShipManager.tell(player, "message.skydock.anchor_unbound"); return InteractionResultHolder.fail(stack); }
         if (!ShipManager.summon(server, bound.dimension(), bound.dock())) return InteractionResultHolder.fail(stack);
         player.getCooldowns().addCooldown(this, COOLDOWN);
         stack.hurtAndBreak(1, player, hand == InteractionHand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
         return InteractionResultHolder.success(stack);
     }
     @Override public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> lines, TooltipFlag flag) {
-        lines.add(binding(stack).map(b -> Component.translatable("item.skydock.summoning_horn.bound", b.dock().toShortString(), b.dimension().location().toString()))
-                .orElseGet(() -> Component.translatable("item.skydock.summoning_horn.unbound")).withStyle(ChatFormatting.GRAY));
+        lines.add(binding(stack).map(b -> Component.translatable("item.skydock.warp_anchor.bound", b.dock().toShortString(), b.dimension().location().toString()))
+                .orElseGet(() -> Component.translatable("item.skydock.warp_anchor.unbound")).withStyle(ChatFormatting.GRAY));
     }
 }

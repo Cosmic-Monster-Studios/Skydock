@@ -267,7 +267,7 @@ public final class ShipManager {
         }
         catch (Exception ex) { Skydock.LOGGER.error("Redock retained in journal for {}", ship.id, ex); tell(player, "message.skydock.redock_paused"); }
     }
-    /** The launched ship whose home berth is {@code dock} in {@code dimension}: the one a horn bound to that dock summons. */
+    /** The launched ship whose home berth is {@code dock} in {@code dimension}: the one an anchor bound to that dock summons. */
     static boolean summonable(Ship ship, ResourceKey<Level> dimension, BlockPos dock) {
         return ship.phase.equals("active") && ship.dimension.equals(dimension) && dock.equals(ship.dock);
     }
@@ -294,11 +294,16 @@ public final class ShipManager {
         fleetChanged(); forceTickets(server, ship);
         ShipNetwork.syncPose(server, ship); ShipNetwork.syncPlayers(server);
         ShipSavedData.get(server).setDirty();
-        var horn = net.minecraft.sounds.SoundEvents.GOAT_HORN_SOUND_VARIANTS.getFirst();
-        level.playSound(null, from.x, from.y, from.z, horn, net.minecraft.sounds.SoundSource.PLAYERS, 8, 1);
-        level.playSound(null, player.getX(), player.getY(), player.getZ(), horn, net.minecraft.sounds.SoundSource.PLAYERS, 8, 1);
+        warpEffect(level, from, ship.hullBounds().getSize(), net.minecraft.core.particles.ParticleTypes.PORTAL);
+        warpEffect(level, ship.hullWorldBounds().getCenter(), ship.hullBounds().getSize(), net.minecraft.core.particles.ParticleTypes.REVERSE_PORTAL);
         tell(player, "message.skydock.summoned");
         return true;
+    }
+    /** A deep ender whoosh and a cloud of portal particles the size of the hull, where a warped ship left or arrived. */
+    private static void warpEffect(ServerLevel level, Vec3 at, double size, net.minecraft.core.particles.SimpleParticleType particle) {
+        level.playSound(null, at.x, at.y, at.z, net.minecraft.sounds.SoundEvents.ENDERMAN_TELEPORT, net.minecraft.sounds.SoundSource.PLAYERS, 8, .5f);
+        double spread = Math.max(1, size / 4);
+        level.sendParticles(particle, at.x, at.y, at.z, (int) Math.min(400, 40 * spread), spread, spread / 2, spread, .5);
     }
     private static boolean aboard(ServerLevel level, Ship ship) {
         if (ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship().equals(ship.id))) return true;

@@ -58,7 +58,7 @@ Use a **Shipwright's Hammer** (three iron ingots and two sticks, set diagonally:
 
 ## Summoning
 
-Bind a **Summoning Horn** (goat horn, gold above and below, copper on each side) by using it on your dock controller or on a hull block of your launched ship (devices such as the helm still work with it in hand). Blow it anywhere in that dimension to bring the ship launched from that dock to hover beside you, stopped and moored. It needs open space near you, will not move a ship with anyone aboard, has 64 uses and a one-minute cooldown. The ship keeps its berth and can redock there as usual.
+Bind a **Warp Anchor** (ender pearl in a ring of four copper ingots, echo shard below) by using it on your dock controller or on a hull block of your launched ship (devices such as the helm still work with it in hand). Activate it anywhere in that dimension to warp the ship launched from that dock in beside you, stopped and moored. It needs open space near you, will not move a ship with anyone aboard, has 64 uses and a one-minute recharge. The ship keeps its berth and can redock there as usual.
 
 ## Docking
 
