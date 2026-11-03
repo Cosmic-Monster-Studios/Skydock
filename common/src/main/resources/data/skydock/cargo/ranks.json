@@ -1,0 +1,53 @@
+{
+  "ranks": [
+    {
+      "level": 1,
+      "key": "rank.skydock.deckhand",
+      "threshold": 0,
+      "min_distance": 300,
+      "max_distance": 800,
+      "deadline_days": 2,
+      "crate": "tin",
+      "base_per_pod": 10
+    },
+    {
+      "level": 2,
+      "key": "rank.skydock.mate",
+      "threshold": 100,
+      "min_distance": 600,
+      "max_distance": 1500,
+      "deadline_days": 2,
+      "crate": "copper",
+      "base_per_pod": 25
+    },
+    {
+      "level": 3,
+      "key": "rank.skydock.captain",
+      "threshold": 400,
+      "min_distance": 1200,
+      "max_distance": 3000,
+      "deadline_days": 3,
+      "crate": "brass",
+      "base_per_pod": 60
+    },
+    {
+      "level": 4,
+      "key": "rank.skydock.commodore",
+      "threshold": 1200,
+      "min_distance": 2500,
+      "max_distance": 6000,
+      "deadline_days": 4,
+      "crate": "gold",
+      "base_per_pod": 150
+    },
+    {
+      "level": 5,
+      "key": "rank.skydock.admiral",
+      "threshold": 3000,
+      "min_distance": 5000,
+      "deadline_days": 5,
+      "crate": "aether",
+      "base_per_pod": 400
+    }
+  ]
+}

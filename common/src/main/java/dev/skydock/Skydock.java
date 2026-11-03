@@ -33,6 +33,7 @@ public final class Skydock {
         DockNetwork.init();
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new MassTable(), id("mass"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new PatternLoader(), id("patterns"));
+        ReloadListenerRegistry.register(PackType.SERVER_DATA, new dev.skydock.cargo.CargoRankLoader(), id("cargo_ranks"));
         CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> SkydockCommands.register(dispatcher));
         LifecycleEvent.SERVER_STARTED.register(ShipManager::start);
         LifecycleEvent.SERVER_STOPPED.register(ShipManager::stop);
