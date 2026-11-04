@@ -14,7 +14,7 @@ Set `JAVA_HOME` to a Java 21 JDK for the invocation, then run:
 ./gradlew :neoforge:runServer
 ```
 
-The installable mod is `neoforge/build/libs/skydock-neoforge-0.2.0-alpha.1.jar`. Do not install the `dev-shadow` or `sources` jars. Both client and server need Skydock and Architectury API. The development runs use `run/client` and `run/server`.
+The installable mod is `neoforge/build/libs/skydock-neoforge-0.3.0-alpha.1.jar`. Do not install the `dev-shadow` or `sources` jars. Both client and server need Skydock and Architectury API. The development runs use `run/client` and `run/server`.
 
 ## Build your first airship
 
@@ -46,9 +46,31 @@ The controller is the center of the front edge. For a north-facing dock its inte
 
 Controllers and ships are owned by the player who places/first claims the controller. Members of the Minecraft scoreboard team recorded at claim time share device and berth permissions. One player may drive each helm at a time.
 
+### Cargo contracts
+
+Cargo contracts give a ship somewhere to go. Small **cargo outposts** generate in village biomes (plains, sunflower plains, meadow, savanna, desert, taiga and snowy plains), though not inside villages: a landing pad, a terminal building, a lamp post and two villagers. Use the **cargo terminal** block inside to open its screen, which has three tabs: Contracts, Shop and Reputation. Each player sees their own three offers at each terminal, refreshed once per day. Destinations in other outposts are found the way `/locate` finds structures, so a contract can send you somewhere nobody has explored yet.
+
+Accepting a contract gives you its **cargo pods**, one to four, each tagged with its destination. Load a pod onto your ship while it is moored: place it against the hull, inside the tier's interior. A pod weighs 40 kg, counts toward the tier's block cap and cannot be opened. Only the contract holder can take a pod back off the hull. Fly to the destination and use its terminal to deliver. The terminal takes the pods in your inventory and the pods on a moored ship you may operate whose hull centre is within 32 blocks of the destination pad. You can hold three contracts at a time and abandon one from the Reputation tab, which makes its pods worthless.
+
+Reputation is paid per pod, and a late or ejected pod pays half. One **cargo crate** is paid per contract when its last pod arrives; a late, ejected or lost pod lowers that crate by one rank. If you deliver someone else's pod you get half reputation and one crate a rank below the offer's, once per contract, and the holder still earns their lowered completion crate if they delivered at least one pod (it waits for their next terminal visit). If the destination terminal is destroyed the contract fails, and its pods pay half of Deckhand reputation at any terminal.
+
+A crash that would break a pod ejects it instead. It floats down under a balloon at about 1 block/second at most, drifts with the world wind (0 to 2 blocks/second, changing every five minutes) and lands only on terrain; pods pass through ships. A landed pod never despawns and anyone can pick it up and deliver it. A pod that drifts below the bottom of the world is lost.
+
+| Rank | Reputation | Distance (blocks) | Deadline | Crate | Per pod |
+| --- | ---: | --- | --- | --- | ---: |
+| Deckhand | 0 | 300 to 800 | 2 days | Tin | 10 |
+| Mate | 100 | 600 to 1,500 | 2 days | Copper | 25 |
+| Captain | 400 | 1,200 to 3,000 | 3 days | Brass | 60 |
+| Commodore | 1,200 | 2,500 to 6,000 | 4 days | Gold | 150 |
+| Admiral | 3,000 | 5,000 and up | 5 days | Aether | 400 |
+
+Reputation per pod grows with the distance over the rank's minimum. Rank is the highest reputation you have reached; spending in the shop never lowers it. Each offer shows a rank above yours, locked, so you can see the next step.
+
+The **Shop** tab spends reputation on rank-locked goods: the Warp Anchor and Shipwright's Hammer (Deckhand), lift cells and Compound Engines (Mate), Turbine Engines and the **Brig Freighter** pattern (Captain), Aether Drives and the **Cruiser Freighter** pattern (Commodore), and the **Dreadnought Freighter** pattern plus decorative blocks in bulk (Admiral). The three freighter patterns are shop-only: they stay hidden on dock screens, and cannot be assembled, until the player using the dock has bought them. Crates are opened by placing and using them, with a longer show at each rank. Gold crates have a 20% chance, and Aether crates always, to unlock a random shop pattern you do not own, or give 200 reputation if you own them all.
+
 ## Shipyard and devices
 
-The Skydock creative tab contains 17 custom blocks, the Shipwright's Hammer and the Warp Anchor. The blocks are four dock controllers, a helm, lift cell, four engine tiers, ballast, a mooring clamp, a crew seat, and four decorative blocks. The decorative blocks can be included or excluded with the dock's decoration toggle. Included decorations are cosmetic: they add no mass, consume no structural-lift allowance, and do not add lift. They still count toward the dock tier's overall filled-block cap.
+The Skydock creative tab contains 23 custom blocks, the Shipwright's Hammer and the Warp Anchor. The blocks are four dock controllers, a helm, lift cell, four engine tiers, ballast, a mooring clamp, a crew seat, four decorative blocks, the cargo terminal and five cargo crates. The cargo pod is only obtained from contracts. The decorative blocks can be included or excluded with the dock's decoration toggle. Included decorations are cosmetic: they add no mass, consume no structural-lift allowance, and do not add lift. They still count toward the dock tier's overall filled-block cap.
 
 Each dock tier offers three built-in construction patterns, for a catalog of twelve ships; datapacks can add more (see [Datapacks](#datapacks)), and the dock screen pages through them three at a time with the ◀ ▶ buttons. Select a pattern and decoration option in the dock interface, then assemble it with the required resources in one or more vanilla chests touching the controller. Touching double chests are supported. The full material cost is always required, including in Creative mode.
 
@@ -72,9 +94,16 @@ These use the same validation and permissions as the controls and do not bypass 
 /skydock control <thrust -1..1> <yaw -1..1> <climb -1..1>
 /skydock status
 /skydock blueprint export <controller x y z> <name>
+/skydock cargo reputation <player> [set <n>]
+/skydock cargo terminal list
+/skydock cargo terminal place
+/skydock cargo offer <x y z> refresh
+/skydock cargo crate <tin|copper|brass|gold|aether>
 ```
 
 `summon` calls the ship launched from that dock as the Warp Anchor does, without the item or its cooldown. `use` operates the ship block under your crosshair; `target` identifies it for diagnostics. Control commands expire after ten ticks without fresh input. The diagnostic `status` output includes ship IDs, pose, velocity, mass/lift, and shipyard coordinates. Operators see every ship; other players see only ships they own or share by team. `blueprint export` (permission level 2) saves the hull in a dock as a ship pattern; see [Datapacks](#datapacks).
+
+The `cargo` commands need permission level 2. `reputation` prints a player's reputation, or sets it and syncs them. `terminal list` prints every known terminal with its pad and whether it has generated. `terminal place` registers the terminal block you are looking at. `offer refresh` clears your own offers at that terminal so they regenerate when you next open it. `crate` gives you a crate of that rank.
 
 ## Datapacks
 
@@ -112,6 +141,40 @@ Ship patterns load from `data/<namespace>/skydock_patterns/<name>.json` with the
 - Patterns reload with `/reload`. An assembly whose pattern a reload removed is cancelled and its materials are returned to the chests.
 
 `/skydock blueprint export <controller x y z> <name>` (permission level 2) saves the hull in a dock as a pattern. The dock must pass **Inspect ship**; blocks in `skydock:decorations` become decorations. The name is 1 to 32 characters of `a-z`, `0-9` and `_`, and must not already be a pattern or file. A hull may use up to about 4,000 distinct block states (palette characters beyond `a-zA-Z0-9` are accented letters); beyond that the export is refused with a readable message. The file is written to `<world>/datapacks/skydock_saved/data/skydock/skydock_patterns/<name>.json`, creating the pack's `pack.mcmeta` (`pack_format` 48) if needed. The first time, run `/datapack enable "file/skydock_saved"`; after that, `/reload` adds each new blueprint to the dock screens of its tier. Block-entity contents (chest items, engine fuel) are not saved.
+
+### Cargo
+
+Cargo tuning loads from `data/skydock/cargo/` and reloads with `/reload`.
+
+`ranks.json` lists the ladder. `key` is a translation key, `crate` is the crate rank paid, and the top rank omits `max_distance`:
+
+```json
+{"ranks": [{"level": 1, "key": "rank.skydock.deckhand", "threshold": 0, "min_distance": 300, "max_distance": 800, "deadline_days": 2, "crate": "tin", "base_per_pod": 10}]}
+```
+
+`shop.json` lists the stock. An entry has a `rank` and a `price` in reputation, and either an `item` (with an optional `count`) or a `pattern`:
+
+```json
+{"entries": [{"rank": 2, "price": 120, "item": "skydock:lift_cell", "count": 16}, {"rank": 3, "price": 500, "pattern": "skydock:brig_freighter"}]}
+```
+
+`cargo_names.json` lists the translation keys that name the flavour cargo on offers:
+
+```json
+{"names": ["cargo.skydock.name.silk", "cargo.skydock.name.mail"]}
+```
+
+The crate contents are ordinary loot tables at `data/skydock/loot_table/crate/<rank>.json` (`tin`, `copper`, `brass`, `gold`, `aether`):
+
+```json
+{"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "skydock:lift_cell"}]}]}
+```
+
+A ship pattern with `"unlock": "shop"` is hidden and cannot be assembled until the dock's user has bought it from the shop or won it from a crate; patterns listed in `shop.json` should carry it:
+
+```json
+{"name": "My Freighter", "tier": "brig", "unlock": "shop", "palette": {}, "layers": []}
+```
 
 ### Portability
 

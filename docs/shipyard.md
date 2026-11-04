@@ -66,6 +66,10 @@ To redock, return within four blocks of the destination berth center, align with
 
 When a ship launches, it starts at its dock's heading and the controller reserves the berth while the hull remains visible and usable. Redocking returns the real blocks and their inventories, allowing repair and expansion again.
 
+## Cargo
+
+Cargo terminals, pods, crates and the reputation shop are described in the [Cargo contracts](../README.md#cargo-contracts) section of the main README. Pods load onto a moored ship like any hull block, count toward the tier's block cap and weigh 40 kg each. The three freighter patterns (Brig, Cruiser and Dreadnought) are shop-only and appear on a dock screen once its user has bought them.
+
 ## Model provenance
 
 The model source archive is [assets-source/blockbench](../assets-source/blockbench). It holds 18 regular Blockbench models, including the connected railing’s post, side, and inventory parts, and 64 six-axis lift-cell variants. The v2 runtime palette contains twelve painted material textures. Its `.mjs` files are native Blockbench MCP input specifications; Minecraft does not generate these models procedurally at runtime. The [visual reference prompts](../assets-source/design-references/prompts-v2.md) document the art direction used to author them.

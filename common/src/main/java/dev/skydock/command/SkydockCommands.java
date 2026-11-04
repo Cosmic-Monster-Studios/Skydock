@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import dev.skydock.Skydock;
 import dev.skydock.block.DockBlockEntity;
 import dev.skydock.block.SkydockBlocks;
+import dev.skydock.cargo.*;
 import dev.skydock.data.PatternJson;
 import dev.skydock.data.ShipPattern;
 import dev.skydock.data.ShipPatterns;
@@ -15,8 +16,14 @@ import dev.skydock.ship.*;
 import net.minecraft.SharedConstants;
 import net.minecraft.commands.*;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -74,7 +81,67 @@ public final class SkydockCommands {
         root.then(literal("blueprint").requires(source -> source.hasPermission(2)).then(literal("export")
                 .then(argument("controller", BlockPosArgument.blockPos()).then(argument("name", StringArgumentType.word()).executes(ctx ->
                         exportBlueprint(ctx.getSource(), BlockPosArgument.getLoadedBlockPos(ctx, "controller"), StringArgumentType.getString(ctx, "name")))))));
+        root.then(cargoCommands());
         dispatcher.register(root);
+    }
+
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> cargoCommands() {
+        var cargo = literal("cargo").requires(s -> s.hasPermission(2));
+        cargo.then(literal("reputation").then(argument("player", EntityArgument.player())
+                .executes(ctx -> reputation(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"), null))
+                .then(literal("set").then(argument("amount", IntegerArgumentType.integer(0)).executes(ctx ->
+                        reputation(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"), IntegerArgumentType.getInteger(ctx, "amount")))))));
+        cargo.then(literal("terminal")
+                .then(literal("list").executes(ctx -> listTerminals(ctx.getSource())))
+                .then(literal("place").executes(ctx -> placeTerminal(ctx.getSource()))));
+        cargo.then(literal("offer").then(argument("terminal", BlockPosArgument.blockPos()).then(literal("refresh").executes(ctx -> {
+            ServerPlayer player = ctx.getSource().getPlayerOrException(); BlockPos pos = BlockPosArgument.getBlockPos(ctx, "terminal");
+            CargoSavedData data = CargoSavedData.get(ctx.getSource().getServer()); CargoProfile profile = data.profile(player.getUUID());
+            GlobalPos at = GlobalPos.of(player.level().dimension(), pos);
+            boolean had = profile.offers.remove(at) != null | profile.offersRefreshed.remove(at) != null;
+            data.setDirty(); CargoService.sync(player);
+            ctx.getSource().sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_refreshed", pos.toShortString()), true);
+            return had ? 1 : 0;
+        }))));
+        var crate = literal("crate");
+        for (CrateRank rank : CrateRank.values()) crate.then(literal(rank.name().toLowerCase(Locale.ROOT)).executes(ctx -> {
+            ServerPlayer player = ctx.getSource().getPlayerOrException(); ItemStack stack = new ItemStack(SkydockBlocks.CRATES.get(rank).get());
+            if (!player.getInventory().add(stack)) player.drop(stack, false);
+            ctx.getSource().sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_crate", stack.getHoverName()), true);
+            return 1;
+        }));
+        cargo.then(crate);
+        return cargo;
+    }
+
+    private static int reputation(CommandSourceStack source, ServerPlayer target, Integer set) {
+        CargoProfile profile = CargoSavedData.get(source.getServer()).profile(target.getUUID());
+        if (set != null) {
+            profile.reputation = set; profile.spent = Math.min(profile.spent, set); CargoSavedData.get(source.getServer()).setDirty(); CargoService.sync(target);
+            source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_reputation_set", target.getDisplayName(), set), true);
+        } else {
+            source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_reputation", target.getDisplayName(), profile.reputation, profile.balance(), Component.translatable(CargoRanks.forReputation(profile.reputation).key())), false);
+        }
+        return profile.reputation;
+    }
+
+    private static int listTerminals(CommandSourceStack source) {
+        var terminals = CargoSavedData.get(source.getServer()).terminals.values();
+        source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_terminals", terminals.size()), false);
+        for (CargoSavedData.Terminal t : terminals) source.sendSuccess(() -> Component.translatable(t.generated() ? "message.skydock.cargo_cmd_terminal_generated" : "message.skydock.cargo_cmd_terminal_predicted",
+                t.pos().dimension().location().toString(), t.pos().pos().toShortString(), t.pad().toShortString()), false);
+        return terminals.size();
+    }
+
+    private static int placeTerminal(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        HitResult hit = player.pick(player.blockInteractionRange(), 0, false);
+        if (!(hit instanceof BlockHitResult block) || hit.getType() != HitResult.Type.BLOCK || !(player.level().getBlockEntity(block.getBlockPos()) instanceof CargoTerminalBlockEntity terminal)) {
+            source.sendFailure(Component.translatable("message.skydock.cargo_cmd_no_terminal")); return 0;
+        }
+        CargoSavedData.get(source.getServer()).registerTerminal(GlobalPos.of(player.level().dimension(), terminal.getBlockPos()), terminal.pad());
+        source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_placed", terminal.getBlockPos().toShortString(), terminal.pad().toShortString()), true);
+        return 1;
     }
 
     /** Writes the hull standing in a dock that passes inspection as a pattern file in the world's saved-hulls datapack. */
