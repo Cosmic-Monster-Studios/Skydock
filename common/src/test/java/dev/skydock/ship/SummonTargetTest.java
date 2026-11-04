@@ -87,11 +87,25 @@ class SummonTargetTest {
                 net.minecraft.world.entity.vehicle.Boat.class, net.minecraft.world.entity.vehicle.Minecart.class})
             assertFalse(ShipManager.blocksSummon(loose, true, false, true, true), loose.getSimpleName() + " attached to or resting on the hull does not block");
     }
-    @Test void nonLivingThingsOnTheHullGoWithIt() {
-        Class<?> item = net.minecraft.world.entity.item.ItemEntity.class;
-        assertTrue(ShipManager.carriedWith(item, true, false)); assertTrue(ShipManager.carriedWith(item, false, true));
-        assertFalse(ShipManager.carriedWith(item, false, false), "an item on the ground beside the hull stays");
-        assertTrue(ShipManager.carriedWith(net.minecraft.world.entity.vehicle.Minecart.class, false, true));
-        assertFalse(ShipManager.carriedWith(net.minecraft.world.entity.animal.Pig.class, true, true), "creatures never ride along; they block the summon instead");
+    @Test void onlyNonLivingThingsAttachedToThisShipOrRestingOnItGoWithIt() {
+        Class<?> item = net.minecraft.world.entity.item.ItemEntity.class, cart = net.minecraft.world.entity.vehicle.Minecart.class;
+        assertTrue(ShipManager.carriedWith(item, true, true, false, false), "an item attached to this ship");
+        assertTrue(ShipManager.carriedWith(item, true, false, false, true), "an item resting on the hull");
+        assertTrue(ShipManager.carriedWith(cart, true, false, false, true), "a minecart on the deck");
+        assertFalse(ShipManager.carriedWith(item, true, false, false, false), "an item on the ground, or under the keel, stays");
+        assertFalse(ShipManager.carriedWith(item, true, false, true, true), "an item attached to another ship stays with that ship");
+        assertFalse(ShipManager.carriedWith(item, true, true, true, true), "never taken from the ship it is attached to");
+        assertFalse(ShipManager.carriedWith(item, false, true, false, true), "an entity attachable() refuses (a passenger, noPhysics, a spectator) is not attached to this ship");
+        assertFalse(ShipManager.carriedWith(net.minecraft.world.entity.animal.Pig.class, true, true, false, true), "creatures never ride along; they block the summon instead");
+    }
+    @Test void hangingPodDisplayMarkerAndInteractionEntitiesAreNeverCarried() {
+        for (Class<?> type : new Class<?>[]{net.minecraft.world.entity.decoration.ItemFrame.class, net.minecraft.world.entity.decoration.GlowItemFrame.class,
+                net.minecraft.world.entity.decoration.Painting.class, net.minecraft.world.entity.decoration.LeashFenceKnotEntity.class, dev.skydock.cargo.PodEntity.class,
+                net.minecraft.world.entity.Display.BlockDisplay.class, net.minecraft.world.entity.Display.ItemDisplay.class, net.minecraft.world.entity.Display.TextDisplay.class,
+                net.minecraft.world.entity.Marker.class, net.minecraft.world.entity.Interaction.class}) {
+            assertTrue(ShipManager.neverCarried(type), type.getSimpleName());
+            assertFalse(ShipManager.carriedWith(type, true, true, false, true), type.getSimpleName() + " stays even when attached or supported");
+        }
+        assertFalse(ShipManager.neverCarried(net.minecraft.world.entity.item.ItemEntity.class)); assertFalse(ShipManager.neverCarried(net.minecraft.world.entity.vehicle.Boat.class));
     }
 }

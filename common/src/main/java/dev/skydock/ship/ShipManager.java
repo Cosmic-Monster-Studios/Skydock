@@ -486,13 +486,25 @@ public final class ShipManager {
     static boolean blocksSummon(Class<?> type, boolean alive, boolean spectator, boolean attached, boolean onHullOrInCell) {
         return net.minecraft.world.entity.LivingEntity.class.isAssignableFrom(type) && alive && !spectator && (attached || onHullOrInCell);
     }
-    /** Whether a non-living entity goes with the hull when it warps: attached to it, or resting on or in its blocks. */
-    static boolean carriedWith(Class<?> type, boolean attached, boolean onHullOrInCell) {
-        return !net.minecraft.world.entity.LivingEntity.class.isAssignableFrom(type) && (attached || onHullOrInCell);
+    /** Whether a type is never carried by a warp: hanging things (frames, paintings, leash knots) pop off, pods fall through hulls, and display, marker and interaction entities are not cargo. */
+    static boolean neverCarried(Class<?> type) {
+        return net.minecraft.world.entity.decoration.BlockAttachedEntity.class.isAssignableFrom(type) || dev.skydock.cargo.PodEntity.class.isAssignableFrom(type)
+                || net.minecraft.world.entity.Display.class.isAssignableFrom(type) || net.minecraft.world.entity.Marker.class.isAssignableFrom(type)
+                || net.minecraft.world.entity.Interaction.class.isAssignableFrom(type);
+    }
+    /**
+     * Whether an entity goes with the hull when it warps: a non-living, attachable one of a carriable type that is attached to this ship, or
+     * unattached and resting on its blocks. One attached to another ship stays with that ship, and one only beside or under the hull stays put.
+     */
+    static boolean carriedWith(Class<?> type, boolean attachable, boolean attachedHere, boolean attachedElsewhere, boolean supported) {
+        return !net.minecraft.world.entity.LivingEntity.class.isAssignableFrom(type) && !neverCarried(type) && attachable && !attachedElsewhere && (attachedHere || supported);
     }
     private static boolean onHullOrInCell(Ship ship, Entity e) { return onHull(ship, ship.pose, e.getBoundingBox()) || inHullCell(ship, ship.pose, e.position()); }
     private static boolean attachedTo(Ship ship, Entity e) { Ship on = attachedShip(e); return on != null && on.id.equals(ship.id); }
-    private static boolean carriedWith(Ship ship, Entity e) { return carriedWith(e.getClass(), attachedTo(ship, e), onHullOrInCell(ship, e)); }
+    private static boolean carriedWith(Ship ship, Entity e) {
+        Ship on = attachedShip(e); boolean here = on != null && on.id.equals(ship.id);
+        return carriedWith(e.getClass(), attachable(e), here, on != null && !here, ShipCollision.supported(ship, ship.pose, e.getBoundingBox()));
+    }
     private static boolean aboard(ServerLevel level, Ship ship) {
         if (ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship().equals(ship.id))) return true;
         // Players, mobs, pets and villagers count whether or not they are attached, when they stand on or in the hull's blocks or in, on or under a hull cell; loose items and the like do not.

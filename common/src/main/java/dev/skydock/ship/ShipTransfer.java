@@ -251,22 +251,33 @@ public final class ShipTransfer {
     }
     /**
      * Hull states are stored north-frame and turned by {@code rotation} on the way into a berth. Each cell gets its block and its block
-     * entity together, the entity built before the block is placed, and a cell whose entity cannot be set is put back to air: so a
-     * paste cut short leaves every cell where the hull block stands with its contents, which a retry of a redock cut short reads.
+     * entity together, the entity built from the state that was placed, and a cell whose entity cannot be set goes back as it was if it
+     * already held the hull block (live contents and all), else to air: so a paste cut short leaves every cell where the hull block
+     * stands with its contents, which a retry of a redock cut short reads.
      */
     private static void paste(Ship ship, ServerLevel level, BlockPos origin, Rotation rotation) {
         ship.blocks.forEach((p, stored) -> {
             BlockPos at = DockFrame.toWorld(origin, rotation, p); BlockState state = stored.rotate(rotation);
-            CompoundTag data = ship.blockEntities.get(p); BlockEntity entity = null;
-            if (data != null) {
-                CompoundTag tag = data.copy(); tag.putInt("x", at.getX()); tag.putInt("y", at.getY()); tag.putInt("z", at.getZ());
-                entity = BlockEntity.loadStatic(at, state, tag, level.registryAccess());
-                if (entity == null) throw new IllegalStateException("Could not restore block entity at " + at);
-            }
+            CompoundTag data = ship.blockEntities.get(p);
+            BlockState before = level.getBlockState(at); BlockEntity live = level.getBlockEntity(at);
+            CompoundTag liveTag = live == null ? null : live.saveWithFullMetadata(level.registryAccess());
             level.removeBlockEntity(at); level.setBlock(at, state, FLAGS);
-            if (entity == null) return;
-            try { level.setBlockEntity(entity); entity.setChanged(); }
-            catch (RuntimeException e) { level.removeBlockEntity(at); level.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS); throw e; }
+            if (data == null) return;
+            try {
+                CompoundTag tag = data.copy(); tag.putInt("x", at.getX()); tag.putInt("y", at.getY()); tag.putInt("z", at.getZ());
+                BlockEntity entity = BlockEntity.loadStatic(at, level.getBlockState(at), tag, level.registryAccess());
+                if (entity == null) throw new IllegalStateException("Could not restore block entity at " + at);
+                level.setBlockEntity(entity); entity.setChanged();
+            } catch (RuntimeException e) {
+                level.removeBlockEntity(at);
+                boolean held = before.is(state.getBlock());
+                level.setBlock(at, held ? before : Blocks.AIR.defaultBlockState(), FLAGS);
+                if (held && liveTag != null) {
+                    BlockEntity back = BlockEntity.loadStatic(at, before, liveTag, level.registryAccess());
+                    if (back != null) { level.setBlockEntity(back); back.setChanged(); }
+                }
+                throw e;
+            }
         });
         for (BlockPos p : ship.blocks.keySet()) level.updateNeighborsAt(DockFrame.toWorld(origin, rotation, p), ship.state(p).getBlock());
     }
