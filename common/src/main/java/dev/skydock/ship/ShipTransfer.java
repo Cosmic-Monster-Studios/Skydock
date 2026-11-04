@@ -133,6 +133,13 @@ public final class ShipTransfer {
         }
         for (BlockPos p : ship.blocks.keySet()) level.updateNeighborsAt(DockFrame.toWorld(origin, rotation, p), Blocks.AIR);
     }
+    /** Pastes only the stored hull states into the ship's yard region, for a yard whose chunks were deleted; returns the non-air blocks placed. */
+    static int pasteStates(Ship ship, ServerLevel yard) {
+        int placed = 0;
+        for (var entry : ship.blocks.entrySet()) { yard.setBlock(ship.yard.offset(entry.getKey()), entry.getValue(), FLAGS); if (!entry.getValue().isAir()) placed++; }
+        for (BlockPos p : ship.blocks.keySet()) yard.updateNeighborsAt(ship.yard.offset(p), ship.state(p).getBlock());
+        return placed;
+    }
     /** Hull states are stored north-frame and turned by {@code rotation} on the way into a berth. */
     private static void paste(Ship ship, ServerLevel level, BlockPos origin, Rotation rotation) {
         ship.blocks.forEach((p, state) -> {

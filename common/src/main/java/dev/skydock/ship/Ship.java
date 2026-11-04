@@ -55,6 +55,8 @@ public final class Ship {
     /** Transient: a dormant ship skips ticking and holds no chunk tickets. Never saved; every ship starts awake. */
     public boolean dormant;
     public long idleTicks;
+    /** Transient: every hull block vanished from the shipyard (its chunks were deleted), so the ship is held dormant until {@code /skydock repair-yard}. */
+    public boolean yardLost;
     /** Transient: state as of the last tick, to mark saved data dirty only on change. */
     Object savedState;
     public String phase = "active";

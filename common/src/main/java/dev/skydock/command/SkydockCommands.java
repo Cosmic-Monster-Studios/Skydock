@@ -17,6 +17,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.commands.*;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.UuidArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -81,8 +82,22 @@ public final class SkydockCommands {
         root.then(literal("blueprint").requires(source -> source.hasPermission(2)).then(literal("export")
                 .then(argument("controller", BlockPosArgument.blockPos()).then(argument("name", StringArgumentType.word()).executes(ctx ->
                         exportBlueprint(ctx.getSource(), BlockPosArgument.getLoadedBlockPos(ctx, "controller"), StringArgumentType.getString(ctx, "name")))))));
+        root.then(literal("repair-yard").requires(source -> source.hasPermission(2)).then(argument("ship", UuidArgument.uuid())
+                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ShipSavedData.get(ctx.getSource().getServer()).ships.keySet().stream().map(java.util.UUID::toString), builder))
+                .executes(ctx -> repairYard(ctx.getSource(), UuidArgument.getUuid(ctx, "ship")))));
         root.then(cargoCommands());
         dispatcher.register(root);
+    }
+
+    /** Re-pastes a launched ship's stored hull into its shipyard region after the region's chunks were deleted, and wakes it. */
+    private static int repairYard(CommandSourceStack source, java.util.UUID id) {
+        Ship ship = ShipManager.get(source.getServer(), id);
+        if (ship == null) { source.sendFailure(Component.translatable("message.skydock.repair_yard_no_ship", id.toString())); return 0; }
+        if (!ship.phase.equals("active")) { source.sendFailure(Component.translatable("message.skydock.repair_yard_transfer", id.toString())); return 0; }
+        if (source.getServer().getLevel(ShipManager.SHIPYARD) == null) { source.sendFailure(Component.translatable("message.skydock.shipyard_missing")); return 0; }
+        int pasted = ShipManager.repairYard(source.getServer(), ship);
+        source.sendSuccess(() -> Component.translatable("message.skydock.repair_yard_done", pasted, id.toString()), true);
+        return pasted;
     }
 
     /** The most reputation the command may set, leaving headroom below the integer limit that every gain saturates at. */

@@ -445,6 +445,7 @@ public final class ShipManager {
         for (Ship ship : List.copyOf(data.ships.values())) {
             if (!ship.phase.equals("active")) continue;
             ServerLevel level = server.getLevel(ship.dimension); if (level == null) continue;
+            if (ship.yardLost) { if (!ship.dormant) { releaseTickets(server, ship); ship.dormant = true; } continue; }
             // Spread the once-a-second work across ticks so a large fleet does not rescan all at once.
             if ((tick + Math.floorMod(ship.id.hashCode(), 20)) % 20 == 0) {
                 boolean near = playerNear(server, ship);
@@ -494,8 +495,23 @@ public final class ShipManager {
         if (!ship.dormant) return;
         ship.dormant = false; ship.idleTicks = 0; forceTickets(server, ship);
     }
+    /** Whether every cell that held a block at the last refresh now reads air: the yard was deleted, not edited. False for a hull with no blocks. */
+    static boolean hullVanished(Map<BlockPos, BlockState> hull, java.util.function.Function<BlockPos, BlockState> now) {
+        boolean any = false;
+        for (var entry : hull.entrySet()) if (!entry.getValue().isAir()) { if (!now.apply(entry.getKey()).isAir()) return false; any = true; }
+        return any;
+    }
+    /** Re-reads the hull from the shipyard. A hull that vanished whole keeps its stored states, and the ship is held dormant for an operator. */
     public static void refresh(MinecraftServer server, Ship ship) {
         ServerLevel yard = server.getLevel(SHIPYARD); if (yard == null) return;
+        if (hullVanished(ship.blocks, p -> yard.getBlockState(ship.yard.offset(p)))) {
+            if (!ship.yardLost) {
+                Skydock.LOGGER.error("Ship {} from the dock at {} in {} lost every hull block from its shipyard region at {}; it stays dormant until an operator runs /skydock repair-yard {}",
+                        ship.id, ship.dock.toShortString(), ship.dimension.location(), ship.yard.toShortString(), ship.id);
+                ship.yardLost = true; releaseTickets(server, ship); ship.dormant = true;
+            }
+            return;
+        }
         ship.mass = 0; ship.cells = 0; ship.engines = 0; boolean changed = false;
         for (var entry : ship.blocks.entrySet()) {
             BlockPos worldPos = ship.yard.offset(entry.getKey());
@@ -517,6 +533,15 @@ public final class ShipManager {
         ship.lift = ship.cells * MassTable.liftPerCell();
         // syncPlayers later this tick resends only hulls whose revision moved; resync would resend every hull.
         if (changed) ship.revision++;
+    }
+    /** Re-pastes the ship's stored hull states into its shipyard region and wakes it; block-entity contents are not restored. Returns the blocks pasted. */
+    public static int repairYard(MinecraftServer server, Ship ship) {
+        ServerLevel yard = server.getLevel(SHIPYARD); if (yard == null) return 0;
+        ship.yardLost = false; ship.dormant = true; wake(server, ship);
+        int pasted = ShipTransfer.pasteStates(ship, yard);
+        ship.revision++; refresh(server, ship); fleetChanged();
+        ShipSavedData.get(server).setDirty(); ShipNetwork.resync(server);
+        return pasted;
     }
     public static void carry(Level level, Ship ship, ShipPose previous) {
         List<Entity> riders = new ArrayList<>(level.getEntities((Entity) null,
