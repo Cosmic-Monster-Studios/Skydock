@@ -63,6 +63,10 @@ public final class SkydockBlocks {
     public static final RegistrySupplier<dev.skydock.cargo.CargoTerminalBlock> CARGO_TERMINAL = register("cargo_terminal", () -> new dev.skydock.cargo.CargoTerminalBlock(BlockBehaviour.Properties.of().strength(3.5f).sound(SoundType.METAL)));
     public static final RegistrySupplier<BlockEntityType<dev.skydock.cargo.CargoTerminalBlockEntity>> CARGO_TERMINAL_ENTITY = ENTITIES.register("cargo_terminal", () ->
             BlockEntityType.Builder.of(dev.skydock.cargo.CargoTerminalBlockEntity::new, CARGO_TERMINAL.get()).build(null));
+    public static final Map<dev.skydock.cargo.CrateRank, RegistrySupplier<dev.skydock.cargo.CrateBlock>> CRATES = new EnumMap<>(dev.skydock.cargo.CrateRank.class);
+    static { for (dev.skydock.cargo.CrateRank rank : dev.skydock.cargo.CrateRank.values()) CRATES.put(rank, register(rank.name().toLowerCase(Locale.ROOT) + "_crate", () -> new dev.skydock.cargo.CrateBlock(rank))); }
+    public static final RegistrySupplier<BlockEntityType<dev.skydock.cargo.CrateBlockEntity>> CRATE_ENTITY = ENTITIES.register("crate", () ->
+            BlockEntityType.Builder.of(dev.skydock.cargo.CrateBlockEntity::new, CRATES.values().stream().map(Supplier::get).toArray(Block[]::new)).build(null));
     public static final RegistrySupplier<net.minecraft.world.entity.EntityType<dev.skydock.cargo.PodEntity>> POD = ENTITY_TYPES.register("pod", () ->
             net.minecraft.world.entity.EntityType.Builder.<dev.skydock.cargo.PodEntity>of(dev.skydock.cargo.PodEntity::new, net.minecraft.world.entity.MobCategory.MISC)
                     .sized(.9f, .9f).fireImmune().clientTrackingRange(16).updateInterval(2).build("pod"));

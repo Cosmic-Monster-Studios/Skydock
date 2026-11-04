@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": {
+    "end": "skydock:block/tin_crate_top",
+    "side": "skydock:block/tin_crate_side"
+  }
+}

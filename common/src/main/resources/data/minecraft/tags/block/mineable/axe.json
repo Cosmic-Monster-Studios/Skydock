@@ -5,6 +5,11 @@
     "skydock:seat",
     "skydock:canvas_awning",
     "skydock:timber_railing",
-    "skydock:signal_flag"
+    "skydock:signal_flag",
+    "skydock:tin_crate",
+    "skydock:copper_crate",
+    "skydock:brass_crate",
+    "skydock:gold_crate",
+    "skydock:aether_crate"
   ]
 }

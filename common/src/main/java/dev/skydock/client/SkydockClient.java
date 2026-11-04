@@ -52,6 +52,7 @@ public final class SkydockClient {
         SkydockBlocks.DEVICE_MENU.listen(type -> MenuRegistry.registerScreenFactory(type, DeviceScreen::new));
         SkydockBlocks.ENGINE_MENU.listen(type -> MenuRegistry.registerScreenFactory(type, EngineScreen::new));
         dev.architectury.registry.client.level.entity.EntityRendererRegistry.register(SkydockBlocks.POD, PodEntityRenderer::new);
+        SkydockBlocks.CRATE_ENTITY.listen(type -> dev.architectury.registry.client.rendering.BlockEntityRendererRegistry.register(type, CrateRenderer::new));
         KeyMappingRegistry.register(RELEASE);
         KeyMappingRegistry.register(CRUISE);
         KeyMappingRegistry.register(ALTITUDE_HOLD);

@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "open=false": {
+      "model": "skydock:block/aether_crate"
+    },
+    "open=true": {
+      "model": "skydock:block/aether_crate"
+    }
+  }
+}

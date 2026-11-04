@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": {
+    "end": "skydock:block/gold_crate_top",
+    "side": "skydock:block/gold_crate_side"
+  }
+}

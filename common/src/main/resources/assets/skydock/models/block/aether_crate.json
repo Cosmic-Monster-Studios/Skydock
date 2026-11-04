@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": {
+    "end": "skydock:block/aether_crate_top",
+    "side": "skydock:block/aether_crate_side"
+  }
+}

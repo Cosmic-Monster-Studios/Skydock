@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "open=false": {
+      "model": "skydock:block/brass_crate"
+    },
+    "open=true": {
+      "model": "skydock:block/brass_crate"
+    }
+  }
+}

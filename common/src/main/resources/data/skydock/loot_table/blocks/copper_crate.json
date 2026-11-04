@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "conditions": [
+        {
+          "condition": "minecraft:survives_explosion"
+        },
+        {
+          "condition": "minecraft:block_state_property",
+          "block": "skydock:copper_crate",
+          "properties": {
+            "open": "false"
+          }
+        }
+      ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "skydock:copper_crate"
+        }
+      ],
+      "rolls": 1
+    }
+  ],
+  "random_sequence": "skydock:blocks/copper_crate"
+}
