@@ -75,4 +75,23 @@ class SummonTargetTest {
         assertFalse(ShipManager.inHullCell(ship, ship.pose, ship.blockToWorld(new net.minecraft.world.phys.Vec3(5.5, 2.1, 1.5))), "a bat in the air beside the deck");
         assertFalse(ShipManager.inHullCell(ship, ship.pose, ship.blockToWorld(new net.minecraft.world.phys.Vec3(5.5, -2.1, .5))), "a mob two blocks under the keel");
     }
+    @Test void onlyLivingCreaturesBlockASummon() {
+        Class<?> player = net.minecraft.world.entity.player.Player.class, pig = net.minecraft.world.entity.animal.Pig.class, stand = net.minecraft.world.entity.decoration.ArmorStand.class;
+        assertTrue(ShipManager.blocksSummon(player, true, false, false, true), "a player standing on the deck");
+        assertTrue(ShipManager.blocksSummon(pig, true, false, true, false), "a pig attached to the ship");
+        assertTrue(ShipManager.blocksSummon(stand, true, false, false, true), "an armor stand on the deck");
+        assertFalse(ShipManager.blocksSummon(pig, true, false, false, false), "a pig on the ground beside the hull");
+        assertFalse(ShipManager.blocksSummon(pig, false, false, true, true), "a dead pig");
+        assertFalse(ShipManager.blocksSummon(player, true, true, true, true), "a spectator");
+        for (Class<?> loose : new Class<?>[]{net.minecraft.world.entity.item.ItemEntity.class, net.minecraft.world.entity.ExperienceOrb.class,
+                net.minecraft.world.entity.vehicle.Boat.class, net.minecraft.world.entity.vehicle.Minecart.class})
+            assertFalse(ShipManager.blocksSummon(loose, true, false, true, true), loose.getSimpleName() + " attached to or resting on the hull does not block");
+    }
+    @Test void nonLivingThingsOnTheHullGoWithIt() {
+        Class<?> item = net.minecraft.world.entity.item.ItemEntity.class;
+        assertTrue(ShipManager.carriedWith(item, true, false)); assertTrue(ShipManager.carriedWith(item, false, true));
+        assertFalse(ShipManager.carriedWith(item, false, false), "an item on the ground beside the hull stays");
+        assertTrue(ShipManager.carriedWith(net.minecraft.world.entity.vehicle.Minecart.class, false, true));
+        assertFalse(ShipManager.carriedWith(net.minecraft.world.entity.animal.Pig.class, true, true), "creatures never ride along; they block the summon instead");
+    }
 }

@@ -439,7 +439,12 @@ public final class ShipManager {
         if (spot == null) { tell(player, "message.skydock.summon_no_room"); return false; }
         wake(server, ship);
         Vec3 from = ship.hullWorldBounds().getCenter();
+        // Items, orbs, boats and minecarts on the hull turn and move with it, about the old pivot into the new pose, and are left at rest.
+        ShipPose old = ship.pose;
+        List<Entity> cargo = level.getEntities((Entity) null, old.toWorld(ship.hullBounds()).inflate(ShipCollision.ATTACHMENT_HEIGHT + 1), e -> carriedWith(ship, e));
         ship.pose = spot; ship.previousPose = spot;
+        float turn = (float) Mth.wrapDegrees(spot.yaw() - old.yaw());
+        for (Entity e : cargo) { e.setPos(spot.toWorld(old.toLocal(e.position()))); e.setYRot(e.getYRot() + turn); e.setDeltaMovement(Vec3.ZERO); e.fallDistance = 0; attachment(e).attach(ship.id); }
         ship.velocity = Vec3.ZERO; ship.yawVelocity = 0; ship.appliedThrottle = ship.appliedClimb = 0;
         ship.throttle = ship.steering = ship.climb = 0; ship.cruise = false; ship.cruiseSpeed = 0;
         ship.holdAltitude = Double.NaN; ship.headingLock = Double.NaN; ship.moored = true; ship.blocked = false; ship.idleTicks = 0;
@@ -477,18 +482,28 @@ public final class ShipManager {
         for (BlockPos p : new BlockPos[]{cell, cell.below(), cell.above()}) { BlockState state = ship.blocks.get(p); if (state != null && !state.isAir()) return true; }
         return false;
     }
+    /** Whether an entity stops a summon: only a living, awake creature does, when it is attached to the hull or stands on, in or beside a block of it. Items, orbs, boats and minecarts ride along instead. */
+    static boolean blocksSummon(Class<?> type, boolean alive, boolean spectator, boolean attached, boolean onHullOrInCell) {
+        return net.minecraft.world.entity.LivingEntity.class.isAssignableFrom(type) && alive && !spectator && (attached || onHullOrInCell);
+    }
+    /** Whether a non-living entity goes with the hull when it warps: attached to it, or resting on or in its blocks. */
+    static boolean carriedWith(Class<?> type, boolean attached, boolean onHullOrInCell) {
+        return !net.minecraft.world.entity.LivingEntity.class.isAssignableFrom(type) && (attached || onHullOrInCell);
+    }
+    private static boolean onHullOrInCell(Ship ship, Entity e) { return onHull(ship, ship.pose, e.getBoundingBox()) || inHullCell(ship, ship.pose, e.position()); }
+    private static boolean attachedTo(Ship ship, Entity e) { Ship on = attachedShip(e); return on != null && on.id.equals(ship.id); }
+    private static boolean carriedWith(Ship ship, Entity e) { return carriedWith(e.getClass(), attachedTo(ship, e), onHullOrInCell(ship, e)); }
     private static boolean aboard(ServerLevel level, Ship ship) {
         if (ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship().equals(ship.id))) return true;
-        // Players, mobs, pets and villagers count whether or not they are attached, when they stand on or in the hull's blocks or in, on or under a hull cell.
-        if (!level.getEntities((Entity) null, deckBox(ship.hullWorldBounds()), e -> e instanceof net.minecraft.world.entity.LivingEntity living && living.isAlive() && !living.isSpectator()
-                && (onHull(ship, ship.pose, living.getBoundingBox()) || inHullCell(ship, ship.pose, living.position()))).isEmpty()) return true;
-        return !level.getEntities((Entity) null, ship.hullWorldBounds().inflate(2), e -> { Ship on = attachedShip(e); return on != null && on.id.equals(ship.id); }).isEmpty();
+        // Players, mobs, pets and villagers count whether or not they are attached, when they stand on or in the hull's blocks or in, on or under a hull cell; loose items and the like do not.
+        return !level.getEntities((Entity) null, deckBox(ship.hullWorldBounds()).minmax(ship.hullWorldBounds().inflate(2)),
+                e -> blocksSummon(e.getClass(), e.isAlive(), e.isSpectator(), attachedTo(ship, e), onHullOrInCell(ship, e))).isEmpty();
     }
-    /** A summoned hull must land in loaded chunks, clear of terrain, fluids, other ships and every entity, the summoner included. */
+    /** A summoned hull must land in loaded chunks, clear of terrain, fluids, other ships and every entity but what rides along with it (and loose items and orbs), the summoner included. */
     private static boolean roomFor(ServerLevel level, Ship ship, ShipPose pose) {
         AABB box = pose.toWorld(ship.hullBounds());
         if (!level.hasChunksAt(Mth.floor(box.minX), Mth.floor(box.minZ), Mth.floor(box.maxX), Mth.floor(box.maxZ))) return false;
-        if (!level.getEntities((Entity) null, box, e -> !e.isSpectator()).isEmpty()) return false;
+        if (!level.getEntities((Entity) null, box, e -> !e.isSpectator() && !looseInCell(e.getClass()) && !carriedWith(ship, e)).isEmpty()) return false;
         List<Ship> others = ships(level).stream().filter(s -> s != ship).toList();
         if (ShipPhysics.collides(level, ship, pose, true, others, false)) return false;
         // Surface boxes only see the shell; this also catches terrain or water inside the hull.
