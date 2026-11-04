@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ShipTransferTest {
     @Test void chunksCoverEveryCellAndNothingElse() {
@@ -30,5 +30,17 @@ class ShipTransferTest {
             public void advance() { order.add("journal"); }
         });
         assertEquals(List.of("paste", "save pasted", "clear", "save cleared", "journal"), order);
+    }
+    /** A paused transfer guards the hull's envelope at its berth, turned with the dock. */
+    @Test void theBerthEnvelopeFollowsTheDockRotation() {
+        BlockPos origin = new BlockPos(8, 64, 8); var east = net.minecraft.world.level.block.Rotation.CLOCKWISE_90;
+        var tier = dev.skydock.data.DockTier.SCOUT;
+        assertTrue(ShipTransfer.inBerth(origin, east, tier, origin));
+        // Clockwise 90: local (x, z) lands at (-z, x), so the envelope runs toward -X and +Z from the origin.
+        assertTrue(ShipTransfer.inBerth(origin, east, tier, origin.offset(-31, 19, 31)));
+        assertFalse(ShipTransfer.inBerth(origin, east, tier, origin.offset(1, 0, 0)));
+        assertFalse(ShipTransfer.inBerth(origin, east, tier, origin.offset(0, 20, 0)));
+        assertFalse(ShipTransfer.inBerth(origin, east, tier, origin.offset(0, -1, 0)));
+        assertFalse(ShipTransfer.inBerth(origin, east, tier, origin.offset(-32, 0, 0)));
     }
 }

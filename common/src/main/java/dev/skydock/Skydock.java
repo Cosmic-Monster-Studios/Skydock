@@ -50,8 +50,7 @@ public final class Skydock {
         TickEvent.SERVER_PRE.register(dev.skydock.cargo.CargoService::tickExpiry);
         BlockEvent.BREAK.register((level, pos, state, player, xp) -> {
             if (level.dimension().equals(ShipManager.SHIPYARD)) return EventResult.interruptFalse();
-            if (level instanceof net.minecraft.server.level.ServerLevel serverLevel && AssemblyManager.protects(serverLevel, pos))
-                return EventResult.interruptFalse();
+            if (guarded(level, pos)) return EventResult.interruptFalse();
             // A pod in a redocked hull belongs to its contract holder, as it does aboard a ship.
             if (state.is(SkydockBlocks.CARGO_POD.get()) && player != null
                     && !dev.skydock.cargo.PodLoading.breakable(player, level.getBlockEntity(pos) instanceof dev.skydock.cargo.CargoPodBlockEntity pod ? pod : null)) {
@@ -63,16 +62,19 @@ public final class Skydock {
         BlockEvent.PLACE.register((level, pos, state, placer) -> {
             if (dev.skydock.ship.ShipTransfer.changing) return EventResult.pass();
             if (level.dimension().equals(ShipManager.SHIPYARD)
-                    || level instanceof net.minecraft.server.level.ServerLevel serverLevel && AssemblyManager.protects(serverLevel, pos)
+                    || guarded(level, pos)
                     // The occupied hull, not the whole dock envelope, so players can still build beside a moored ship.
                     || ShipManager.ships(level).stream().anyMatch(s -> s.hullWorldBounds().intersects(new net.minecraft.world.phys.AABB(pos))))
                 return EventResult.interruptFalse();
             return EventResult.pass();
         });
         InteractionEvent.RIGHT_CLICK_BLOCK.register((player, hand, pos, face) -> {
-            if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel && AssemblyManager.protects(serverLevel, pos))
-                return EventResult.interruptFalse();
+            if (guarded(player.level(), pos)) return EventResult.interruptFalse();
             return EventResult.pass();
         });
+    }
+    /** Cells of an assembly in progress, and the berth of a paused transfer, which no player may break, place in or use. */
+    private static boolean guarded(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
+        return level instanceof net.minecraft.server.level.ServerLevel serverLevel && (AssemblyManager.protects(serverLevel, pos) || ShipManager.transferProtects(serverLevel, pos));
     }
 }

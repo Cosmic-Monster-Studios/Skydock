@@ -2,6 +2,7 @@ package dev.skydock.ship;
 
 import dev.skydock.Skydock;
 import dev.skydock.data.DockFrame;
+import dev.skydock.data.DockTier;
 import dev.skydock.mixin.ChunkMapAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -81,6 +82,11 @@ public final class ShipTransfer {
             if (chunk != null) ((ChunkMapAccessor) cache.chunkMap).skydock$save(chunk);
         }
         cache.chunkMap.flushWorker();
+    }
+    /** Whether world {@code pos} lies in the {@code tier} envelope of a berth whose local {@code (0,0,0)} is at {@code origin}, turned by {@code rotation}. */
+    static boolean inBerth(BlockPos origin, Rotation rotation, DockTier tier, BlockPos pos) {
+        BlockPos local = pos.subtract(origin).rotate(DockFrame.inverse(rotation));
+        return local.getX() >= 0 && local.getX() < tier.width && local.getY() >= 0 && local.getY() < tier.height && local.getZ() >= 0 && local.getZ() < tier.length;
     }
     /** One transfer phase: paste the hull where it goes, clear it where it was, then advance the journal. */
     interface Steps { void paste(); void clear(); void save(boolean pasted); void advance(); }
