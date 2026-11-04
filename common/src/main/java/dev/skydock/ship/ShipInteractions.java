@@ -168,8 +168,10 @@ public final class ShipInteractions {
             if (player == null || player.containerMenu != entry.getValue().menu) return true;
             if (!validRemoteMenu(player, player.containerMenu)) { player.closeContainer(); return true; } return false;
         });
+        // A seated player is carried to the seat every tick, so one far from the hull left by teleport or ender pearl.
         for (ServerLevel level : server.getAllLevels()) for (Ship ship : ShipManager.ships(level)) ship.seated.keySet().removeIf(id -> {
-            ServerPlayer player = server.getPlayerList().getPlayer(id); return player == null || !player.isAlive() || player.level() != level;
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            return player == null || !player.isAlive() || player.level() != level || ShipAttachment.strayed(ship.hullWorldBounds(), player.position());
         });
     }
 }
