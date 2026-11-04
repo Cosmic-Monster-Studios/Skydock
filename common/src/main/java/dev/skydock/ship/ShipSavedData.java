@@ -101,7 +101,8 @@ public final class ShipSavedData extends SavedData {
         ShipSavedData data = new ShipSavedData(); int highest = -1;
         for (Tag entry : tag.getList("Ships", Tag.TAG_COMPOUND)) {
             CompoundTag saved = (CompoundTag) entry;
-            if (saved.contains("Yard", Tag.TAG_LONG)) highest = Math.max(highest, regionOf(BlockPos.of(saved.getLong("Yard"))));
+            // any numeric tag, as getLong (and so Ship.loadPersisted) reads one, so a ship whose Yard was saved as another number still counts
+            if (saved.contains("Yard", Tag.TAG_ANY_NUMERIC)) highest = Math.max(highest, regionOf(BlockPos.of(saved.getLong("Yard"))));
             try {
                 Ship ship = Ship.loadPersisted(saved, registries);
                 if (!saved.contains("PivotX", Tag.TAG_DOUBLE) || !saved.contains("PivotZ", Tag.TAG_DOUBLE)
