@@ -306,10 +306,16 @@ public final class ShipManager {
             tell(player, "message.skydock.redock_alignment"); return;
         }
         ServerLevel world = player.serverLevel();
-        for (BlockPos p : ship.blocks.keySet()) {
-            BlockPos at = DockFrame.toWorld(origin, frame.rotation(), p);
+        Set<BlockPos> solid = new HashSet<>();
+        for (var entry : ship.blocks.entrySet()) {
+            BlockPos at = DockFrame.toWorld(origin, frame.rotation(), entry.getKey());
             if (!world.getBlockState(at).isAir()) { tell(player, "message.skydock.berth_obstructed", at.toShortString()); return; }
+            if (!entry.getValue().isAir()) solid.add(at);
         }
+        // The hull's blocks would land on anything alive standing where they go; its own riders move with it.
+        Entity standing = world.getEntities((Entity) null, frame.envelope(), e -> e instanceof net.minecraft.world.entity.LivingEntity living && living.isAlive()
+                && !living.isSpectator() && !rides(e, ship) && inCells(solid, e.getBoundingBox())).stream().findFirst().orElse(null);
+        if (standing != null) { tell(player, "message.skydock.berth_occupied", standing.getDisplayName(), standing.blockPosition().toShortString()); return; }
         refresh(player.getServer(), ship); ShipTransfer.snapshot(ship, player.getServer().getLevel(SHIPYARD), ship.yard, net.minecraft.world.level.block.Rotation.NONE);
         ShipPose old = ship.pose; ship.pose = berth;
         carry(world, ship, old);
@@ -322,6 +328,18 @@ public final class ShipManager {
             tell(player, "message.skydock.redocked");
         }
         catch (Exception ex) { Skydock.LOGGER.error("Redock retained in journal for {}", ship.id, ex); tell(player, "message.skydock.transfer_paused"); }
+    }
+    /** Whether {@code box} overlaps any of {@code cells}; touching a cell's face does not count. */
+    static boolean inCells(Set<BlockPos> cells, AABB box) {
+        AABB inner = box.deflate(1e-7);
+        for (BlockPos p : BlockPos.betweenClosed(BlockPos.containing(inner.minX, inner.minY, inner.minZ), BlockPos.containing(inner.maxX, inner.maxY, inner.maxZ)))
+            if (cells.contains(p)) return true;
+        return false;
+    }
+    /** Whether {@code entity} travels with {@code ship}: its pilot, seated or boarding crew, or attached to its deck. */
+    private static boolean rides(Entity entity, Ship ship) {
+        Boarding boarding = BOARDING.get(entity.getUUID());
+        return entity.getUUID().equals(ship.pilot) || ship.seated.containsKey(entity.getUUID()) || boarding != null && boarding.ship.equals(ship.id) || attachment(entity).is(ship.id);
     }
     /** The launched ship whose home berth is {@code dock} in {@code dimension}: the one an anchor bound to that dock summons. */
     static boolean summonable(Ship ship, ResourceKey<Level> dimension, BlockPos dock) {

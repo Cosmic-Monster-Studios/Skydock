@@ -89,6 +89,7 @@
   "message.skydock.dock_not_owner": "Only the dock owner or their team can manage this berth.",
   "message.skydock.launched": "Launched %s real blocks. Use the helm to take control; your berth remains reserved.",
   "message.skydock.berth_obstructed": "The berth is obstructed at %s. Clear it first.",
+  "message.skydock.berth_occupied": "%s is standing in the berth at %s. Move it out before redocking.",
   "message.skydock.dock_interior": "Interior: %s through %s",
   "message.skydock.repaired": "Repaired %s blocks.",
   "message.skydock.repair_needs_materials": "Repair needs materials: no %s aboard or in your inventory.",
