@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.storage.LevelResource;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -76,12 +77,22 @@ public final class ShipTransfer {
         try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
         catch (AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
     }
-    /** Queues the given chunks of a level a phase edited and waits until region storage has written them. */
+    /**
+     * Queues the given chunks of a level a phase edited and waits until region storage has written them. A chunk that unloaded since the
+     * edit is loaded again (its unload queued a write, which the wait covers). A chunk that cannot be loaded or serialized throws, so the
+     * journal does not advance past a phase that is not on disk.
+     */
     static void saveChunks(ServerLevel level, Set<ChunkPos> chunks) {
         ServerChunkCache cache = level.getChunkSource();
         for (ChunkPos pos : chunks) {
-            ChunkAccess chunk = cache.getChunkNow(pos.x, pos.z);
-            if (chunk != null) ((ChunkMapAccessor) cache.chunkMap).skydock$save(chunk);
+            ChunkAccess chunk = cache.getChunk(pos.x, pos.z, ChunkStatus.FULL, true);
+            if (chunk == null) throw new IllegalStateException("Could not load chunk " + pos + " in " + level.dimension().location() + " to save it");
+            // A full chunk that was unsaved and did not save hit an exception, which vanilla logs and swallows after marking it saved.
+            boolean unsaved = chunk.isUnsaved();
+            if (!((ChunkMapAccessor) cache.chunkMap).skydock$save(chunk) && unsaved) {
+                chunk.setUnsaved(true);
+                throw new IllegalStateException("Could not save chunk " + pos + " in " + level.dimension().location());
+            }
         }
         cache.chunkMap.flushWorker();
     }
