@@ -47,6 +47,7 @@ public final class Skydock {
         LifecycleEvent.SERVER_STOPPED.register(AssemblyManager::stop);
         TickEvent.SERVER_PRE.register(ShipManager::tick);
         TickEvent.SERVER_PRE.register(dev.skydock.cargo.CargoSavedData::tickWind);
+        TickEvent.SERVER_PRE.register(dev.skydock.cargo.CargoService::tickExpiry);
         BlockEvent.BREAK.register((level, pos, state, player, xp) -> {
             if (level.dimension().equals(ShipManager.SHIPYARD)) return EventResult.interruptFalse();
             if (level instanceof net.minecraft.server.level.ServerLevel serverLevel && AssemblyManager.protects(serverLevel, pos))

@@ -395,6 +395,7 @@
   "message.skydock.cargo_rank_up": "Promoted to %s!",
   "message.skydock.cargo_destination_gone": "The terminal for your %s contract is gone; the contract has failed.",
   "message.skydock.cargo_abandoned": "Abandoned the %s contract.",
+  "message.skydock.cargo_expired": "Your %s contract expired two days past its deadline; its undelivered pods count as lost.",
   "gui.skydock.cargo.confirm_abandon": "Confirm abandon",
   "pattern.skydock.brig_freighter.name": "Packet Freighter",
   "pattern.skydock.brig_freighter.description": "A long open cargo deck fenced for pods, with a bow helm, keel lift cells and twin compound engines.",

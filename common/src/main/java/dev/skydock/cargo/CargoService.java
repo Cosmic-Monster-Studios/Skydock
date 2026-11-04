@@ -29,6 +29,10 @@ public final class CargoService {
     public static final double DELIVERY_RANGE = 32;
     /** A predicted outpost site is replaced by the terminal that generates near it; contracts bound for the site follow it. */
     public static final double SITE_MATCH = 64;
+    /** A contract still open this long (two in-game days of game time) past its deadline expires: its missing pods count as lost. */
+    public static final long EXPIRY_GRACE = 2 * Offers.DAY_TICKS;
+    /** How often, in server ticks, every profile is checked for expired contracts. */
+    static final int EXPIRY_CHECK_TICKS = 1200;
     private CargoService() {}
 
     /** Empty when the offer may be accepted, else the lang key saying why not (the inventory check is the caller's). */
@@ -69,6 +73,28 @@ public final class CargoService {
         return gone;
     }
 
+    /**
+     * Settles the holder's contracts still open {@link #EXPIRY_GRACE} past their deadline: every undelivered pod counts as lost (so a
+     * holder who delivered one is owed the lowered crate), the contract is dropped and voided, and its cargo queued to be told at the
+     * next terminal visit. Returns whether any expired.
+     */
+    static boolean expire(CargoSavedData data, UUID holder, long now) {
+        CargoProfile p = data.profiles.get(holder); if (p == null) return false;
+        List<Contract> due = p.contracts.values().stream().filter(c -> now - c.deadline >= EXPIRY_GRACE).toList();
+        for (Contract c : due) {
+            for (int i = 0; i < c.pods; i++) applyResult(data, holder, c, Delivery.lose(c, i));
+            p.contracts.remove(c.id); data.voided.add(c.id); p.expired.add(c.cargoKey);
+        }
+        if (!due.isEmpty()) data.setDirty();
+        return !due.isEmpty();
+    }
+    /** Every {@link #EXPIRY_CHECK_TICKS} ticks, expires overdue contracts in every profile and resyncs their holders who are online. */
+    public static void tickExpiry(MinecraftServer server) {
+        if (server.getTickCount() % EXPIRY_CHECK_TICKS != 0) return;
+        CargoSavedData data = CargoSavedData.get(server); long now = now(server);
+        for (UUID holder : List.copyOf(data.profiles.keySet())) if (expire(data, holder, now)) { ServerPlayer online = server.getPlayerList().getPlayer(holder); if (online != null) sync(online); }
+    }
+
     /** An empty board means no destination was found; the site search runs again only once its day is up. */
     static boolean siteSearchWaits(CargoProfile p, GlobalPos at, long now) {
         List<Offer> board = p.offers.get(at); Long last = p.offersRefreshed.get(at);
@@ -104,13 +130,23 @@ public final class CargoService {
     public static String byCount(int count, String one, String many) { return count == 1 ? one : many; }
     private static void giveCrate(ServerPlayer player, CrateRank rank) { give(player, new ItemStack(SkydockBlocks.CRATES.get(rank).get())); }
 
-    /** Called whenever a terminal screen opens: hands out queued crates, fails contracts whose terminal is gone, and refreshes the board. */
+    /** Whether the terminal is registered (generated, or placed by hand and registered by command), so it may show a board and take pods. */
+    static boolean onNetwork(CargoSavedData data, GlobalPos terminal) { CargoSavedData.Terminal site = data.terminals.get(terminal); return site != null && site.generated(); }
+
+    /**
+     * Called whenever a terminal screen opens. An unregistered terminal only says so and offers nothing; a registered one expires
+     * overdue contracts, hands out queued crates, fails contracts whose terminal is gone, and refreshes the board.
+     */
     public static void opened(ServerPlayer player, GlobalPos terminal) {
-        MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server); CargoProfile p = data.profile(player.getUUID());
-        boolean changed = false;
+        MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server);
+        if (!onNetwork(data, terminal)) { ShipManager.tell(player, "message.skydock.cargo_terminal_unregistered"); sync(player); return; }
+        CargoProfile p = data.profile(player.getUUID()); long now = now(server);
+        boolean changed = expire(data, player.getUUID(), now);
+        for (String cargo : p.expired) ShipManager.tell(player, "message.skydock.cargo_expired", cargoName(cargo));
+        if (!p.expired.isEmpty()) { p.expired.clear(); changed = true; }
         if (!p.pendingCrates.isEmpty()) { p.pendingCrates.forEach(rank -> giveCrate(player, rank)); p.pendingCrates.clear(); changed = true; syncInventory(player); }
         for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
-        long now = now(server); ServerLevel level = server.getLevel(terminal.dimension());
+        ServerLevel level = server.getLevel(terminal.dimension());
         if (level != null && !siteSearchWaits(p, terminal, now)) {
             int rank = p.peakRank();
             changed |= Offers.refreshIfDue(p, terminal, now, () -> Offers.generate(terminal, rank, TerminalSites.near(level, terminal.pos(), 1, searchRadius(rank)),

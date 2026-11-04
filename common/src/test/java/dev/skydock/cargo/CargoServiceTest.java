@@ -103,4 +103,35 @@ class CargoServiceTest {
         assertNull(data.findContract(13)); assertTrue(data.voided.contains(13L)); assertTrue(data.isDirty());
         assertEquals(java.util.List.of(CrateRank.TIN), data.profile(holder).pendingCrates);
     }
+    @Test void anOverdueContractExpiresTwoDaysPastItsDeadline() {
+        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
+        Contract c = contract(21, 3); data.profile(holder).contracts.put(c.id, c);
+        CargoService.applyResult(data, holder, c, Delivery.deliver(data.profile(holder), c, new PodTag(21, 0, false), true, false, THERE));
+        assertFalse(CargoService.expire(data, holder, c.deadline + CargoService.EXPIRY_GRACE - 1));
+        assertTrue(data.profile(holder).contracts.containsKey(21L));
+        data.setDirty(false);
+        assertTrue(CargoService.expire(data, holder, c.deadline + CargoService.EXPIRY_GRACE));
+        CargoProfile p = data.profile(holder);
+        assertFalse(p.contracts.containsKey(21L)); assertTrue(data.voided.contains(21L)); assertTrue(data.isDirty());
+        assertEquals(java.util.Set.of(1, 2), c.lost, "every undelivered pod counts as lost");
+        assertEquals(java.util.List.of(CrateRank.TIN), p.pendingCrates, "the holder delivered a pod, so the lowered crate waits for them");
+        assertEquals(java.util.List.of(c.cargoKey), p.expired);
+        assertEquals(java.util.List.of(c.cargoKey), CargoProfile.load(p.save()).expired, "the notice survives a restart");
+        assertFalse(CargoService.expire(data, holder, Long.MAX_VALUE / 2));
+    }
+    @Test void anExpiredContractWithNothingDeliveredPaysNoCrate() {
+        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
+        Contract c = contract(22, 2); data.profile(holder).contracts.put(c.id, c);
+        assertTrue(CargoService.expire(data, holder, c.deadline + CargoService.EXPIRY_GRACE));
+        assertTrue(data.profile(holder).pendingCrates.isEmpty()); assertNull(data.findContract(22)); assertTrue(data.voided.contains(22L));
+        assertFalse(CargoService.expire(data, UUID.randomUUID(), Long.MAX_VALUE / 2), "no profile, nothing to expire");
+    }
+    @Test void onlyARegisteredTerminalIsOnTheNetwork() {
+        CargoSavedData data = new CargoSavedData();
+        assertFalse(CargoService.onNetwork(data, HERE), "a hand-placed terminal nobody registered");
+        data.terminals.put(HERE, new CargoSavedData.Terminal(HERE, HERE.pos(), false));
+        assertFalse(CargoService.onNetwork(data, HERE), "a predicted site is not a terminal yet");
+        data.registerTerminal(HERE, HERE.pos().north(5));
+        assertTrue(CargoService.onNetwork(data, HERE));
+    }
 }
