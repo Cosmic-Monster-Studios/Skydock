@@ -17,9 +17,16 @@ public final class Delivery {
     private static final Result NOTHING = new Result(0, null, false, false, null);
     private Delivery() {}
 
+    /** Whether the contract takes this pod here at all; a refused pod stays with its carrier, an accepted one is consumed even if it pays nothing. */
+    public static boolean accepts(Contract contract, PodTag pod, GlobalPos at) {
+        if (pod.contract() != contract.id || pod.index() < 0 || pod.index() >= contract.pods) return false;
+        return !contract.delivered.contains(pod.index()) && !contract.lost.contains(pod.index()) && !at.equals(contract.origin);
+    }
+    /** Whether a pod whose contract is gone is taken here: not when its id was abandoned or settled, nor at its origin. */
+    public static boolean acceptsOrphan(long contractId, GlobalPos origin, GlobalPos at, Set<Long> voided) { return !voided.contains(contractId) && !at.equals(origin); }
+
     public static Result deliver(CargoProfile deliverer, UUID delivererId, Contract contract, PodTag pod, boolean byHolder, boolean late, GlobalPos at) {
-        if (pod.contract() != contract.id || pod.index() < 0 || pod.index() >= contract.pods) return NOTHING;
-        if (contract.delivered.contains(pod.index()) || contract.lost.contains(pod.index()) || at.equals(contract.origin)) return NOTHING;
+        if (!accepts(contract, pod, at)) return NOTHING;
         int full = CargoRanks.reputation(rankOf(contract.rankLevel), distance(contract.origin, contract.destination));
         if (!byHolder) {
             int pay = full / 2; deliverer.reputation += pay; contract.lost.add(pod.index());
@@ -37,9 +44,9 @@ public final class Delivery {
         return new Result(pay, crate, !reduced, settled, null);
     }
 
-    /** A pod whose contract is gone: half of the lowest rank's base unless the id was abandoned or this is its origin. */
+    /** A pod whose contract is gone: half of the lowest rank's base unless {@link #acceptsOrphan} refuses it. */
     public static Result orphan(CargoProfile deliverer, long contractId, GlobalPos origin, GlobalPos at, Set<Long> voided) {
-        if (voided.contains(contractId) || at.equals(origin)) return NOTHING;
+        if (!acceptsOrphan(contractId, origin, at, voided)) return NOTHING;
         int pay = CargoRanks.ranks().getFirst().basePerPod() / 2; deliverer.reputation += pay; return new Result(pay, null, false, false, null);
     }
 

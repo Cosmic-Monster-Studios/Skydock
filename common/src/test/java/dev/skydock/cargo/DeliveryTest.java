@@ -99,4 +99,16 @@ class DeliveryTest {
         CargoProfile p = new CargoProfile();
         assertEquals(0, Delivery.orphan(p, 9, ORIGIN, DEST, Set.of(9L)).reputation()); assertEquals(0, p.reputation);
     }
+
+    @Test void acceptsSignalsRefusalApartFromPayment() {
+        Contract c = contract(2, CrateRank.BRASS); CargoProfile p = new CargoProfile();
+        assertTrue(Delivery.accepts(c, pod(c, 0, false), DEST));
+        assertFalse(Delivery.accepts(c, pod(c, 0, false), ORIGIN));
+        assertFalse(Delivery.accepts(c, pod(c, 5, false), DEST));
+        Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, DEST);
+        assertFalse(Delivery.accepts(c, pod(c, 0, false), DEST));
+        assertFalse(Delivery.acceptsOrphan(7, ORIGIN, ORIGIN, Set.of()));
+        assertFalse(Delivery.acceptsOrphan(7, ORIGIN, DEST, Set.of(7L)));
+        assertTrue(Delivery.acceptsOrphan(7, ORIGIN, DEST, Set.of()));
+    }
 }

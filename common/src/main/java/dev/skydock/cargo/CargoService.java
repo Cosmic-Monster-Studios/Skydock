@@ -27,7 +27,6 @@ public final class CargoService {
     public static final double DELIVERY_RANGE = 32;
     /** A predicted outpost site is replaced by the terminal that generates near it; contracts bound for the site follow it. */
     public static final double SITE_MATCH = 64;
-    private static final Delivery.Result NOTHING = new Delivery.Result(0, null, false, false, null);
     private CargoService() {}
 
     /** Empty when the offer may be accepted, else the lang key saying why not (the inventory check is the caller's). */
@@ -38,11 +37,12 @@ public final class CargoService {
     }
     public static long deadline(long now, int days) { return now + days * Offers.DAY_TICKS; }
 
-    /** Applies a delivery's consequences to the holder: a stranger-earned completion crate is queued, a settled contract dropped. */
+    /** Applies a delivery's consequences to the holder: a stranger-earned completion crate is queued, a settled contract dropped and its id voided. */
     public static void applyResult(CargoSavedData data, UUID holder, Contract contract, Delivery.Result result) {
         CargoProfile p = data.profile(holder);
         if (result.holderCrate() != null) p.pendingCrates.add(result.holderCrate());
-        if (result.settled()) p.contracts.remove(contract.id);
+        // Leftover (duplicate) pods of a settled contract must not pay again as orphans.
+        if (result.settled()) { p.contracts.remove(contract.id); data.voided.add(contract.id); }
         data.setDirty();
     }
 
@@ -52,6 +52,16 @@ public final class CargoService {
         for (CargoSavedData.Terminal t : terminals.values())
             if (t.generated() && t.pos().dimension().equals(destination.dimension()) && Offers.distance(t.pos().pos(), destination.pos()) <= SITE_MATCH) return t.pos();
         return null;
+    }
+
+    /**
+     * Drops and returns the holder's contracts whose destination terminal is gone. Their ids are not voided, so the pods
+     * become orphans that any terminal but their origin takes for the orphan reward.
+     */
+    static List<Contract> failGone(CargoSavedData data, CargoProfile p) {
+        List<Contract> gone = new ArrayList<>();
+        for (Iterator<Contract> it = p.contracts.values().iterator(); it.hasNext(); ) { Contract c = it.next(); if (resolveDestination(data.terminals, c.destination) == null) { it.remove(); gone.add(c); } }
+        return gone;
     }
 
     /** An empty board means no destination was found; the site search runs again only once its day is up. */
@@ -76,12 +86,7 @@ public final class CargoService {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server); CargoProfile p = data.profile(player.getUUID());
         boolean changed = false;
         if (!p.pendingCrates.isEmpty()) { p.pendingCrates.forEach(rank -> giveCrate(player, rank)); p.pendingCrates.clear(); changed = true; }
-        for (Iterator<Contract> it = p.contracts.values().iterator(); it.hasNext(); ) {
-            Contract c = it.next();
-            if (resolveDestination(data.terminals, c.destination) != null) continue;
-            it.remove(); data.voided.add(c.id); changed = true;
-            ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey));
-        }
+        for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
         long now = now(server); ServerLevel level = server.getLevel(terminal.dimension());
         if (level != null && !siteSearchWaits(p, terminal, now)) {
             int rank = p.peakRank();
@@ -149,15 +154,15 @@ public final class CargoService {
                 Contract c = held.getValue();
                 if (!terminal.equals(resolveDestination(data.terminals, c.destination))) continue;
                 boolean byHolder = held.getKey().equals(player.getUUID());
+                if (!Delivery.accepts(c, tag, terminal)) continue;
                 result = Delivery.deliver(me, player.getUUID(), c, tag, byHolder, now > c.deadline, terminal);
-                if (result.equals(NOTHING)) continue;
                 applyResult(data, held.getKey(), c, result);
                 if (result.settled()) settled.add(c.id);
                 if (!byHolder) holders.add(held.getKey());
             } else {
-                // The contract is gone with its origin, so only an abandoned or failed (voided) id is refused.
+                // The contract is gone with its origin, so only an abandoned or settled (voided) id is refused.
+                if (!Delivery.acceptsOrphan(tag.contract(), null, terminal, data.voided)) continue;
                 result = Delivery.orphan(me, tag.contract(), null, terminal, data.voided);
-                if (result.equals(NOTHING)) continue;
             }
             if (pod.ship() == null) player.getInventory().removeItem(pod.slot(), 1);
             else { server.getLevel(ShipManager.SHIPYARD).setBlock(pod.ship().yard.offset(pod.cell()), Blocks.AIR.defaultBlockState(), PodLoading.FLAGS); PodLoading.forget(pod.ship(), pod.cell()); touched.add(pod.ship()); }

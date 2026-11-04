@@ -373,5 +373,6 @@
   "message.skydock.cargo_nothing": "No pods for this terminal are in reach.",
   "message.skydock.cargo_rank_up": "Promoted to %s!",
   "message.skydock.cargo_destination_gone": "The terminal for your %s contract is gone; the contract has failed.",
-  "message.skydock.cargo_abandoned": "Abandoned the %s contract."
+  "message.skydock.cargo_abandoned": "Abandoned the %s contract.",
+  "gui.skydock.cargo.confirm_abandon": "Confirm abandon"
 }

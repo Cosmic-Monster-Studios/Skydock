@@ -21,6 +21,9 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
 
     private enum Page { CONTRACTS, SHOP, REPUTATION }
     private Page page = Page.CONTRACTS;
+    /** Abandoning takes two clicks: the first arms the contract's button for {@link #CONFIRM_MS}, the second sends. */
+    private static final long CONFIRM_MS = 3000;
+    private long armedContract = -1, armedUntil;
     private DockScreen.ShipwrightButton contractsTab, shopTab, reputationTab, deliverHere;
     private final List<DockScreen.ShipwrightButton> acceptButtons = new ArrayList<>(), deliverButtons = new ArrayList<>(), abandonButtons = new ArrayList<>();
     private final List<Offer> offers = new ArrayList<>();
@@ -45,13 +48,18 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
             int slot = i;
             acceptButtons.add(button(0, 0, 10, 10, "gui.skydock.cargo.accept", () -> { if (slot < offers.size()) send(CargoNetwork.ACCEPT, offers.get(slot).id()); }));
             deliverButtons.add(button(0, 0, 10, 10, "gui.skydock.cargo.deliver", () -> send(CargoNetwork.DELIVER, 0)));
-            abandonButtons.add(button(0, 0, 10, 10, "gui.skydock.cargo.abandon", () -> { if (slot < contracts.size()) send(CargoNetwork.ABANDON, contracts.get(slot).id); }));
+            abandonButtons.add(button(0, 0, 10, 10, "gui.skydock.cargo.abandon", () -> { if (slot < contracts.size()) abandon(contracts.get(slot).id); }));
         }
         deliverHere = button(0, 0, 10, 10, "gui.skydock.cargo.deliver_here", () -> send(CargoNetwork.DELIVER, 0));
     }
 
     private DockScreen.ShipwrightButton button(int x, int y, int w, int h, String label, Runnable action) {
         return addRenderableWidget(new DockScreen.ShipwrightButton(x, y, w, h, Component.translatable(label), action));
+    }
+    private boolean armed(long contract) { return armedContract == contract && System.currentTimeMillis() < armedUntil; }
+    private void abandon(long contract) {
+        if (armed(contract)) { armedContract = -1; send(CargoNetwork.ABANDON, contract); }
+        else { armedContract = contract; armedUntil = System.currentTimeMillis() + CONFIRM_MS; }
     }
     private void send(int action, long id) { CargoNetwork.send(menu.containerId, action, id); }
 
@@ -77,6 +85,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
             boolean held = on && i < contracts.size();
             deliver.visible = held && boundHere(contracts.get(i));
             abandon.visible = held;
+            abandon.setMessage(Component.translatable(held && armed(contracts.get(i).id) ? "gui.skydock.cargo.confirm_abandon" : "gui.skydock.cargo.abandon"));
         }
         deliverHere.setBounds(right + col - 74, bodyY(), 74, 13); deliverHere.visible = on;
     }

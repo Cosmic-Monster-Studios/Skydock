@@ -47,6 +47,22 @@ class CargoServiceTest {
         assertFalse(data.profile(holder).contracts.containsKey(9L));
         assertEquals(java.util.List.of(CrateRank.TIN), data.profile(holder).pendingCrates);
         assertNull(data.findContract(9));
+        assertTrue(data.voided.contains(9L));
+        // a leftover duplicate pod of the settled contract pays nothing as an orphan
+        assertFalse(Delivery.acceptsOrphan(9, null, THERE, data.voided));
+        assertEquals(0, Delivery.orphan(data.profile(stranger), 9, null, THERE, data.voided).reputation());
+    }
+
+    @Test void goneDestinationLeavesOrphanPodsDeliverable() {
+        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
+        data.terminals.put(HERE, new CargoSavedData.Terminal(HERE, HERE.pos(), true));
+        CargoProfile p = data.profile(holder); Contract c = contract(11, 2); p.contracts.put(c.id, c);
+        assertEquals(java.util.List.of(c), CargoService.failGone(data, p));
+        assertFalse(p.contracts.containsKey(11L));
+        assertFalse(data.voided.contains(11L));
+        CargoProfile carrier = new CargoProfile();
+        assertTrue(Delivery.acceptsOrphan(11, null, HERE, data.voided));
+        assertEquals(CargoRanks.ranks().getFirst().basePerPod() / 2, Delivery.orphan(carrier, 11, null, HERE, data.voided).reputation());
     }
 
     @Test void predictedDestinationFollowsTheGeneratedTerminal() {
