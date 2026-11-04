@@ -278,7 +278,7 @@ public final class CargoService {
         List<CargoNetwork.Destination> destinations = new ArrayList<>();
         for (Contract c : p.contracts.values()) {
             GlobalPos at = resolveDestination(data.terminals, c.destination);
-            destinations.add(new CargoNetwork.Destination(c.id, at == null ? c.destination.pos() : data.terminals.get(at).pad()));
+            destinations.add(new CargoNetwork.Destination(c.id, c.destination.dimension(), at == null ? c.destination.pos() : data.terminals.get(at).pad()));
         }
         CargoNetwork.sync(player, tag, destinations);
     }

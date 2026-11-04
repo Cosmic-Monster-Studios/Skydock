@@ -79,7 +79,7 @@ public final class SkydockClient {
                 Navigation.Berth berth = Navigation.berth(ship.pose, new Vec3(home.x(), home.y(), home.z()), home.yaw());
                 status.add(I18n.get("hud.skydock.berth", (Object[]) Navigation.berthText(berth)));
                 if (Navigation.redockReady(berth, ship.velocity.length())) status.add(I18n.get("hud.skydock.redock_ready"));
-                Optional<BlockPos> pad = Navigation.nearest(ship.pose, ClientCargo.destinations().stream().map(dev.skydock.cargo.CargoNetwork.Destination::pad).toList());
+                Optional<BlockPos> pad = Navigation.nearest(ship.pose, ClientCargo.destinations().stream().filter(d -> d.dimension().equals(mc.level.dimension())).map(dev.skydock.cargo.CargoNetwork.Destination::pad).toList());
                 if (pad.isPresent()) {
                     Navigation.Berth cargo = Navigation.berth(ship.pose, Vec3.atCenterOf(pad.get()), 0);
                     String[] text = Navigation.berthText(cargo);

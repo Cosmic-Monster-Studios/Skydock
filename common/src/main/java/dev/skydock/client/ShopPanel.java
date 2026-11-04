@@ -41,26 +41,34 @@ final class ShopPanel {
 
     void scroll(double delta) { scroll -= (int) Math.signum(delta); }
 
+    /** The furthest first row that still fills {@code space} to the end of the list: the trailing rows that fit are shown together, never fewer. */
+    static int maxScroll(int[] heights, int space) {
+        int used = 0, fit = 0;
+        for (int i = heights.length - 1; i >= 0 && used + heights[i] <= space; i--) { used += heights[i]; fit++; }
+        return Math.max(0, heights.length - Math.max(1, fit));
+    }
+
     /** Places the Buy buttons over the visible entry rows; {@code on} is whether the Shop tab is showing. */
     void update(boolean on, int x, int y, int width, int height) {
         for (int i = 0; i < BUTTONS; i++) { bound[i] = null; buttons.get(i).visible = false; }
         if (!on) return;
-        List<Row> rows = rows(); scroll = Mth.clamp(scroll, 0, Math.max(0, rows.size() - 1));
-        CargoProfile profile = ClientCargo.profile(); int slot = 0, ry = y + 14, bottom = y + height;
+        List<Row> rows = rows(); int ry = y + 14, bottom = y + height;
+        scroll = Mth.clamp(scroll, 0, maxScroll(rows.stream().mapToInt(Row::height).toArray(), bottom - ry));
+        CargoProfile profile = ClientCargo.profile(); int slot = 0, rank = ClientCargo.rank(profile.reputation).level();
         for (int i = scroll; i < rows.size() && slot < BUTTONS; i++) {
             Row row = rows.get(i); if (ry + row.height() > bottom) break;
             if (row.listing != null) {
                 var entry = row.listing.entry(); boolean owned = entry.isPattern() && profile.unlocked.contains(entry.pattern());
                 DockScreen.ShipwrightButton buy = buttons.get(slot); bound[slot++] = row.listing;
                 buy.setBounds(x + width - BUY_W - 4, ry + 2, BUY_W, ENTRY - 6);
-                buy.visible = !owned; buy.active = entry.rank() <= profile.peakRank() && profile.balance() >= entry.price();
+                buy.visible = !owned; buy.active = entry.rank() <= rank && profile.balance() >= entry.price();
             }
             ry += row.height();
         }
     }
 
     void render(GuiGraphics graphics, int x, int y, int width, int height, int mouseX, int mouseY) {
-        CargoProfile profile = ClientCargo.profile(); int rank = profile.peakRank();
+        CargoProfile profile = ClientCargo.profile(); int rank = ClientCargo.rank(profile.reputation).level();
         graphics.drawString(font, I18n.get("gui.skydock.cargo.shop_balance", profile.balance()), x + 3, y + 3, TerminalScreen.INK, false);
         List<Row> rows = rows();
         if (rows.isEmpty()) { graphics.drawString(font, I18n.get("gui.skydock.cargo.shop_empty"), x + 3, y + 18, TerminalScreen.MUTED, false); return; }

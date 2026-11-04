@@ -81,7 +81,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         contractsTab.selected = page == Page.CONTRACTS; shopTab.selected = page == Page.SHOP; reputationTab.selected = page == Page.REPUTATION;
         shop.update(page == Page.SHOP, leftPos + 9, bodyY(), imageWidth - 18, imageHeight - 57);
         boolean on = page == Page.CONTRACTS; int col = columnWidth(), left = leftPos + 9, right = left + col + 6, rows = bodyY() + 14;
-        int rank = profile.peakRank();
+        int rank = ClientCargo.rank(profile.reputation).level();
         for (int i = 0; i < acceptButtons.size(); i++) {
             int y = rows + i * ROW;
             DockScreen.ShipwrightButton accept = acceptButtons.get(i), deliver = deliverButtons.get(i), abandon = abandonButtons.get(i);
@@ -129,7 +129,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
     }
 
     private void renderContracts(GuiGraphics graphics) {
-        int col = columnWidth(), left = leftPos + 9, right = left + col + 6, rows = bodyY() + 14, rank = ClientCargo.profile().peakRank();
+        int col = columnWidth(), left = leftPos + 9, right = left + col + 6, rows = bodyY() + 14, rank = ClientCargo.rank(ClientCargo.profile().reputation).level();
         graphics.drawString(font, I18n.get("gui.skydock.cargo.offers"), left + 3, bodyY() + 3, INK, false);
         graphics.drawString(font, font.plainSubstrByWidth(I18n.get("gui.skydock.cargo.contracts"), col - 80), right + 3, bodyY() + 3, INK, false);
         if (offers.isEmpty()) graphics.drawString(font, font.plainSubstrByWidth(I18n.get("gui.skydock.cargo.no_offers"), col - 6), left + 3, rows + 4, MUTED, false);
@@ -138,16 +138,17 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
             Offer o = offers.get(i); int y = rows + i * ROW, text = col - 60; boolean locked = o.rankLevel() > rank;
             graphics.fill(left, y, left + col, y + ROW - 4, CARD);
             line(graphics, I18n.get(CargoPodItem.nameKey(o.cargoKey())), left + 4, y + 4, text, locked ? MUTED : INK);
-            line(graphics, I18n.get(CargoService.byCount(o.pods(), "gui.skydock.cargo.route_one", "gui.skydock.cargo.route"), o.pods(), Math.round(distance(o.destination())), bearing(o.destination())), left + 4, y + 16, col - 8, MUTED);
+            line(graphics, I18n.get(CargoService.byCount(o.pods(), "gui.skydock.cargo.route_one", "gui.skydock.cargo.route"), o.pods(), Math.round(distance(o.destination().pos())), bearing(o.destination().pos())), left + 4, y + 16, col - 8, MUTED);
             String reward = locked ? I18n.get("gui.skydock.cargo.locked", I18n.get(ClientCargo.byLevel(o.rankLevel()).key()))
                     : I18n.get("gui.skydock.cargo.reward", o.deadlineDays(), o.reputationPerPod(), crateName(o.crate()));
             line(graphics, reward, left + 4, y + 28, col - 8, locked ? MISSING : INK);
         }
         for (int i = 0; i < Math.min(contracts.size(), CargoService.MAX_CONTRACTS); i++) {
             Contract c = contracts.get(i); int y = rows + i * ROW, text = col - 60; long remaining = c.deadline - now();
+            BlockPos pad = ClientCargo.pad(c.id); if (pad == null) pad = c.destination.pos();
             graphics.fill(right, y, right + col, y + ROW - 4, CARD);
             line(graphics, I18n.get(CargoPodItem.nameKey(c.cargoKey)), right + 4, y + 4, text, INK);
-            line(graphics, I18n.get(CargoService.byCount(c.pods, "gui.skydock.cargo.progress_one", "gui.skydock.cargo.progress"), c.delivered.size(), c.pods, Math.round(distance(c.destination)), bearing(c.destination)), right + 4, y + 16, text, MUTED);
+            line(graphics, I18n.get(CargoService.byCount(c.pods, "gui.skydock.cargo.progress_one", "gui.skydock.cargo.progress"), c.delivered.size(), c.pods, Math.round(distance(pad)), bearing(pad)), right + 4, y + 16, text, MUTED);
             String due = remaining < 0 ? I18n.get("gui.skydock.cargo.overdue")
                     : I18n.get("gui.skydock.cargo.due", remaining / Offers.DAY_TICKS, remaining % Offers.DAY_TICKS / 1000);
             line(graphics, due, right + 4, y + 28, text, remaining < 0 ? MISSING : INK);
@@ -155,12 +156,12 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
     }
 
     /** The server follows a predicted site to the terminal that generated within 64 blocks of it; the screen does the same. */
-    private boolean boundHere(Contract c) { return c.destination.dimension().equals(here().dimension()) && distance(c.destination) <= CargoService.SITE_MATCH; }
+    private boolean boundHere(Contract c) { return c.destination.dimension().equals(here().dimension()) && distance(c.destination.pos()) <= CargoService.SITE_MATCH; }
     private void line(GuiGraphics graphics, String text, int x, int y, int width, int color) { graphics.drawString(font, font.plainSubstrByWidth(text, Math.max(10, width)), x, y, color, false); }
-    private double distance(GlobalPos to) { return Offers.distance(menu.pos, to.pos()); }
+    private double distance(BlockPos to) { return Offers.distance(menu.pos, to); }
     /** The 8-point compass direction from this terminal to {@code to}, in the {@link Navigation} convention. */
-    private String bearing(GlobalPos to) {
-        double dx = to.pos().getX() - menu.pos.getX(), dz = to.pos().getZ() - menu.pos.getZ();
+    private String bearing(BlockPos to) {
+        double dx = to.getX() - menu.pos.getX(), dz = to.getZ() - menu.pos.getZ();
         return Navigation.compass(Math.toDegrees(Math.atan2(dx, -dz)));
     }
     static String crateName(CrateRank rank) { return I18n.get("block.skydock." + rank.name().toLowerCase(Locale.ROOT) + "_crate"); }

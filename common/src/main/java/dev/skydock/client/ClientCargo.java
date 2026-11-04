@@ -22,6 +22,8 @@ public final class ClientCargo {
     public static List<Rank> ranks() { return ranks; }
     public static List<Listing> shop() { return shop; }
 
+    /** The pad the server resolved for a contract's destination, or null when the sync named none. */
+    public static net.minecraft.core.BlockPos pad(long contract) { for (CargoNetwork.Destination d : destinations) if (d.contract() == contract) return d.pad(); return null; }
     /** The highest synced rank the reputation reaches. */
     public static Rank rank(int reputation) { Rank best = ranks.getFirst(); for (Rank r : ranks) if (r.threshold() <= reputation) best = r; return best; }
     public static Rank byLevel(int level) { for (Rank r : ranks) if (r.level() == level) return r; return ranks.getFirst(); }

@@ -6,11 +6,14 @@ import dev.architectury.utils.Env;
 import dev.skydock.Skydock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -21,19 +24,19 @@ public final class CargoNetwork {
     public static Consumer<Sync> clientReceiver = ignored -> {};
     private CargoNetwork() {}
 
-    /** Where an active contract's pods go: the destination terminal's pad. */
-    public record Destination(long contract, BlockPos pad) {}
+    /** Where an active contract's pods go: the destination terminal's dimension and pad. */
+    public record Destination(long contract, ResourceKey<Level> dimension, BlockPos pad) {}
 
-    /** The player's profile NBT (plus the rank ladder under {@code Ranks}) and each active contract's destination pad. */
+    /** The player's profile NBT (plus the rank ladder under {@code Ranks}) and each active contract's destination. */
     public record Sync(CompoundTag profile, List<Destination> destinations) implements CustomPacketPayload {
         public static final Type<Sync> TYPE = new Type<>(Skydock.id("cargo_sync"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Sync> CODEC = StreamCodec.of((buffer, packet) -> {
             buffer.writeNbt(packet.profile);
             buffer.writeVarInt(packet.destinations.size());
-            for (Destination d : packet.destinations) { buffer.writeVarLong(d.contract); buffer.writeBlockPos(d.pad); }
+            for (Destination d : packet.destinations) { buffer.writeVarLong(d.contract); buffer.writeResourceKey(d.dimension); buffer.writeBlockPos(d.pad); }
         }, buffer -> {
             CompoundTag profile = buffer.readNbt(); int count = buffer.readVarInt(); List<Destination> out = new ArrayList<>();
-            for (int i = 0; i < count; i++) out.add(new Destination(buffer.readVarLong(), buffer.readBlockPos()));
+            for (int i = 0; i < count; i++) out.add(new Destination(buffer.readVarLong(), buffer.readResourceKey(Registries.DIMENSION), buffer.readBlockPos()));
             return new Sync(profile == null ? new CompoundTag() : profile, out);
         });
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
