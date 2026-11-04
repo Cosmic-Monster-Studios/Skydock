@@ -71,7 +71,7 @@ class PodDriftTest {
         Ship ship = new Ship(); BlockPos deck = new BlockPos(2, 1, 2), pod = deck.above();
         ship.blocks.put(deck, Blocks.OAK_PLANKS.defaultBlockState()); ship.blueprint.put(deck, Blocks.OAK_PLANKS.defaultBlockState());
         ship.blocks.put(pod, Blocks.BARREL.defaultBlockState()); ship.blueprint.put(pod, Blocks.BARREL.defaultBlockState());
-        PodLoading.forget(ship, pod);
+        PodLoading.forget(ship, pod, s -> s.is(Blocks.BARREL));
         assertFalse(ship.blocks.containsKey(pod));
         assertFalse(ship.blueprint.containsKey(pod));
         assertTrue(ship.blocks.keySet().stream().noneMatch(pod::equals));

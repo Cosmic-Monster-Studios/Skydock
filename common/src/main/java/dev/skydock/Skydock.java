@@ -52,6 +52,12 @@ public final class Skydock {
             if (level.dimension().equals(ShipManager.SHIPYARD)) return EventResult.interruptFalse();
             if (level instanceof net.minecraft.server.level.ServerLevel serverLevel && AssemblyManager.protects(serverLevel, pos))
                 return EventResult.interruptFalse();
+            // A pod in a redocked hull belongs to its contract holder, as it does aboard a ship.
+            if (state.is(SkydockBlocks.CARGO_POD.get()) && player != null
+                    && !dev.skydock.cargo.PodLoading.breakable(player, level.getBlockEntity(pos) instanceof dev.skydock.cargo.CargoPodBlockEntity pod ? pod : null)) {
+                ShipManager.tell(player, "message.skydock.pod_not_yours");
+                return EventResult.interruptFalse();
+            }
             return EventResult.pass();
         });
         BlockEvent.PLACE.register((level, pos, state, placer) -> {

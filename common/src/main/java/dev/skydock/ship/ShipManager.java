@@ -317,12 +317,21 @@ public final class ShipManager {
         List<Ship> others = ships(level).stream().filter(s -> s != ship).toList();
         if (ShipPhysics.collides(level, ship, pose, true, others, false)) return false;
         // Surface boxes only see the shell; this also catches terrain or water inside the hull.
-        for (var entry : ship.blocks.entrySet()) if (!entry.getValue().isAir()) {
-            BlockPos at = BlockPos.containing(pose.toWorld(Vec3.atCenterOf(entry.getKey()).subtract(ship.center())));
-            BlockState there = level.getBlockState(at);
-            if (!there.getFluidState().isEmpty() || !there.getCollisionShape(level, at).isEmpty()) return false;
-        }
+        for (var entry : ship.blocks.entrySet()) if (!entry.getValue().isAir() && groundAt(level, ship, pose, entry.getKey())) return false;
         return true;
+    }
+    /** Terrain or fluid in the world block at a hull cell's centre. */
+    private static boolean groundAt(ServerLevel level, Ship ship, ShipPose pose, BlockPos cell) {
+        BlockPos at = BlockPos.containing(pose.toWorld(Vec3.atCenterOf(cell).subtract(ship.center())));
+        BlockState there = level.getBlockState(at);
+        return !there.getFluidState().isEmpty() || !there.getCollisionShape(level, at).isEmpty();
+    }
+    /** Whether one hull cell at {@code pose} is free in the world: no terrain or fluid, no other ship's hull and no entity but spectators, as {@link #roomFor} asks of a whole hull. */
+    public static boolean cellClear(ServerLevel level, Ship ship, ShipPose pose, BlockPos cell) {
+        AABB box = pose.transform().toWorld(new AABB(cell).move(ship.center().scale(-1))).deflate(1e-3);
+        if (groundAt(level, ship, pose, cell) || level.getBlockCollisions(null, box).iterator().hasNext() || level.containsAnyLiquid(box)) return false;
+        for (Ship other : ships(level)) if (other != ship && other.hullWorldBounds().intersects(box) && !ShipCollision.shapes(other, other.pose, box).isEmpty()) return false;
+        return level.getEntities((Entity) null, box, e -> !e.isSpectator()).isEmpty();
     }
     public static boolean canReachDock(Player player, DockBlockEntity dock) {
         if (player.distanceToSqr(Vec3.atCenterOf(dock.getBlockPos())) <= 64) return true;
