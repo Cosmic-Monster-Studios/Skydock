@@ -245,7 +245,7 @@ public final class ShipManager {
         if (ships(player.level()).stream().anyMatch(s -> s.bounds().intersects(ship.bounds()))) { tell(player, "message.skydock.envelope_occupied"); return; }
         int region = data.nextRegion++;
         if (region >= 1_000_000) { tell(player, "message.skydock.shipyard_full"); return; }
-        ship.yard = new BlockPos((region % 1000) * 256, 64, (region / 1000) * 256);
+        ship.yard = ShipSavedData.yardOf(region);
         ShipTransfer.snapshot(ship, player.serverLevel(), origin, frame.rotation());
         ship.phase = "launching"; ship.transferOrigin = origin; ship.transferFacing = frame.facing(); ship.transferDock = pos; ship.transferDimension = ship.dimension;
         data.ships.put(ship.id, ship);
