@@ -13,7 +13,6 @@ public final class Contract {
     public final long id; public final GlobalPos origin, destination; public final int rankLevel; public final CrateRank crate;
     public final String cargoKey; public final int pods, reputationPerPod; public final long deadline;
     public final Set<Integer> delivered = new TreeSet<>(), lost = new TreeSet<>();
-    public final Set<UUID> strangersPaid = new LinkedHashSet<>();
     public boolean anyReduced;
 
     public Contract(long id, GlobalPos origin, GlobalPos destination, int rankLevel, CrateRank crate, String cargoKey, int pods, long deadline, int reputationPerPod) {
@@ -37,7 +36,7 @@ public final class Contract {
         tag.putInt("Rank", rankLevel); tag.putString("Crate", crate.name()); tag.putString("Cargo", cargoKey); tag.putInt("Pods", pods); tag.putLong("Deadline", deadline);
         tag.putInt("Reputation", reputationPerPod);
         tag.putIntArray("Delivered", ints(delivered)); tag.putIntArray("Lost", ints(lost)); tag.putBoolean("AnyReduced", anyReduced);
-        ListTag paid = new ListTag(); strangersPaid.forEach(u -> paid.add(NbtUtils.createUUID(u))); tag.put("Strangers", paid); return tag;
+        return tag;
     }
     public static Contract load(CompoundTag tag) {
         GlobalPos origin = loadPos(tag.get("Origin")), destination = loadPos(tag.get("Destination")); int rank = tag.getInt("Rank");
@@ -47,7 +46,6 @@ public final class Contract {
         for (int i : tag.getIntArray("Delivered")) c.delivered.add(i);
         for (int i : tag.getIntArray("Lost")) c.lost.add(i);
         c.anyReduced = tag.getBoolean("AnyReduced");
-        for (Tag t : tag.getList("Strangers", Tag.TAG_INT_ARRAY)) c.strangersPaid.add(NbtUtils.loadUUID(t));
         return c;
     }
 }

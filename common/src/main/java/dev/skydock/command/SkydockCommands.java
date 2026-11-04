@@ -94,7 +94,7 @@ public final class SkydockCommands {
         var cargo = literal("cargo").requires(s -> s.hasPermission(2));
         cargo.then(literal("reputation").then(argument("player", EntityArgument.player())
                 .executes(ctx -> reputation(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"), null))
-                .then(literal("set").then(argument("amount", IntegerArgumentType.integer(0)).executes(ctx ->
+                .then(literal("set").then(argument("amount", IntegerArgumentType.integer(0, MAX_REPUTATION)).executes(ctx ->
                         reputation(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"), IntegerArgumentType.getInteger(ctx, "amount")))))));
         cargo.then(literal("terminal")
                 .then(literal("list").executes(ctx -> listTerminals(ctx.getSource())))

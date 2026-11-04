@@ -198,7 +198,7 @@ public final class CargoService {
                 if (!terminal.equals(resolveDestination(data.terminals, c.destination))) continue;
                 boolean byHolder = held.getKey().equals(player.getUUID());
                 if (!Delivery.accepts(c, tag, terminal)) continue;
-                result = Delivery.deliver(me, player.getUUID(), c, tag, byHolder, now > c.deadline, terminal);
+                result = Delivery.deliver(me, c, tag, byHolder, now > c.deadline, terminal);
                 applyResult(data, held.getKey(), c, result);
                 if (result.settled()) settled.add(c.id);
                 if (!byHolder) holders.add(held.getKey());

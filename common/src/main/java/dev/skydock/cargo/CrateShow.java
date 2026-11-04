@@ -48,9 +48,10 @@ public final class CrateShow {
      * The shop-only pattern a crate unlocks, if any: Gold has a 20% chance, Aether always tries, lower ranks never do. A try picks
      * uniformly among the shop patterns the player does not own; empty when they own them all, which the caller refunds.
      */
+    /** Whether a crate of this rank tries for a pattern: Gold one time in five, Aether always. */
+    public static boolean triesPrize(CrateRank rank, RandomSource random) { return switch (rank) { case GOLD -> random.nextFloat() < .2f; case AETHER -> true; default -> false; }; }
     public static Optional<ResourceLocation> patternPrize(CrateRank rank, Set<ResourceLocation> owned, List<ResourceLocation> shopPatterns, RandomSource random) {
-        boolean tries = switch (rank) { case GOLD -> random.nextFloat() < .2f; case AETHER -> true; default -> false; };
-        if (!tries) return Optional.empty();
+        if (!triesPrize(rank, random)) return Optional.empty();
         List<ResourceLocation> left = shopPatterns.stream().filter(p -> !owned.contains(p)).toList();
         return left.isEmpty() ? Optional.empty() : Optional.of(left.get(random.nextInt(left.size())));
     }

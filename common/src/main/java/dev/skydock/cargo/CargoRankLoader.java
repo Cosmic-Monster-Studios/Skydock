@@ -22,6 +22,7 @@ public final class CargoRankLoader extends SimpleJsonResourceReloadListener {
         CargoRanks.setData(next);
     }
 
+    /** Levels must be exactly 1 to N in file order; thresholds and minimum distances must rise with them. */
     static List<Rank> parse(JsonObject json) {
         List<Rank> out = new ArrayList<>();
         for (JsonElement e : json.getAsJsonArray("ranks")) {
@@ -32,7 +33,8 @@ public final class CargoRankLoader extends SimpleJsonResourceReloadListener {
                     CrateRank.valueOf(r.get("crate").getAsString().toUpperCase(Locale.ROOT)), r.get("base_per_pod").getAsInt());
             if (rank.minDistance() <= 0 || rank.maxDistance() < rank.minDistance() || rank.basePerPod() < 0 || rank.deadlineDays() <= 0 || rank.threshold() < 0)
                 throw new IllegalArgumentException("Invalid rank " + rank.key());
-            if (!out.isEmpty() && (rank.level() <= out.getLast().level() || rank.threshold() <= out.getLast().threshold() || rank.minDistance() <= out.getLast().minDistance()))
+            if (rank.level() != out.size() + 1) throw new IllegalArgumentException("Rank levels must run 1, 2, 3... in order: " + rank.key());
+            if (!out.isEmpty() && (rank.threshold() <= out.getLast().threshold() || rank.minDistance() <= out.getLast().minDistance()))
                 throw new IllegalArgumentException("Ranks must ascend: " + rank.key());
             out.add(rank);
         }

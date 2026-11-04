@@ -14,13 +14,13 @@ class CargoSavedDataTest {
         CargoProfile p = new CargoProfile(); p.reputation = 150; p.spent = 40; p.unlocked.add(ResourceLocation.parse("skydock:wave"));
         p.offers.put(a, List.of(new Offer(3, b, 2, CrateRank.COPPER, "cargo.skydock.grain", 4, 2, 25))); p.offersRefreshed.put(a, 12000L);
         Contract c = new Contract(5, a, b, 2, CrateRank.COPPER, "cargo.skydock.grain", 3, 48000); c.delivered.add(0); c.lost.add(1); c.anyReduced = true;
-        c.strangersPaid.add(java.util.UUID.randomUUID()); p.contracts.put(5L, c); p.pendingCrates.add(CrateRank.GOLD); p.pendingCrates.add(CrateRank.TIN);
+        p.contracts.put(5L, c); p.pendingCrates.add(CrateRank.GOLD); p.pendingCrates.add(CrateRank.TIN);
         CargoProfile back = CargoProfile.load(p.save());
         assertEquals(150, back.reputation); assertEquals(40, back.spent); assertEquals(110, back.balance()); assertEquals(2, back.peakRank());
         assertEquals(p.offers, back.offers); assertEquals(p.offersRefreshed, back.offersRefreshed); assertEquals(p.unlocked, back.unlocked); assertEquals(p.pendingCrates, back.pendingCrates);
         Contract bc = back.contracts.get(5L);
         assertEquals(a, bc.origin); assertEquals(b, bc.destination); assertEquals(CrateRank.COPPER, bc.crate); assertEquals(3, bc.pods); assertEquals(48000, bc.deadline);
-        assertEquals(c.delivered, bc.delivered); assertEquals(c.lost, bc.lost); assertTrue(bc.anyReduced); assertEquals(c.strangersPaid, bc.strangersPaid); assertFalse(bc.settled());
+        assertEquals(c.delivered, bc.delivered); assertEquals(c.lost, bc.lost); assertTrue(bc.anyReduced); assertFalse(bc.settled());
         assertEquals(c.reputationPerPod, bc.reputationPerPod);
     }
     @Test void contractPayKeepsItsOfferRateAndOldSavesFallBackToTheRank() {

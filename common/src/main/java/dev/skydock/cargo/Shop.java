@@ -104,14 +104,16 @@ public final class Shop {
     public record Prize(ResourceLocation pattern, boolean refunded) {}
 
     /**
-     * Rolls the crate's pattern prize ({@link CrateShow#patternPrize}) into the profile. When the opener owns every shop pattern
-     * the roll still decides whether a prize was won, and a won prize becomes {@link #PRIZE_REFUND} reputation.
+     * Rolls the crate's pattern prize ({@link CrateShow#patternPrize}) into the profile. When the opener owns every shop pattern, or the
+     * shop has none loaded, the roll still decides whether a prize was won, and a won prize becomes {@link #PRIZE_REFUND} reputation.
      */
     public static Prize cratePrize(CargoProfile profile, CrateRank rank, List<ResourceLocation> shopPatterns, RandomSource random) {
-        boolean ownsAll = !shopPatterns.isEmpty() && profile.unlocked.containsAll(shopPatterns);
-        Optional<ResourceLocation> won = CrateShow.patternPrize(rank, ownsAll ? Set.of() : profile.unlocked, shopPatterns, random);
+        if (profile.unlocked.containsAll(shopPatterns)) {
+            if (!CrateShow.triesPrize(rank, random)) return new Prize(null, false);
+            profile.gain(PRIZE_REFUND); return new Prize(null, true);
+        }
+        Optional<ResourceLocation> won = CrateShow.patternPrize(rank, profile.unlocked, shopPatterns, random);
         if (won.isEmpty()) return new Prize(null, false);
-        if (ownsAll) { profile.reputation += PRIZE_REFUND; return new Prize(null, true); }
         profile.unlocked.add(won.get());
         return new Prize(won.get(), false);
     }

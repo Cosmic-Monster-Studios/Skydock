@@ -18,6 +18,9 @@ public final class CargoProfile {
     /** Rank is earned by total reputation and never lost by spending. */
     public int peakRank() { return CargoRanks.forReputation(reputation).level(); }
     public int balance() { return reputation - spent; }
+    /** Adds reputation, stopping at {@link Integer#MAX_VALUE} rather than overflowing. */
+    public void gain(int amount) { reputation = saturatedAdd(reputation, amount); }
+    static int saturatedAdd(int a, int b) { return (int) Math.clamp((long) a + b, Integer.MIN_VALUE, Integer.MAX_VALUE); }
 
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag(); tag.putInt("Reputation", reputation); tag.putInt("Spent", spent);

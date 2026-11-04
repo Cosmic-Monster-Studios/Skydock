@@ -2,13 +2,12 @@ package dev.skydock.cargo;
 
 import net.minecraft.core.GlobalPos;
 import java.util.Set;
-import java.util.UUID;
 
 /** Pure delivery accounting: mutates the deliverer's reputation and the contract, never items or chat. */
 public final class Delivery {
     /**
      * @param reputation reputation paid to the deliverer
-     * @param crate crate owed to the deliverer, or null when none
+     * @param crate crate owed to the deliverer (only ever the holder), or null when none
      * @param full true when the pod paid its full reward (holder, on time, intact)
      * @param settled true when every pod is accounted for; the caller drops the contract from its holder's profile
      * @param holderCrate completion crate owed to the holder when a stranger's delivery settled the contract, or null
@@ -25,20 +24,21 @@ public final class Delivery {
     /** Whether a pod whose contract is gone is taken here: not when its id was abandoned or settled, nor at its origin. */
     public static boolean acceptsOrphan(long contractId, GlobalPos origin, GlobalPos at, Set<Long> voided) { return !voided.contains(contractId) && !at.equals(origin); }
 
-    public static Result deliver(CargoProfile deliverer, UUID delivererId, Contract contract, PodTag pod, boolean byHolder, boolean late, GlobalPos at) {
+    /** Delivers one pod: the holder earns the pod's pay and, with the last pod, the completion crate; a stranger earns half and no crate. */
+    public static Result deliver(CargoProfile deliverer, Contract contract, PodTag pod, boolean byHolder, boolean late, GlobalPos at) {
         if (!accepts(contract, pod, at)) return NOTHING;
         int full = contract.reputationPerPod;
         if (!byHolder) {
-            int pay = full / 2; deliverer.reputation += pay; contract.lost.add(pod.index());
-            CrateRank crate = contract.strangersPaid.add(delivererId) ? contract.crate.lower() : null;
+            // Strangers earn half reputation and never a crate, so passing pods between players cannot farm crates.
+            int pay = full / 2; deliverer.gain(pay); contract.lost.add(pod.index());
             boolean settled = contract.settled();
             // a pod was lost, so the holder's completion crate is the lowered one; only owed if the holder delivered a pod
             CrateRank holderCrate = settled && !contract.delivered.isEmpty() ? contract.crate.lower() : null;
-            return new Result(pay, crate, false, settled, holderCrate);
+            return new Result(pay, null, false, settled, holderCrate);
         }
         boolean reduced = late || pod.ejected();
         int pay = reduced ? full / 2 : full; if (reduced) contract.anyReduced = true;
-        deliverer.reputation += pay; contract.delivered.add(pod.index());
+        deliverer.gain(pay); contract.delivered.add(pod.index());
         boolean settled = contract.settled();
         CrateRank crate = settled ? (contract.anyReduced || !contract.lost.isEmpty() ? contract.crate.lower() : contract.crate) : null;
         return new Result(pay, crate, !reduced, settled, null);
@@ -57,7 +57,7 @@ public final class Delivery {
     /** A pod whose contract is gone: half of the lowest rank's base unless {@link #acceptsOrphan} refuses it. */
     public static Result orphan(CargoProfile deliverer, long contractId, GlobalPos origin, GlobalPos at, Set<Long> voided) {
         if (!acceptsOrphan(contractId, origin, at, voided)) return NOTHING;
-        int pay = CargoRanks.ranks().getFirst().basePerPod() / 2; deliverer.reputation += pay; return new Result(pay, null, false, false, null);
+        int pay = CargoRanks.ranks().getFirst().basePerPod() / 2; deliverer.gain(pay); return new Result(pay, null, false, false, null);
     }
 
 }

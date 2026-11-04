@@ -37,11 +37,11 @@ class CargoServiceTest {
     @Test void settledContractIsRemovedAndHolderCrateQueued() {
         CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID(), stranger = UUID.randomUUID();
         Contract c = contract(9, 2); data.profile(holder).contracts.put(c.id, c);
-        Delivery.Result first = Delivery.deliver(data.profile(holder), holder, c, new PodTag(9, 0, false), true, false, THERE);
+        Delivery.Result first = Delivery.deliver(data.profile(holder), c, new PodTag(9, 0, false), true, false, THERE);
         CargoService.applyResult(data, holder, c, first);
         assertTrue(data.profile(holder).contracts.containsKey(9L));
         assertTrue(data.profile(holder).pendingCrates.isEmpty());
-        Delivery.Result last = Delivery.deliver(data.profile(stranger), stranger, c, new PodTag(9, 1, false), false, false, THERE);
+        Delivery.Result last = Delivery.deliver(data.profile(stranger), c, new PodTag(9, 1, false), false, false, THERE);
         assertTrue(last.settled()); assertEquals(CrateRank.TIN, last.holderCrate());
         CargoService.applyResult(data, holder, c, last);
         assertFalse(data.profile(holder).contracts.containsKey(9L));
@@ -97,7 +97,7 @@ class CargoServiceTest {
     @Test void voidLossOfTheLastPodDropsTheContractAndQueuesTheHolderCrate() {
         CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
         Contract c = contract(13, 2); data.profile(holder).contracts.put(c.id, c);
-        CargoService.applyResult(data, holder, c, Delivery.deliver(data.profile(holder), holder, c, new PodTag(13, 0, false), true, false, THERE));
+        CargoService.applyResult(data, holder, c, Delivery.deliver(data.profile(holder), c, new PodTag(13, 0, false), true, false, THERE));
         data.setDirty(false);
         CargoService.applyResult(data, holder, c, Delivery.lose(c, 1));
         assertNull(data.findContract(13)); assertTrue(data.voided.contains(13L)); assertTrue(data.isDirty());

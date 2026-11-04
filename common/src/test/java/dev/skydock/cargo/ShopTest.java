@@ -98,6 +98,8 @@ class ShopTest {
         Shop.Prize none = Shop.cratePrize(p, CrateRank.TIN, shop, RandomSource.create(1));
         assertNull(none.pattern()); assertFalse(none.refunded()); assertEquals(Shop.PRIZE_REFUND, p.reputation);
         CargoProfile fresh = withReputation(0);
-        assertFalse(Shop.cratePrize(fresh, CrateRank.AETHER, List.of(), RandomSource.create(1)).refunded(), "no shop patterns, nothing to refund");
+        assertTrue(Shop.cratePrize(fresh, CrateRank.AETHER, List.of(), RandomSource.create(1)).refunded(), "no shop patterns loaded, so an Aether crate refunds");
+        assertEquals(Shop.PRIZE_REFUND, fresh.reputation);
+        assertFalse(Shop.cratePrize(fresh, CrateRank.TIN, List.of(), RandomSource.create(1)).refunded(), "a Tin crate never tries for a pattern");
     }
 }
