@@ -44,7 +44,7 @@ The installable mod is `neoforge/build/libs/skydock-neoforge-0.3.0-alpha.1.jar`.
 
 The controller is the center of the front edge. For a north-facing dock its interior starts at `controller + (-width/2, 1, 1)`; other facings turn the envelope about the controller. A launched ship starts at its dock's yaw (north 0°, east 90°, south 180°, west 270°). Hulls and patterns are stored facing north and turned with the dock, so any pattern builds in a dock facing any way. Block-entity NBT is not rotated, as with vanilla structures. Existing controllers from 0.1 read as north-facing. Larger docks center smaller ships inside their envelope. Upgrading the ship's tier happens on its next launch from the larger dock.
 
-Controllers and ships are owned by the player who places/first claims the controller. Members of the Minecraft scoreboard team recorded at claim time share device and berth permissions. One player may drive each helm at a time.
+Controllers and ships are owned by the player who places/first claims the controller. Members of the owner's current Minecraft scoreboard team share device and berth permissions: a player who leaves that team, or whose team the owner leaves, loses access at once, and an owner with no team shares with no one. One player may drive each helm at a time.
 
 ### Cargo contracts
 

@@ -35,9 +35,8 @@ public final class DockBlockEntity extends BlockEntity implements MenuProvider {
     public void claim(Player player) {
         owner = player.getUUID(); team = player.getTeam() == null ? "" : player.getTeam().getName(); setChanged();
     }
-    public boolean canManage(Player player) {
-        return owner == null || owner.equals(player.getUUID()) || (!team.isEmpty() && player.getTeam() != null && team.equals(player.getTeam().getName()));
-    }
+    /** The owner and the owner's current scoreboard team; {@code team} is only the claim-time fallback. */
+    public boolean canManage(Player player) { return owner == null || dev.skydock.ship.ShipManager.shares(player, owner, team); }
     public ResourceLocation selectedPattern() {
         if (selectedPattern == null) selectedPattern = ShipPatterns.defaultFor(tier()).id();
         return selectedPattern;

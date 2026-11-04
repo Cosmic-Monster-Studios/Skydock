@@ -216,8 +216,32 @@ public final class ShipManager {
         if (!dock.canManage(player)) { tell(player, "message.skydock.dock_not_owner"); return null; }
         return dock;
     }
-    public static boolean permitted(Player player, Ship ship) {
-        return ship.owner != null && (ship.owner.equals(player.getUUID()) || (!ship.team.isEmpty() && player.getTeam() != null && ship.team.equals(player.getTeam().getName())));
+    public static boolean permitted(Player player, Ship ship) { return shares(player, ship.owner, ship.team); }
+    /**
+     * Whether {@code player} may use what {@code owner} owns: the owner, or a member of the owner's scoreboard team as it is now.
+     * {@code storedTeam}, recorded at claim time, is used only where the owner's name cannot be looked up (on a client).
+     */
+    public static boolean shares(Player player, UUID owner, String storedTeam) {
+        if (owner == null) return false;
+        if (owner.equals(player.getUUID())) return true;
+        if (player.getTeam() == null) return false;
+        MinecraftServer server = player.getServer();
+        var cache = server == null ? null : server.getProfileCache();
+        ServerPlayer online = server == null ? null : server.getPlayerList().getPlayer(owner);
+        String name = online != null ? online.getScoreboardName() : cache == null ? null : cache.get(owner).map(com.mojang.authlib.GameProfile::getName).orElse(null);
+        String team = sharedTeam(online != null || cache != null, name, n -> {
+            var found = player.level().getScoreboard().getPlayersTeam(n); return found == null ? null : found.getName();
+        }, storedTeam);
+        return !team.isEmpty() && team.equals(player.getTeam().getName());
+    }
+    /**
+     * The team that shares an owner's ships and docks, or "" for nobody but the owner. With a lookup, it is the owner's current team
+     * ({@code teamOf} their name), and an unknown owner shares with no one; without one it falls back to {@code storedTeam}.
+     */
+    static String sharedTeam(boolean lookedUp, String ownerName, java.util.function.Function<String, String> teamOf, String storedTeam) {
+        if (!lookedUp) return storedTeam == null ? "" : storedTeam;
+        String team = ownerName == null ? null : teamOf.apply(ownerName);
+        return team == null ? "" : team;
     }
     public static void inspect(ServerPlayer player, BlockPos pos) {
         DockBlockEntity dock = dock(player, pos); if (dock == null) return;
