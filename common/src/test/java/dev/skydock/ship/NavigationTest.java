@@ -1,6 +1,8 @@
 package dev.skydock.ship;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,5 +51,10 @@ class NavigationTest {
         assertEquals("W", Navigation.compass(270));
         assertEquals("N", Navigation.compass(359));
         assertEquals("NW", Navigation.compass(-45));
+    }
+    @Test void nearestPicksTheClosestHorizontally() {
+        BlockPos below = new BlockPos(2, 0, 0), level = new BlockPos(50, 64, 0);
+        assertEquals(below, Navigation.nearest(ORIGIN, List.of(level, below)).orElseThrow());
+        assertTrue(Navigation.nearest(ORIGIN, List.of()).isEmpty());
     }
 }

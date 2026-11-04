@@ -1,7 +1,10 @@
 package dev.skydock.ship;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import java.util.List;
+import java.util.Optional;
 
 /** Pure navigation maths shared by the berth HUD and the redock command, in the {@link ShipPose} yaw convention (0 north, 90 east). */
 public final class Navigation {
@@ -24,6 +27,10 @@ public final class Navigation {
     public static String[] berthText(Berth berth) {
         return new String[]{String.valueOf(Math.round(berth.distance)), String.valueOf(Math.floorMod(Math.round(berth.bearing), 360L)),
                 String.format(java.util.Locale.ROOT, "%+d", Math.round(berth.dy)), String.format(java.util.Locale.ROOT, "%+d", Math.round(berth.yawError))};
+    }
+    /** The target whose centre is horizontally closest to the ship; height is ignored. */
+    public static Optional<BlockPos> nearest(ShipPose pose, List<BlockPos> targets) {
+        return targets.stream().min(java.util.Comparator.comparingDouble(t -> Math.hypot(t.getX() + .5 - pose.x(), t.getZ() + .5 - pose.z())));
     }
     /** The 8-point compass name of a yaw. */
     public static String compass(double yaw) { return POINTS[(int) Math.floorMod(Math.round(yaw / 45), 8L)]; }
