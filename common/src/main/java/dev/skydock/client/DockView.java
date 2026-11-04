@@ -39,6 +39,9 @@ public final class DockView {
         SNAPSHOTS.remove(new Key(containerId, dock));
     }
 
+    /** Forgets every snapshot, so a later world reusing a container id and dock position never shows one from before. */
+    public static void clear() { SNAPSHOTS.clear(); }
+
     public static void receive(CompoundTag data) {
         int container = data.getInt("Container");
         BlockPos dock = BlockPos.of(data.getLong("Dock"));

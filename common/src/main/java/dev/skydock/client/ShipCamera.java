@@ -41,6 +41,8 @@ public final class ShipCamera {
             return EventResult.interruptFalse();
         });
     }
+    /** Drops the framing of the last ship, for leaving a world; the zoom is the player's preference and stays. */
+    static void reset() { framed = null; wanted = shown = 0; recovering = false; lastFrame = 0; }
     static void tick(Minecraft mc) {
         boolean in = ZOOM_IN.isDown(), out = ZOOM_OUT.isDown();
         if (mc.screen == null && in != out && active()) zoom = ShipCameraFraming.zoom(zoom, in ? KEY_NOTCHES_PER_TICK : -KEY_NOTCHES_PER_TICK);

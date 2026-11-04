@@ -28,6 +28,9 @@ public final class ClientCargo {
     public static Rank rank(int reputation) { Rank best = ranks.getFirst(); for (Rank r : ranks) if (r.threshold() <= reputation) best = r; return best; }
     public static Rank byLevel(int level) { for (Rank r : ranks) if (r.level() == level) return r; return ranks.getFirst(); }
 
+    /** Back to the state before any sync, for leaving a world: the next server's cargo never shows this one's. */
+    public static void clear() { profile = new CargoProfile(); shop = List.of(); destinations = List.of(); ranks = CargoRanks.defaults(); }
+
     public static void receive(CargoNetwork.Sync sync) {
         CompoundTag tag = sync.profile();
         List<Rank> ladder = new ArrayList<>(); for (Tag t : tag.getList("Ranks", Tag.TAG_COMPOUND)) ladder.add(Rank.load((CompoundTag) t));

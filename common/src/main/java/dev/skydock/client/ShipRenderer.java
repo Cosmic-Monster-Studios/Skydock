@@ -42,7 +42,7 @@ public final class ShipRenderer {
 
     public static void clear() {
         meshes.values().forEach(Mesh::close); meshes.clear(); docks.clear();
-        building.values().forEach(ShipRenderer::abandon); building.clear();
+        building.values().forEach(ShipRenderer::abandon); building.clear(); previewFrame = null;
     }
     /** Hull snapshots replace the ship object, which is what triggers a rebuild; the old mesh draws until then. */
     public static void invalidate(UUID id) {}

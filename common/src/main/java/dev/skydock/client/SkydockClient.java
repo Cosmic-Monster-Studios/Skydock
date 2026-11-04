@@ -163,7 +163,8 @@ public final class SkydockClient {
     }
     private static void tick(Minecraft mc) {
         if (mc.level == null || mc.player == null) {
-            if (inWorld) { SHIPS.clear(); levelShips = null; pending.clear(); pendingDeltas.clear(); stale.clear(); motions.clear(); ShipRenderer.clear(); }
+            // Every per-world client cache goes on disconnect, so nothing from this world shows in the next.
+            if (inWorld) { SHIPS.clear(); levelShips = null; pending.clear(); pendingDeltas.clear(); stale.clear(); motions.clear(); ShipRenderer.clear(); DockView.clear(); ClientCargo.clear(); ShipCamera.reset(); }
             carriedYaw = 0;
             inWorld = false; return;
         }
