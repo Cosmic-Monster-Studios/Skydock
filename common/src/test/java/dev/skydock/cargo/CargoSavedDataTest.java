@@ -30,6 +30,18 @@ class CargoSavedDataTest {
         net.minecraft.nbt.CompoundTag old = c.save(); old.remove("Reputation");
         assertEquals(CargoRanks.reputation(CargoRanks.ranks().getFirst(), 1042), Contract.load(old).reputationPerPod);
     }
+    @Test void aCorruptedPodCountIsClampedAndStrayIndicesDropped() {
+        GlobalPos a = GlobalPos.of(Level.OVERWORLD, new BlockPos(0, 64, 0)), b = GlobalPos.of(Level.OVERWORLD, new BlockPos(900, 64, 0));
+        net.minecraft.nbt.CompoundTag huge = new Contract(7, a, b, 1, CrateRank.TIN, "cargo.x", 2, 0, 10).save(); huge.putInt("Pods", Integer.MAX_VALUE);
+        assertEquals(Contract.MAX_PODS, Contract.load(huge).pods);
+        net.minecraft.nbt.CompoundTag none = new Contract(7, a, b, 1, CrateRank.TIN, "cargo.x", 2, 0, 10).save(); none.putInt("Pods", -5);
+        assertEquals(1, Contract.load(none).pods);
+        net.minecraft.nbt.CompoundTag stray = new Contract(7, a, b, 1, CrateRank.TIN, "cargo.x", 3, 0, 10).save();
+        stray.putIntArray("Delivered", new int[]{0, 5, -1}); stray.putIntArray("Lost", new int[]{0, 1, 9});
+        Contract loaded = Contract.load(stray);
+        assertEquals(java.util.Set.of(0), loaded.delivered); assertEquals(java.util.Set.of(1), loaded.lost); assertFalse(loaded.settled(), "index 2 is still out");
+        loaded.lost.add(2); assertTrue(loaded.settled());
+    }
     @Test void podTagSurvivesSaveAndLoad() {
         PodTag tag = new PodTag(1L << 40, 3, true); assertEquals(tag, PodTag.load(tag.save()));
     }

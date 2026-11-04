@@ -24,8 +24,13 @@ public final class Contract {
         this(id, origin, destination, rankLevel, crate, cargoKey, pods, deadline, rankRate(rankLevel, origin, destination));
     }
     private static int rankRate(int rankLevel, GlobalPos origin, GlobalPos destination) { return CargoRanks.reputation(CargoRanks.byLevel(rankLevel), Offers.distance(origin.pos(), destination.pos())); }
-    /** True once every pod index is either delivered or lost. */
-    public boolean settled() { for (int i = 0; i < pods; i++) if (!delivered.contains(i) && !lost.contains(i)) return false; return true; }
+    /** The most pods a loaded contract may hold; offers make at most four, so a larger saved count is corruption. */
+    public static final int MAX_PODS = 64;
+    /**
+     * True once every pod index is either delivered or lost. Constant time: both sets only ever hold distinct in-range indices
+     * ({@link Delivery} checks before adding, {@link #load} drops the rest), so their sizes together reach {@code pods} exactly then.
+     */
+    public boolean settled() { return delivered.size() + lost.size() >= pods; }
 
     static CompoundTag savePos(GlobalPos pos) { return (CompoundTag) GlobalPos.CODEC.encodeStart(NbtOps.INSTANCE, pos).getOrThrow(); }
     static GlobalPos loadPos(Tag tag) { return GlobalPos.CODEC.parse(NbtOps.INSTANCE, tag).getOrThrow(); }
@@ -42,9 +47,12 @@ public final class Contract {
         GlobalPos origin = loadPos(tag.get("Origin")), destination = loadPos(tag.get("Destination")); int rank = tag.getInt("Rank");
         // Saves from before the rate was stored pay the rank's rate, as they did then.
         int rate = tag.contains("Reputation", Tag.TAG_INT) ? tag.getInt("Reputation") : rankRate(rank, origin, destination);
-        Contract c = new Contract(tag.getLong("Id"), origin, destination, rank, CrateRank.valueOf(tag.getString("Crate")), tag.getString("Cargo"), tag.getInt("Pods"), tag.getLong("Deadline"), rate);
-        for (int i : tag.getIntArray("Delivered")) c.delivered.add(i);
-        for (int i : tag.getIntArray("Lost")) c.lost.add(i);
+        int saved = tag.getInt("Pods"), pods = Math.clamp(saved, 1, MAX_PODS);
+        if (pods != saved) dev.skydock.Skydock.LOGGER.warn("Contract {} saved with {} pods; clamped to {}", tag.getLong("Id"), saved, pods);
+        Contract c = new Contract(tag.getLong("Id"), origin, destination, rank, CrateRank.valueOf(tag.getString("Crate")), tag.getString("Cargo"), pods, tag.getLong("Deadline"), rate);
+        // Out-of-range or doubly-recorded indices would break settled()'s count, so only in-range ones load, and delivered wins over lost.
+        for (int i : tag.getIntArray("Delivered")) if (i >= 0 && i < pods) c.delivered.add(i);
+        for (int i : tag.getIntArray("Lost")) if (i >= 0 && i < pods && !c.delivered.contains(i)) c.lost.add(i);
         c.anyReduced = tag.getBoolean("AnyReduced");
         return c;
     }

@@ -34,7 +34,8 @@ class CargoPersistenceFuzzTest {
     static String key(Random r) { return Fuzz.pick(r, "cargo.skydock.name.silk", "", "silk", "cargo.mod.ünïcødé", "a\"quote'", "x".repeat(r.nextInt(300))); }
 
     static Contract contract(Random r) {
-        int pods = Fuzz.pick(r, 0, 1, 2, 3, 4, r.nextInt(40));
+        // every count a contract can be saved with; Contract.load clamps anything outside 1..MAX_PODS as corruption
+        int pods = Fuzz.pick(r, 1, 2, 3, 4, 1 + r.nextInt(Contract.MAX_PODS));
         Contract c = new Contract(Fuzz.edgyLong(r), pos(r), pos(r), r.nextInt(7) - 1, Fuzz.pick(r, CrateRank.values()), key(r), pods, Fuzz.edgyLong(r), Fuzz.edgyInt(r));
         for (int i = 0; i < pods; i++) switch (r.nextInt(3)) { case 0 -> c.delivered.add(i); case 1 -> c.lost.add(i); default -> {} }
         c.anyReduced = r.nextBoolean();

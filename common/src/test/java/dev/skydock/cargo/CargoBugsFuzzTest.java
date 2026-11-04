@@ -14,14 +14,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Properties that fail on the current code. Each is disabled with the bug it shows; remove the annotation once it is fixed.
+ * Properties that once failed, each kept as a regression test for the bug its comment describes.
  */
 class CargoBugsFuzzTest {
     @BeforeAll static void boot() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
@@ -94,7 +93,6 @@ class CargoBugsFuzzTest {
      * minute. Minimal reproducer: a saved contract with {@code Pods: 100000} past its deadline; expire() takes far longer than a tick
      * (Integer.MAX_VALUE hangs the server thread).
      */
-    @Disabled("bug: a corrupted Pods count in a saved contract makes expiry quadratic in it and hangs the server thread")
     @Test void expiringALoadedContractStaysCheapWhateverItsPodCount() {
         Fuzz.check("Contract pods freeze", 3, (r, log) -> {
             GlobalPos a = GlobalPos.of(Level.OVERWORLD, BlockPos.ZERO), b = GlobalPos.of(Level.OVERWORLD, new BlockPos(900, 64, 0));
