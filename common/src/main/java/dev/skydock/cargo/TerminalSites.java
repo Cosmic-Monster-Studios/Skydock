@@ -5,6 +5,7 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -19,13 +20,21 @@ public final class TerminalSites {
     public static final ResourceKey<Structure> STRUCTURE = ResourceKey.create(Registries.STRUCTURE, Skydock.id("cargo_outpost"));
     public static final ResourceKey<StructureSet> STRUCTURE_SET = ResourceKey.create(Registries.STRUCTURE_SET, Skydock.id("cargo_outposts"));
     private static final int MAX_REGIONS = 4096;
+    /** Walk results, cleared when a terminal is registered or removed and when the server stops. */
+    public static final SiteCache CACHE = new SiteCache();
     private TerminalSites() {}
 
     /**
      * Terminals whose horizontal distance from {@code from} is within {@code [min, max]}; predicted sites are recorded as ungenerated terminals.
      * A predicted site within {@link CargoService#SITE_MATCH} of a generated terminal is that terminal's own outpost, so it is never recorded or returned.
+     * The walk is remembered in {@link #CACHE} for up to a day.
      */
     public static List<GlobalPos> near(ServerLevel level, BlockPos from, int min, int max) {
+        return CACHE.get(GlobalPos.of(level.dimension(), from), min, max, level.getServer().overworld().getGameTime(), () -> walk(level, from, min, max));
+    }
+    public static void stopped(MinecraftServer server) { CACHE.clear(); }
+
+    private static List<GlobalPos> walk(ServerLevel level, BlockPos from, int min, int max) {
         CargoSavedData data = CargoSavedData.get(level.getServer());
         Map<GlobalPos, CargoSavedData.Terminal> found = new LinkedHashMap<>();
         for (CargoSavedData.Terminal t : data.terminals.values())

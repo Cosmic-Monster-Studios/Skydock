@@ -42,6 +42,7 @@ public final class Skydock {
         LifecycleEvent.SERVER_STARTED.register(ShipManager::start);
         LifecycleEvent.SERVER_STARTED.register(dev.skydock.cargo.Shop::started);
         LifecycleEvent.SERVER_STOPPED.register(dev.skydock.cargo.Shop::stopped);
+        LifecycleEvent.SERVER_STOPPED.register(dev.skydock.cargo.TerminalSites::stopped);
         LifecycleEvent.SERVER_STOPPED.register(ShipManager::stop);
         LifecycleEvent.SERVER_STOPPED.register(AssemblyManager::stop);
         TickEvent.SERVER_PRE.register(ShipManager::tick);
