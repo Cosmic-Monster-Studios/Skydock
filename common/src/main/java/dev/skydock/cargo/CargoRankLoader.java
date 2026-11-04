@@ -35,7 +35,7 @@ public final class CargoRankLoader extends SimpleJsonResourceReloadListener {
         for (JsonElement e : json.getAsJsonArray("ranks")) {
             JsonObject r = e.getAsJsonObject(); String key = r.get("key").getAsString();
             int max = r.has("max_distance") ? bounded(r, "max_distance", 1, MAX_DISTANCE, key) : Integer.MAX_VALUE;
-            Rank rank = new Rank(r.get("level").getAsInt(), key, bounded(r, "threshold", 0, MAX_THRESHOLD, key),
+            Rank rank = new Rank(bounded(r, "level", 1, Integer.MAX_VALUE, key), key, bounded(r, "threshold", 0, MAX_THRESHOLD, key),
                     bounded(r, "min_distance", 1, MAX_DISTANCE, key), max, bounded(r, "deadline_days", 1, MAX_DEADLINE_DAYS, key),
                     CrateRank.valueOf(r.get("crate").getAsString().toUpperCase(Locale.ROOT)), bounded(r, "base_per_pod", 0, MAX_BASE_PER_POD, key));
             if (rank.maxDistance() < rank.minDistance()) throw new IllegalArgumentException("Invalid rank " + rank.key());
@@ -47,10 +47,12 @@ public final class CargoRankLoader extends SimpleJsonResourceReloadListener {
         if (out.isEmpty()) throw new IllegalArgumentException("No ranks");
         return out;
     }
-    /** A whole-number field read as a long (so a huge value cannot wrap into range) and refused outside {@code min..max}. */
+    /** A whole-number field read exactly (so a huge value cannot wrap into range nor a fraction truncate) and refused if fractional or outside {@code min..max}. */
     private static int bounded(JsonObject r, String field, long min, long max, String key) {
-        long value = r.get(field).getAsLong();
-        if (value < min || value > max) throw new IllegalArgumentException("Rank " + key + ": " + field + " " + value + " is outside " + min + ".." + max);
-        return (int) value;
+        java.math.BigDecimal value = r.get(field).getAsBigDecimal();
+        if (value.signum() != 0 && value.stripTrailingZeros().scale() > 0) throw new IllegalArgumentException("Rank " + key + ": " + field + " " + value + " is not a whole number");
+        if (value.compareTo(java.math.BigDecimal.valueOf(min)) < 0 || value.compareTo(java.math.BigDecimal.valueOf(max)) > 0)
+            throw new IllegalArgumentException("Rank " + key + ": " + field + " " + value + " is outside " + min + ".." + max);
+        return value.intValueExact();
     }
 }

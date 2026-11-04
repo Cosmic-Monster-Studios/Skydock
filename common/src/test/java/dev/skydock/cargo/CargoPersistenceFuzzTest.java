@@ -41,7 +41,7 @@ class CargoPersistenceFuzzTest {
         c.anyReduced = r.nextBoolean();
         return c;
     }
-    static Offer offer(Random r) { return new Offer(Fuzz.edgyLong(r), pos(r), Fuzz.edgyInt(r), Fuzz.pick(r, CrateRank.values()), key(r), Fuzz.edgyInt(r), Fuzz.edgyInt(r), Fuzz.edgyInt(r)); }
+    static Offer offer(Random r) { return new Offer(Fuzz.edgyLong(r), pos(r), Fuzz.edgyInt(r), Fuzz.pick(r, CrateRank.values()), key(r), Fuzz.pick(r, 1, 4, 1 + r.nextInt(Contract.MAX_PODS)), Fuzz.edgyInt(r), Fuzz.edgyInt(r)); }
 
     static CargoProfile profile(Random r, List<GlobalPos> boards) {
         CargoProfile p = new CargoProfile(); p.reputation = Fuzz.edgyInt(r); p.spent = Fuzz.edgyInt(r);

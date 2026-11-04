@@ -43,6 +43,15 @@ class CargoRankLoaderTest {
             assertThrows(IllegalArgumentException.class, () -> CargoRankLoader.parse(json), over[0] + " " + over[1]);
         }
     }
+    @Test void hugeAndFractionalNumbersAreRefusedNotWrappedOrTruncated() throws Exception {
+        for (String[] bad : new String[][]{{"base_per_pod", "18446744073709551616"}, {"threshold", "18446744073709551617"}, {"deadline_days", "2.5"},
+                {"min_distance", "5000.9"}, {"level", "4294967301"}, {"level", "5.5"}, {"deadline_days", "-18446744073709551615"}}) {
+            JsonObject json = shipped(); rank(json, 4).addProperty(bad[0], new java.math.BigDecimal(bad[1]));
+            assertThrows(IllegalArgumentException.class, () -> CargoRankLoader.parse(json), bad[0] + " " + bad[1]);
+        }
+        JsonObject whole = shipped(); int days = rank(whole, 4).get("deadline_days").getAsInt(); rank(whole, 4).addProperty("deadline_days", new java.math.BigDecimal(days + ".0"));
+        assertEquals(days, CargoRankLoader.parse(whole).getLast().deadlineDays(), "a whole number written with a decimal point is still whole");
+    }
     @Test void rewardAndRadiusSaturateInsteadOfWrapping() {
         Rank far = new Rank(1, "rank.far", 0, 1, Integer.MAX_VALUE, 1, CrateRank.TIN, 1_000_000);
         assertEquals(Integer.MAX_VALUE, CargoRanks.reputation(far, 6e7));

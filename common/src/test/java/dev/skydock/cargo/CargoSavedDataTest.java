@@ -42,6 +42,13 @@ class CargoSavedDataTest {
         assertEquals(java.util.Set.of(0), loaded.delivered); assertEquals(java.util.Set.of(1), loaded.lost); assertFalse(loaded.settled(), "index 2 is still out");
         loaded.lost.add(2); assertTrue(loaded.settled());
     }
+    @Test void aCorruptedOfferPodCountIsClampedAsContractsAre() {
+        GlobalPos b = GlobalPos.of(Level.OVERWORLD, new BlockPos(900, 64, 0));
+        for (int[] c : new int[][]{{0, 1}, {-5, 1}, {Integer.MIN_VALUE, 1}, {65, Contract.MAX_PODS}, {Integer.MAX_VALUE, Contract.MAX_PODS}, {3, 3}}) {
+            net.minecraft.nbt.CompoundTag tag = new Offer(3, b, 1, CrateRank.TIN, "cargo.x", 2, 2, 10).save(); tag.putInt("Pods", c[0]);
+            assertEquals(c[1], Offer.load(tag).pods(), "saved " + c[0]);
+        }
+    }
     @Test void podTagSurvivesSaveAndLoad() {
         PodTag tag = new PodTag(1L << 40, 3, true); assertEquals(tag, PodTag.load(tag.save()));
     }
