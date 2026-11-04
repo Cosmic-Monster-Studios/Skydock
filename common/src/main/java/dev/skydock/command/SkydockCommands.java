@@ -85,6 +85,11 @@ public final class SkydockCommands {
         dispatcher.register(root);
     }
 
+    /** The most reputation the command may set, leaving headroom below the integer limit that every gain saturates at. */
+    static final int MAX_REPUTATION = 1_000_000_000;
+    /** How many terminals the list command prints. */
+    static final int LISTED_TERMINALS = 20;
+
     private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> cargoCommands() {
         var cargo = literal("cargo").requires(s -> s.hasPermission(2));
         cargo.then(literal("reputation").then(argument("player", EntityArgument.player())
@@ -125,10 +130,13 @@ public final class SkydockCommands {
         return profile.reputation;
     }
 
+    /** The count, then the {@link #LISTED_TERMINALS} nearest to the caller (to 0, 0 in the overworld from the console). */
     private static int listTerminals(CommandSourceStack source) {
         var terminals = CargoSavedData.get(source.getServer()).terminals.values();
-        source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_terminals", terminals.size()), false);
-        for (CargoSavedData.Terminal t : terminals) source.sendSuccess(() -> Component.translatable(t.generated() ? "message.skydock.cargo_cmd_terminal_generated" : "message.skydock.cargo_cmd_terminal_predicted",
+        GlobalPos from = source.getEntity() == null ? GlobalPos.of(net.minecraft.world.level.Level.OVERWORLD, BlockPos.ZERO) : GlobalPos.of(source.getLevel().dimension(), BlockPos.containing(source.getPosition()));
+        List<CargoSavedData.Terminal> nearest = CargoSavedData.nearest(terminals, from, LISTED_TERMINALS);
+        source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_terminals", terminals.size(), nearest.size()), false);
+        for (CargoSavedData.Terminal t : nearest) source.sendSuccess(() -> Component.translatable(t.generated() ? "message.skydock.cargo_cmd_terminal_generated" : "message.skydock.cargo_cmd_terminal_predicted",
                 t.pos().dimension().location().toString(), t.pos().pos().toShortString(), t.pad().toShortString()), false);
         return terminals.size();
     }

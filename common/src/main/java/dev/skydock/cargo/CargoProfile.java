@@ -35,17 +35,22 @@ public final class CargoProfile {
         ListTag pending = new ListTag(); pendingCrates.forEach(c -> pending.add(StringTag.valueOf(c.name()))); tag.put("Pending", pending);
         return tag;
     }
+    /** Each board, offer, contract, pattern and crate loads on its own; one that cannot be read is logged and skipped. Empty boards are kept with their search time. */
     public static CargoProfile load(CompoundTag tag) {
         CargoProfile p = new CargoProfile(); p.reputation = tag.getInt("Reputation"); p.spent = tag.getInt("Spent");
-        for (Tag t : tag.getList("Boards", Tag.TAG_COMPOUND)) {
-            CompoundTag board = (CompoundTag) t; GlobalPos pos = Contract.loadPos(board.get("Pos"));
-            List<Offer> list = new ArrayList<>(); for (Tag o : board.getList("Offers", Tag.TAG_COMPOUND)) list.add(Offer.load((CompoundTag) o));
-            if (!list.isEmpty() || !board.contains("Refreshed")) p.offers.put(pos, list);
+        CargoSavedData.each(tag.getList("Boards", Tag.TAG_COMPOUND), "board", board -> {
+            GlobalPos pos = Contract.loadPos(board.get("Pos"));
+            List<Offer> list = new ArrayList<>(); CargoSavedData.each(board.getList("Offers", Tag.TAG_COMPOUND), "offer", o -> list.add(Offer.load(o)));
+            p.offers.put(pos, list);
             if (board.contains("Refreshed")) p.offersRefreshed.put(pos, board.getLong("Refreshed"));
-        }
-        for (Tag t : tag.getList("Contracts", Tag.TAG_COMPOUND)) { Contract c = Contract.load((CompoundTag) t); p.contracts.put(c.id, c); }
-        for (Tag t : tag.getList("Unlocked", Tag.TAG_STRING)) p.unlocked.add(ResourceLocation.parse(t.getAsString()));
-        for (Tag t : tag.getList("Pending", Tag.TAG_STRING)) p.pendingCrates.add(CrateRank.valueOf(t.getAsString()));
+        });
+        CargoSavedData.each(tag.getList("Contracts", Tag.TAG_COMPOUND), "contract", saved -> { Contract c = Contract.load(saved); p.contracts.put(c.id, c); });
+        for (Tag t : tag.getList("Unlocked", Tag.TAG_STRING)) strings(t, "pattern", s -> p.unlocked.add(ResourceLocation.parse(s)));
+        for (Tag t : tag.getList("Pending", Tag.TAG_STRING)) strings(t, "crate", s -> p.pendingCrates.add(CrateRank.valueOf(s)));
         return p;
+    }
+    private static void strings(Tag t, String what, java.util.function.Consumer<String> load) {
+        try { load.accept(t.getAsString()); }
+        catch (RuntimeException ex) { dev.skydock.Skydock.LOGGER.warn("Skipping unreadable cargo {}: {}", what, t, ex); }
     }
 }

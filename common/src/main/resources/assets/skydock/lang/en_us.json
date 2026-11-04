@@ -375,7 +375,7 @@
   "gui.skydock.cargo.top_rank": "Highest rank reached",
   "message.skydock.cargo_cmd_reputation": "%s: %s reputation (%s to spend), rank %s",
   "message.skydock.cargo_cmd_reputation_set": "Set %s's reputation to %s.",
-  "message.skydock.cargo_cmd_terminals": "Cargo terminals: %s",
+  "message.skydock.cargo_cmd_terminals": "Cargo terminals: %s (the %s nearest shown)",
   "message.skydock.cargo_cmd_terminal_generated": "%s %s | pad %s | generated",
   "message.skydock.cargo_cmd_terminal_predicted": "%s %s | pad %s | not generated yet",
   "message.skydock.cargo_cmd_no_terminal": "Look at a cargo terminal block.",

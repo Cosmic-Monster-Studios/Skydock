@@ -12,6 +12,7 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureCheckResult;
 import net.minecraft.world.level.levelgen.structure.StructureSet;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
 import dev.skydock.Skydock;
 import java.util.*;
 
@@ -26,7 +27,9 @@ public final class TerminalSites {
 
     /**
      * Terminals whose horizontal distance from {@code from} is within {@code [min, max]}; predicted sites are recorded as ungenerated terminals.
-     * A predicted site within {@link CargoService#SITE_MATCH} of a generated terminal is that terminal's own outpost, so it is never recorded or returned.
+     * A predicted site within {@link CargoService#SITE_MATCH} of a generated terminal is that terminal's own outpost, and one that near a
+     * {@linkplain CargoSavedData#retired retired} terminal is an outpost whose terminal was destroyed, so neither is recorded or returned.
+     * Nothing is predicted unless the world generates structures and its generator places outposts, as {@code /locate} would find them.
      * The walk is remembered in {@link #CACHE} for up to a day.
      */
     public static List<GlobalPos> near(ServerLevel level, BlockPos from, int min, int max) {
@@ -38,15 +41,16 @@ public final class TerminalSites {
         CargoSavedData data = CargoSavedData.get(level.getServer());
         Map<GlobalPos, CargoSavedData.Terminal> found = new LinkedHashMap<>();
         for (CargoSavedData.Terminal t : data.terminals.values())
-            if (t.pos().dimension().equals(level.dimension()) && inBand(from, t.pos().pos(), min, max) && (t.generated() || !shadowed(data.terminals.values(), t.pos()))) found.put(t.pos(), t);
-        Optional<Holder.Reference<StructureSet>> set = level.registryAccess().registryOrThrow(Registries.STRUCTURE_SET).getHolder(STRUCTURE_SET);
+            if (t.pos().dimension().equals(level.dimension()) && inBand(from, t.pos().pos(), min, max) && (t.generated() || !shadowed(data.terminals.values(), t.pos()) && !retired(data.retired, t.pos()))) found.put(t.pos(), t);
         Optional<Holder.Reference<Structure>> structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE).getHolder(STRUCTURE);
-        if (set.isPresent() && structure.isPresent() && set.get().value().placement() instanceof RandomSpreadStructurePlacement placement) {
+        RandomSpreadStructurePlacement placement = structure.isEmpty() ? null
+                : placement(level.getServer().getWorldData().worldGenOptions().generateStructures(), level.getChunkSource().getGeneratorState().getPlacementsForStructure(structure.get()));
+        if (placement != null) {
             boolean added = false;
             for (ChunkPos chunk : predicted(level, placement, from, min, max)) {
                 BlockPos centre = middle(chunk, level.getSeaLevel());
                 GlobalPos pos = GlobalPos.of(level.dimension(), centre);
-                if (found.containsKey(pos) || data.terminals.containsKey(pos) || !inBand(from, centre, min, max) || shadowed(data.terminals.values(), pos)) continue;
+                if (found.containsKey(pos) || data.terminals.containsKey(pos) || !inBand(from, centre, min, max) || shadowed(data.terminals.values(), pos) || retired(data.retired, pos)) continue;
                 if (level.structureManager().checkStructurePresence(chunk, structure.get().value(), placement, false) == StructureCheckResult.START_NOT_PRESENT) continue;
                 CargoSavedData.Terminal site = new CargoSavedData.Terminal(pos, centre, false);
                 data.terminals.put(pos, site); found.put(pos, site); added = true;
@@ -54,6 +58,16 @@ public final class TerminalSites {
             if (added) data.setDirty();
         }
         return new ArrayList<>(found.keySet());
+    }
+
+    /**
+     * The outpost placement this level's generator actually uses, or null when it places none (a Superflat or custom generator without
+     * our structure set, or "Generate structures" off), so no site is predicted there.
+     */
+    static RandomSpreadStructurePlacement placement(boolean generateStructures, List<StructurePlacement> placements) {
+        if (!generateStructures) return null;
+        for (StructurePlacement p : placements) if (p instanceof RandomSpreadStructurePlacement spread) return spread;
+        return null;
     }
 
     private static List<ChunkPos> predicted(ServerLevel level, RandomSpreadStructurePlacement placement, BlockPos from, int min, int max) {
@@ -84,6 +98,12 @@ public final class TerminalSites {
     /** Whether a generated terminal stands within {@link CargoService#SITE_MATCH} blocks horizontally of {@code site} in its dimension. */
     static boolean shadowed(Collection<CargoSavedData.Terminal> terminals, GlobalPos site) {
         for (CargoSavedData.Terminal t : terminals) if (t.generated() && t.pos().dimension().equals(site.dimension()) && Offers.distance(t.pos().pos(), site.pos()) <= CargoService.SITE_MATCH) return true;
+        return false;
+    }
+
+    /** Whether {@code site} lies within {@link CargoService#SITE_MATCH} blocks horizontally of a retired terminal in its dimension. */
+    static boolean retired(Collection<GlobalPos> retired, GlobalPos site) {
+        for (GlobalPos r : retired) if (r.dimension().equals(site.dimension()) && Offers.distance(r.pos(), site.pos()) <= CargoService.SITE_MATCH) return true;
         return false;
     }
 

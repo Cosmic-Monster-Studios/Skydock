@@ -8,7 +8,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 import java.util.*;
 
-/** World-wide cargo state: terminals, every player's profile, the shared wind and abandoned contract ids. */
+/** World-wide cargo state: terminals, retired terminal positions, every player's profile, the shared wind and abandoned contract ids. */
 public final class CargoSavedData extends SavedData {
     public record Terminal(GlobalPos pos, BlockPos pad, boolean generated) {}
     public record Wind(double angle, double speed, long changedAt) {}
@@ -20,6 +20,8 @@ public final class CargoSavedData extends SavedData {
     public Wind wind = new Wind(0, 0, 0);
     public long nextContract = 1;
     public final Set<Long> voided = new TreeSet<>();
+    /** Where generated terminals were destroyed; their outposts' structure starts remain, so no site is predicted near one again. */
+    public final Set<GlobalPos> retired = new LinkedHashSet<>();
 
     public static CargoSavedData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(CargoSavedData::new, CargoSavedData::load, null), "skydock_cargo");
@@ -29,7 +31,21 @@ public final class CargoSavedData extends SavedData {
         terminals.values().removeIf(t -> !t.generated() && t.pos().dimension().equals(pos.dimension()) && Offers.distance(t.pos().pos(), pos.pos()) <= 64);
         terminals.put(pos, new Terminal(pos, pad, true)); setDirty(); TerminalSites.CACHE.clear();
     }
-    public void removeTerminal(GlobalPos pos) { if (terminals.remove(pos) != null) { setDirty(); TerminalSites.CACHE.clear(); } }
+    /**
+     * Drops the terminal and every board shown at it. A generated one is retired, taking any predicted site near it along, so contracts
+     * bound for it fail rather than follow a prediction of the outpost that is already there.
+     */
+    public void removeTerminal(GlobalPos pos) {
+        Terminal removed = terminals.remove(pos); if (removed == null) return;
+        if (removed.generated()) { retired.add(pos); terminals.values().removeIf(t -> !t.generated() && TerminalSites.retired(List.of(pos), t.pos())); }
+        for (CargoProfile p : profiles.values()) { p.offers.remove(pos); p.offersRefreshed.remove(pos); }
+        setDirty(); TerminalSites.CACHE.clear();
+    }
+    /** Up to {@code limit} terminals nearest {@code from} horizontally, those in its dimension first. */
+    public static List<Terminal> nearest(Collection<Terminal> terminals, GlobalPos from, int limit) {
+        return terminals.stream().sorted(Comparator.<Terminal>comparingInt(t -> t.pos().dimension().equals(from.dimension()) ? 0 : 1)
+                .thenComparingDouble(t -> Offers.distance(t.pos().pos(), from.pos()))).limit(limit).toList();
+    }
     public CargoProfile profile(UUID id) { return profiles.computeIfAbsent(id, k -> { setDirty(); return new CargoProfile(); }); }
     /** The contract with this id and the player holding it, or null. */
     public Map.Entry<UUID, Contract> findContract(long id) {
@@ -47,22 +63,34 @@ public final class CargoSavedData extends SavedData {
         if (next != data.wind) { data.wind = next; data.setDirty(); }
     }
 
-    private static CargoSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
+    /** Loads every entry on its own: one that cannot be read is logged and skipped, so it never costs the rest of the file. */
+    static CargoSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         CargoSavedData data = new CargoSavedData(); data.nextContract = tag.contains("NextContract") ? tag.getLong("NextContract") : 1;
-        for (Tag t : tag.getList("Terminals", Tag.TAG_COMPOUND)) {
-            CompoundTag saved = (CompoundTag) t; GlobalPos pos = Contract.loadPos(saved.get("Pos"));
+        each(tag.getList("Terminals", Tag.TAG_COMPOUND), "terminal", saved -> {
+            GlobalPos pos = Contract.loadPos(saved.get("Pos"));
             data.terminals.put(pos, new Terminal(pos, BlockPos.of(saved.getLong("Pad")), saved.getBoolean("Generated")));
-        }
-        for (Tag t : tag.getList("Profiles", Tag.TAG_COMPOUND)) { CompoundTag saved = (CompoundTag) t; data.profiles.put(saved.getUUID("Player"), CargoProfile.load(saved.getCompound("Profile"))); }
+        });
+        each(tag.getList("Retired", Tag.TAG_COMPOUND), "retired terminal", saved -> data.retired.add(Contract.loadPos(saved)));
+        each(tag.getList("Profiles", Tag.TAG_COMPOUND), "profile", saved -> data.profiles.put(saved.getUUID("Player"), CargoProfile.load(saved.getCompound("Profile"))));
+        // Boards at terminals that are gone would only be synced for nothing.
+        for (CargoProfile p : data.profiles.values()) { p.offers.keySet().retainAll(data.terminals.keySet()); p.offersRefreshed.keySet().retainAll(data.terminals.keySet()); }
         CompoundTag w = tag.getCompound("Wind"); data.wind = new Wind(w.getDouble("Angle"), w.getDouble("Speed"), w.getLong("ChangedAt"));
         for (long id : tag.getLongArray("Voided")) data.voided.add(id);
         return data;
+    }
+    /** Runs {@code load} on each compound in the list, logging and skipping any that throws. */
+    static void each(ListTag list, String what, java.util.function.Consumer<CompoundTag> load) {
+        for (Tag t : list) {
+            try { load.accept((CompoundTag) t); }
+            catch (RuntimeException ex) { dev.skydock.Skydock.LOGGER.warn("Skipping unreadable cargo {}: {}", what, t, ex); }
+        }
     }
     @Override public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         tag.putLong("NextContract", nextContract);
         ListTag terms = new ListTag();
         terminals.values().forEach(t -> { CompoundTag c = new CompoundTag(); c.put("Pos", Contract.savePos(t.pos())); c.putLong("Pad", t.pad().asLong()); c.putBoolean("Generated", t.generated()); terms.add(c); });
         tag.put("Terminals", terms);
+        ListTag gone = new ListTag(); retired.forEach(r -> gone.add(Contract.savePos(r))); tag.put("Retired", gone);
         ListTag profs = new ListTag();
         profiles.forEach((id, p) -> { CompoundTag c = new CompoundTag(); c.putUUID("Player", id); c.put("Profile", p.save()); profs.add(c); });
         tag.put("Profiles", profs);

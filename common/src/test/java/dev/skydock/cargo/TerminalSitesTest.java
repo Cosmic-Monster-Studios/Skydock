@@ -51,4 +51,11 @@ class TerminalSitesTest {
         assertTrue(wide.size() <= 4096, "capped, got " + wide.size());
         assertTrue(wide.containsAll(bruteForce(SEED, TERMINAL, 1, 10_000)), "every site within 10,000 blocks survives the cap");
     }
+    @Test void nothingIsPredictedWhereTheGeneratorPlacesNoOutposts() {
+        var other = new net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement(32, 3, 128, net.minecraft.core.HolderSet.direct());
+        assertSame(placement, TerminalSites.placement(true, List.of(other, placement)));
+        assertNull(TerminalSites.placement(true, List.of()), "a Superflat world without our structure set");
+        assertNull(TerminalSites.placement(false, List.of(placement)), "Generate structures is off");
+        assertNull(TerminalSites.placement(true, List.of(other)));
+    }
 }

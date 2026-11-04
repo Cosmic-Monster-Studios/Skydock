@@ -75,4 +75,40 @@ class TerminalRegistryTest {
         com.google.gson.JsonObject table = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(Path.of("src/main/resources/data/skydock/loot_table/blocks/cargo_terminal.json"))).getAsJsonObject();
         assertTrue(table.getAsJsonArray("pools").isEmpty());
     }
+    @Test void aDestroyedGeneratedTerminalIsRetiredAndNeverPredictedAgain() {
+        GlobalPos terminal = at(-1020, -950), site = at(-1016, -952), predictedNear = at(-1000, -960), far = at(-2000, -950);
+        CargoSavedData data = new CargoSavedData(); data.registerTerminal(terminal, terminal.pos());
+        data.terminals.put(predictedNear, new CargoSavedData.Terminal(predictedNear, predictedNear.pos(), false));
+        data.terminals.put(far, new CargoSavedData.Terminal(far, far.pos(), false));
+        data.removeTerminal(terminal);
+        assertEquals(java.util.Set.of(terminal), data.retired);
+        assertEquals(java.util.Set.of(far), data.terminals.keySet(), "a predicted site at the destroyed outpost goes with it");
+        assertTrue(TerminalSites.retired(data.retired, site));
+        assertFalse(TerminalSites.retired(data.retired, at(-1020 + 65, -950)));
+        assertFalse(TerminalSites.retired(data.retired, GlobalPos.of(Level.NETHER, site.pos())));
+        assertEquals(data.retired, CargoSavedData.load(data.save(new CompoundTag(), null), null).retired, "retired positions are saved");
+        CargoProfile p = new CargoProfile(); Contract c = new Contract(1, far, terminal, 1, CrateRank.TIN, "cargo.skydock.grain", 1, 0); p.contracts.put(1L, c);
+        assertEquals(java.util.List.of(c), CargoService.failGone(data, p), "a contract bound for it fails");
+    }
+    @Test void aRemovedPredictedSiteIsNotRetired() {
+        GlobalPos site = at(0, 0); CargoSavedData data = withSite(site);
+        data.removeTerminal(site);
+        assertTrue(data.retired.isEmpty());
+    }
+    @Test void removingATerminalDropsEveryBoardShownAtIt() {
+        GlobalPos terminal = at(0, 0), other = at(900, 0); CargoSavedData data = new CargoSavedData();
+        data.registerTerminal(terminal, terminal.pos()); data.registerTerminal(other, other.pos());
+        for (int i = 0; i < 2; i++) { CargoProfile p = data.profile(java.util.UUID.randomUUID()); p.offers.put(terminal, java.util.List.of()); p.offersRefreshed.put(terminal, 5L); p.offers.put(other, java.util.List.of()); }
+        data.removeTerminal(terminal);
+        for (CargoProfile p : data.profiles.values()) { assertEquals(java.util.Set.of(other), p.offers.keySet()); assertTrue(p.offersRefreshed.isEmpty()); }
+    }
+    @Test void terminalListShowsTheNearestInTheCallersDimensionFirst() {
+        java.util.List<CargoSavedData.Terminal> all = new java.util.ArrayList<>();
+        for (int i = 30; i > 0; i--) all.add(new CargoSavedData.Terminal(at(i * 100, 0), BlockPos.ZERO, true));
+        GlobalPos nether = GlobalPos.of(Level.NETHER, new BlockPos(0, 64, 0)); all.add(new CargoSavedData.Terminal(nether, BlockPos.ZERO, true));
+        java.util.List<CargoSavedData.Terminal> got = CargoSavedData.nearest(all, at(0, 0), 20);
+        assertEquals(20, got.size());
+        assertEquals(at(100, 0), got.getFirst().pos()); assertEquals(at(2000, 0), got.getLast().pos());
+        assertEquals(nether, CargoSavedData.nearest(all, GlobalPos.of(Level.NETHER, new BlockPos(5000, 64, 0)), 20).getFirst().pos());
+    }
 }

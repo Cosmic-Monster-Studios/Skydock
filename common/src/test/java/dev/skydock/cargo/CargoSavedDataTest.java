@@ -33,4 +33,42 @@ class CargoSavedDataTest {
     @Test void podTagSurvivesSaveAndLoad() {
         PodTag tag = new PodTag(1L << 40, 3, true); assertEquals(tag, PodTag.load(tag.save()));
     }
+    @Test void anEmptyBoardKeepsItsSearchWaitAcrossARestart() {
+        GlobalPos a = GlobalPos.of(Level.OVERWORLD, new BlockPos(1, 2, 3)); CargoProfile p = new CargoProfile();
+        Offers.refreshIfDue(p, a, 5000, List::of);
+        CargoProfile back = CargoProfile.load(p.save());
+        assertEquals(List.of(), back.offers.get(a));
+        assertTrue(CargoService.siteSearchWaits(back, a, 5000 + Offers.DAY_TICKS - 1));
+    }
+    @Test void oneBadEntryIsSkippedAndTheRestLoads() {
+        GlobalPos a = GlobalPos.of(Level.OVERWORLD, new BlockPos(1, 64, 3)), b = GlobalPos.of(Level.OVERWORLD, new BlockPos(900, 64, 0));
+        CargoSavedData data = new CargoSavedData(); data.registerTerminal(a, a.pos()); data.registerTerminal(b, b.pos());
+        java.util.UUID good = java.util.UUID.randomUUID(), bad = java.util.UUID.randomUUID();
+        CargoProfile p = data.profile(good); p.reputation = 77;
+        p.offers.put(a, new java.util.ArrayList<>(List.of(new Offer(3, b, 1, CrateRank.TIN, "cargo.skydock.grain", 1, 2, 10), new Offer(4, b, 1, CrateRank.TIN, "cargo.skydock.grain", 1, 2, 10))));
+        p.contracts.put(5L, new Contract(5, a, b, 1, CrateRank.TIN, "cargo.skydock.grain", 1, 0)); p.contracts.put(6L, new Contract(6, a, b, 1, CrateRank.TIN, "cargo.skydock.grain", 1, 0));
+        p.pendingCrates.add(CrateRank.GOLD); data.profile(bad).reputation = 5;
+        net.minecraft.nbt.CompoundTag tag = data.save(new net.minecraft.nbt.CompoundTag(), null);
+        tag.getList("Terminals", 10).getCompound(1).putString("Pos", "nowhere");
+        net.minecraft.nbt.ListTag profiles = tag.getList("Profiles", 10);
+        net.minecraft.nbt.CompoundTag goodProfile = profiles.getCompound(0).getCompound("Profile");
+        goodProfile.getList("Boards", 10).getCompound(0).getList("Offers", 10).getCompound(0).putString("Crate", "PLATINUM");
+        goodProfile.getList("Contracts", 10).getCompound(1).putString("Crate", "PLATINUM");
+        goodProfile.getList("Pending", 8).add(net.minecraft.nbt.StringTag.valueOf("PLATINUM"));
+        profiles.getCompound(1).remove("Player");
+        CargoSavedData back = CargoSavedData.load(tag, null);
+        assertEquals(java.util.Set.of(a), back.terminals.keySet());
+        assertEquals(java.util.Set.of(good), back.profiles.keySet());
+        CargoProfile q = back.profiles.get(good);
+        assertEquals(77, q.reputation); assertEquals(List.of(4L), q.offers.get(a).stream().map(Offer::id).toList());
+        assertEquals(java.util.Set.of(5L), q.contracts.keySet()); assertEquals(List.of(CrateRank.GOLD), q.pendingCrates);
+    }
+    @Test void boardsAtTerminalsThatAreGoneAreDroppedOnLoad() {
+        GlobalPos a = GlobalPos.of(Level.OVERWORLD, new BlockPos(1, 64, 3)), gone = GlobalPos.of(Level.OVERWORLD, new BlockPos(900, 64, 0));
+        CargoSavedData data = new CargoSavedData(); data.registerTerminal(a, a.pos());
+        CargoProfile p = data.profile(java.util.UUID.randomUUID());
+        p.offers.put(a, List.of()); p.offersRefreshed.put(a, 1L); p.offers.put(gone, List.of()); p.offersRefreshed.put(gone, 1L);
+        CargoProfile back = CargoSavedData.load(data.save(new net.minecraft.nbt.CompoundTag(), null), null).profiles.values().iterator().next();
+        assertEquals(java.util.Set.of(a), back.offers.keySet()); assertEquals(java.util.Set.of(a), back.offersRefreshed.keySet());
+    }
 }
