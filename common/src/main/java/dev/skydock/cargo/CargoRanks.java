@@ -31,8 +31,9 @@ public final class CargoRanks {
         for (Rank rank : loaded) if (rank.minDistance() <= distance) best = rank;
         return best;
     }
-    /** Full reputation reward per pod; never below the base. */
+    /** Full reputation reward per pod; never below the base, and saturating at {@link Integer#MAX_VALUE} rather than wrapping. */
     public static int reputation(Rank rank, double distance) {
-        return (int) Math.round(rank.basePerPod() * Math.max(1, distance / rank.minDistance()));
+        long pay = Math.round(rank.basePerPod() * Math.max(1, distance / rank.minDistance()));
+        return (int) Math.clamp(pay, rank.basePerPod(), Integer.MAX_VALUE);
     }
 }

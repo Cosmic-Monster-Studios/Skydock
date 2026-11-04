@@ -62,7 +62,6 @@ class CargoBugsFuzzTest {
      * stay empty. Minimal reproducers: one rank {min_distance 1,500,000,000, no max} gives searchRadius(1) = -1,294,967,296;
      * a rank with base_per_pod 2,000,000,000 and min_distance 300 pays reputation(rank, 600) = -294,967,296.
      */
-    @Disabled("bug: rank files the loader accepts overflow the int reward and search-radius maths (negative pay, negative radius)")
     @Test void acceptedLaddersNeverOverflowTheRewardOrRadiusMaths() {
         Fuzz.check("CargoRanks magnitudes", 3000, (r, log) -> {
             JsonObject json = new JsonObject(); JsonArray ranks = new JsonArray(); json.add("ranks", ranks);

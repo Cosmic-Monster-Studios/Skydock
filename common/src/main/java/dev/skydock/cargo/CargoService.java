@@ -122,15 +122,16 @@ public final class CargoService {
     static int searchRadius(int playerRank) {
         Rank preview = CargoRanks.ranks().getLast();
         for (Rank r : CargoRanks.ranks()) if (r.level() == Math.min(playerRank + 1, preview.level())) { preview = r; break; }
-        return preview.maxDistance() == Integer.MAX_VALUE ? preview.minDistance() * 2 : preview.maxDistance();
+        return preview.maxDistance() == Integer.MAX_VALUE ? saturate(preview.minDistance() * 2L) : preview.maxDistance();
     }
 
     /** How far an empty band's fallback looks: 2,000 past the top band's minimum, or the largest finite band maximum if that is farther. */
     static int fallbackRadius() {
-        int radius = CargoRanks.ranks().getLast().minDistance() + 2000;
+        int radius = saturate(CargoRanks.ranks().getLast().minDistance() + 2000L);
         for (Rank r : CargoRanks.ranks()) if (r.maxDistance() != Integer.MAX_VALUE) radius = Math.max(radius, r.maxDistance());
         return radius;
     }
+    private static int saturate(long value) { return (int) Math.clamp(value, Integer.MIN_VALUE, Integer.MAX_VALUE); }
 
     private static long now(MinecraftServer server) { return server.overworld().getGameTime(); }
     private static Component cargoName(String key) { return Component.translatable(CargoPodItem.nameKey(key)); }

@@ -154,6 +154,8 @@ Cargo tuning loads from `data/skydock/cargo/` and reloads with `/reload`.
 {"ranks": [{"level": 1, "key": "rank.skydock.deckhand", "threshold": 0, "min_distance": 300, "max_distance": 800, "deadline_days": 2, "crate": "tin", "base_per_pod": 10}]}
 ```
 
+Levels run 1, 2, 3 in order, and thresholds and minimum distances rise with them. Values are bounded: `base_per_pod` 0 to 1,000,000, `threshold` 0 to 1,000,000,000, `min_distance` and `max_distance` 1 to 30,000,000, and `deadline_days` 1 to 365. A file breaking any rule is rejected as a whole and the default ladder kept. Rewards saturate rather than wrap for very long trips.
+
 `shop.json` lists the stock. An entry has a `rank` and a `price` in reputation, and either an `item` (with an optional `count`) or a `pattern`:
 
 ```json
