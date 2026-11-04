@@ -244,4 +244,22 @@ class ShipGeometryFuzzTest {
             for (int i = 1; i < tried.size(); i++) assertTrue(missing.indexOf(tried.get(i - 1)) < missing.indexOf(tried.get(i)), "walks nearest first");
         });
     }
+
+    // ---------------------------------------------------------------- collision damage
+
+    @Test void impactBudgetsGrowWithSpeedAndMassAndStayCapped() {
+        Fuzz.check("ShipDamage.budget", 20000, (r, log) -> {
+            dev.skydock.data.CollisionRules rules = new dev.skydock.data.CollisionRules(1 + r.nextDouble() * 5, .1 + r.nextDouble() * 5, r.nextDouble() * 10, r.nextInt(4097), r.nextDouble() * 5, r.nextBoolean());
+            double speed = (r.nextDouble() - .2) * 40, mass = r.nextDouble() * Fuzz.pick(r, 1e3, 1e5, 2.5e6);
+            log.append(rules).append(' ').append(speed).append(' ').append(mass);
+            int budget = ShipDamage.budget(rules, speed, mass);
+            assertTrue(budget >= 0 && budget <= rules.maxBlocks(), "budget " + budget);
+            if (speed > 0 && rules.maxBlocks() > 0) assertTrue(budget >= 1, "any impact over the safe speed may break a block");
+            assertTrue(ShipDamage.budget(rules, speed + r.nextDouble(), mass) >= budget, "faster breaks no fewer");
+            assertTrue(ShipDamage.budget(rules, speed, mass * 2) >= budget, "heavier breaks no fewer");
+            float hardness = (float) (r.nextDouble() * 60 - 1);
+            if (ShipDamage.breaks(rules, speed, hardness)) assertTrue(ShipDamage.breaks(rules, speed + 1, hardness), "a faster impact breaks what a slower one did");
+            assertFalse(ShipDamage.breaks(rules, speed, -1), "unbreakable blocks never break");
+        });
+    }
 }

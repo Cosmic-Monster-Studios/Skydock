@@ -370,4 +370,34 @@ class CargoAccountingFuzzTest {
             for (int k = 0; k < 20; k++) { long junk = Fuzz.edgyLong(r); ShopEntry hit = Shop.resolve(entries, junk); if (hit != null) assertEquals(junk, Shop.fingerprint((int) (junk & 0xFFFF), hit)); }
         });
     }
+
+    // ---------------------------------------------------------------- crates
+
+    @Test void cratePrizesNeverRepeatAPatternAndRefundOnlyWhenAllAreOwned() {
+        Fuzz.check("Shop.cratePrize", 6000, (r, log) -> {
+            List<ResourceLocation> shop = new ArrayList<>(); for (int i = r.nextInt(5); i > 0; i--) shop.add(ResourceLocation.fromNamespaceAndPath("skydock", "p" + r.nextInt(6)));
+            CargoProfile p = new CargoProfile(); p.reputation = Fuzz.pick(r, 0, r.nextInt(5000), Integer.MAX_VALUE - r.nextInt(100));
+            for (ResourceLocation id : shop) if (r.nextBoolean()) p.unlocked.add(id);
+            Set<ResourceLocation> before = new HashSet<>(p.unlocked); int rep = p.reputation; CrateRank rank = Fuzz.pick(r, CrateRank.values());
+            Shop.Prize prize = Shop.cratePrize(p, rank, shop, RandomSource.create(r.nextLong()));
+            log.append(rank).append(' ').append(shop).append(" owned ").append(before).append(" -> ").append(prize);
+            if (prize.pattern() != null) { assertFalse(before.contains(prize.pattern()), "never an owned pattern"); assertTrue(shop.contains(prize.pattern())); assertTrue(p.unlocked.contains(prize.pattern())); }
+            assertTrue(p.unlocked.size() - before.size() <= 1);
+            if (prize.refunded()) { assertTrue(before.containsAll(shop), "refunds only when every pattern is owned"); assertEquals(CargoProfile.saturatedAdd(rep, Shop.PRIZE_REFUND), p.reputation); }
+            else assertEquals(rep, p.reputation);
+            if (rank.ordinal() < CrateRank.GOLD.ordinal()) assertEquals(new Shop.Prize(null, false), prize, "low crates never give a prize");
+        });
+    }
+
+    @Test void crateShowsRunTheirPhasesInOrderAndStayInRange() {
+        Fuzz.check("CrateShow", 6000, (r, log) -> {
+            CrateRank rank = Fuzz.pick(r, CrateRank.values()); float age = (float) (r.nextDouble() * (CrateShow.duration(rank) + 20) - 5), later = age + (float) r.nextDouble() * 10;
+            log.append(rank).append(' ').append(age);
+            assertTrue(CrateShow.phase(rank, (int) Math.floor(age)).ordinal() <= CrateShow.phase(rank, (int) Math.floor(later)).ordinal(), "phases only advance");
+            float progress = CrateShow.progress(rank, age); assertTrue(progress >= 0 && progress <= 1, "progress " + progress);
+            float lift = CrateShow.lift(rank, age); assertTrue(lift >= 0 && lift <= 1.5f, "lift " + lift);
+            assertEquals(CrateShow.Phase.BURST, CrateShow.phase(rank, CrateShow.duration(rank)));
+            assertEquals(CrateShow.Phase.DONE, CrateShow.phase(rank, CrateShow.duration(rank) + 1));
+        });
+    }
 }
