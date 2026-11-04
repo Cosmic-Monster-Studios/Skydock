@@ -9,6 +9,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /**
@@ -62,13 +66,19 @@ public final class Shop {
     }
 
     /**
-     * What the client sends to buy an entry: its index in the low 16 bits and a 32-bit hash of what it sells (rank, price,
-     * item id and count, pattern id) above, so a screen left open across a reload cannot buy whatever now sits at that index.
+     * What the client sends to buy an entry: its index in the low 16 bits and, above, the first 32 bits of a SHA-256 of what it
+     * sells (rank, price, item id and count, pattern id), so a screen left open across a reload cannot buy whatever now sits at that
+     * index. A cryptographic digest, not a linear hash, so nearby edits (a rank up and a price down) never share a fingerprint in practice.
      */
     public static long fingerprint(int index, ShopEntry entry) {
+        return (identityHash(entry) & 0xFFFFFFFFL) << 16 | (index & 0xFFFF);
+    }
+    /** The first four bytes of SHA-256 over the entry's canonical identity string. */
+    static int identityHash(ShopEntry entry) {
         String item = entry.item().isEmpty() ? "" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(entry.item().getItem()) + "*" + entry.item().getCount();
-        int hash = Objects.hash(entry.rank(), entry.price(), item, entry.pattern() == null ? "" : entry.pattern().toString());
-        return (hash & 0xFFFFFFFFL) << 16 | (index & 0xFFFF);
+        String identity = entry.rank() + "\n" + entry.price() + "\n" + item + "\n" + (entry.pattern() == null ? "" : entry.pattern().toString());
+        try { return ByteBuffer.wrap(MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8))).getInt(); }
+        catch (NoSuchAlgorithmException e) { throw new IllegalStateException("SHA-256 is required of every Java runtime", e); }
     }
     /** The entry a fingerprint names, or null when the index is out of range or the entry there has changed. */
     public static ShopEntry resolve(List<ShopEntry> entries, long fingerprint) {

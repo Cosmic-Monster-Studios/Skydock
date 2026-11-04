@@ -34,7 +34,6 @@ class CargoBugsFuzzTest {
      * left open across a reload then buys the new entry at the old index. Minimal reproducer: entry 0 changes from
      * (rank 1, price 60, stone) to (rank 2, price 29, stone); resolve(newList, fingerprint(0, oldEntry)) returns the new entry.
      */
-    @Disabled("bug: Shop.fingerprint collides for nearby edits (rank+1, price-31), so a stale screen can buy a changed entry")
     @Test void aChangedEntryNeverMatchesTheOldFingerprint() {
         Fuzz.check("Shop.fingerprint near edits", 2000, (r, log) -> {
             Item item = Fuzz.pick(r, Items.STONE, Items.DIAMOND, Items.ENDER_PEARL, Items.MUSIC_DISC_11);
@@ -50,7 +49,6 @@ class CargoBugsFuzzTest {
         });
     }
 
-    @Disabled("bug: Shop.fingerprint collides for nearby edits (rank+1, price-31), so a stale screen can buy a changed entry")
     @Test void aDifferentItemNeverMatchesTheOldFingerprint() {
         ShopEntry old = new ShopEntry(3, 100, new ItemStack(Items.MUSIC_DISC_11), null), now = new ShopEntry(1, 100, new ItemStack(Items.MUSIC_DISC_13), null);
         assertNull(Shop.resolve(List.of(now), Shop.fingerprint(0, old)), "music_disc_13 at rank 1 answers the fingerprint of music_disc_11 at rank 3");
