@@ -66,6 +66,10 @@ public final class Ship {
     public BlockPos transferOrigin, transferDock;
     /** The berth side of a transfer puts local cell {@code p} at {@code DockFrame.toWorld(transferOrigin, rotation(transferFacing), p)}. */
     public Direction transferFacing = Direction.NORTH;
+    /** The record key marking a transfer that was quarantined mid-way; see {@link #transferHeld}. */
+    static final String HELD = "TransferHeld";
+    /** Persisted: this record was quarantined in the middle of a transfer, so it is never replayed automatically; {@code /skydock resume-transfer} releases it. */
+    public boolean transferHeld;
     public final Map<UUID, BlockPos> seated = new HashMap<>();
 
     public DockFrame berthFrame() { return new DockFrame(dock, dockFacing, tier); }
@@ -204,6 +208,7 @@ public final class Ship {
             tag.putLong("TransferOrigin", transferOrigin.asLong()); tag.putLong("TransferDock", transferDock.asLong());
             tag.putString("TransferDimension", transferDimension.location().toString()); tag.putString("TransferFacing", transferFacing.getSerializedName());
         }
+        if (transferHeld) tag.putBoolean(HELD, true);
         if (pilot != null) tag.putUUID("Pilot", pilot);
         if (pilot != null && pilotAnchor != null) {
             tag.putDouble("AnchorX", pilotAnchor.x); tag.putDouble("AnchorY", pilotAnchor.y); tag.putDouble("AnchorZ", pilotAnchor.z);
@@ -221,11 +226,11 @@ public final class Ship {
     CompoundTag saveLaunched(HolderLookup.Provider registries) {
         CompoundTag tag = save(registries, true);
         tag.putString("Phase", "active"); tag.put("BlockData", new ListTag());
-        for (String key : new String[] {"TransferOrigin", "TransferDock", "TransferDimension", "TransferFacing"}) tag.remove(key);
+        for (String key : new String[] {"TransferOrigin", "TransferDock", "TransferDimension", "TransferFacing", HELD}) tag.remove(key);
         return tag;
     }
     /** Ends a launch in memory. The yard now holds the real block entities; keeping the journal copy would bloat every save. */
-    void finishLaunch() { phase = "active"; transferOrigin = null; blockEntities.clear(); }
+    void finishLaunch() { phase = "active"; transferOrigin = null; transferHeld = false; blockEntities.clear(); }
 
     /** One state compound per distinct state instead of per block keeps saves of large hulls small. */
     private static void writeStates(CompoundTag tag, String paletteKey, String positionKey, String stateKey, Map<BlockPos, BlockState> map) {
@@ -279,6 +284,7 @@ public final class Ship {
             ship.transferDimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(tag.getString("TransferDimension")));
             ship.transferFacing = facing(tag.getString("TransferFacing"));
         }
+        ship.transferHeld = tag.getBoolean(HELD) && !ship.phase.equals("active");
         if (tag.hasUUID("Pilot")) ship.pilot = tag.getUUID("Pilot");
         if (tag.contains("AnchorX")) ship.pilotAnchor = new Vec3(tag.getDouble("AnchorX"), tag.getDouble("AnchorY"), tag.getDouble("AnchorZ"));
         var lookup = registries.lookupOrThrow(Registries.BLOCK);

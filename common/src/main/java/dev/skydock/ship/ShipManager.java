@@ -54,9 +54,14 @@ public final class ShipManager {
         ShipSavedData data = ShipSavedData.get(server); SERVERS.put(server, data); fleetChanged();
         for (Ship ship : List.copyOf(data.ships.values())) {
             if (ship.phase.equals("active")) continue;
+            if (ship.transferHeld) { logHeld(ship); continue; }
             try { retry(server, ship); }
             catch (Exception e) { Skydock.LOGGER.error("Ship {} transfer remains in its recovery journal", ship.id, e); }
         }
+    }
+    private static void logHeld(Ship ship) {
+        Skydock.LOGGER.error("Ship {} was quarantined in the middle of its {} phase and has loaded again; it is not replayed automatically. Its berth at {} in {} stays guarded and reserved until an operator checks it and runs /skydock resume-transfer {}",
+                ship.id, ship.phase, ship.transferDock == null ? "(unknown)" : ship.transferDock.toShortString(), ship.transferDimension == null ? "(unknown)" : ship.transferDimension.location(), ship.id);
     }
     /** How often, in server ticks, a paused transfer is tried again. */
     static final int RESUME_TICKS = 200;
@@ -67,7 +72,7 @@ public final class ShipManager {
     private static void resume(MinecraftServer server, ShipSavedData data) {
         boolean finished = false;
         for (Ship ship : List.copyOf(data.ships.values())) {
-            if (ship.phase.equals("active")) continue;
+            if (ship.phase.equals("active") || ship.transferHeld) continue;
             try { retry(server, ship); }
             catch (Exception e) { Skydock.LOGGER.error("Ship {} transfer is still paused; retrying in {} ticks", ship.id, RESUME_TICKS, e); continue; }
             finished = true; Skydock.LOGGER.info("Ship {} paused transfer resumed and finished", ship.id);
@@ -85,6 +90,13 @@ public final class ShipManager {
         if (level != null && dock != null && level.getBlockEntity(dock) instanceof DockBlockEntity entity) {
             if (launching) entity.clearHullMarker("status.skydock.launched"); else entity.markManualHull(ship.blocks.size());
         }
+    }
+    /** Releases a held transfer (see {@link Ship#transferHeld}) and replays it now: true when it finished, false when it paused again and will retry on its own. */
+    public static boolean releaseHeld(MinecraftServer server, Ship ship) {
+        ship.transferHeld = false; ShipSavedData.get(server).setDirty();
+        try { retry(server, ship); }
+        catch (Exception e) { Skydock.LOGGER.error("Ship {} released transfer is paused; retrying in {} ticks", ship.id, RESUME_TICKS, e); closeMenus(server, ship); return false; }
+        ShipNetwork.resync(server); return true;
     }
     /** Whether {@code pos} is in the berth of a transfer that has not finished, quarantined records included; like an assembly's cells, no one may break, place or use it until the transfer resumes. */
     public static boolean transferProtects(ServerLevel level, BlockPos pos) {

@@ -142,6 +142,21 @@ class ShipSavedDataTest {
         assertFalse(ShipSavedData.midTransfer(ship(BlockPos.ZERO)));
         assertNull(ShipSavedData.transferOf(ship(BlockPos.ZERO)));
     }
+    /** A record quarantined mid-transfer is marked held, and if it loads again later it stays held instead of being replayed. */
+    @Test void aHealedQuarantinedTransferIsHeld() {
+        CompoundTag record = redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, new BlockPos(500, 70, 0), new BlockPos(531, 71, 1));
+        CompoundTag corrupt = record.copy(); corrupt.putString("Tier", "NO_SUCH_TIER");
+        CompoundTag kept = of(corrupt).save(new CompoundTag(), registries).getList("Ships", Tag.TAG_COMPOUND).getCompound(0);
+        assertTrue(kept.getBoolean(Ship.HELD));
+        kept.putString("Tier", "SCOUT");
+        ShipSavedData healed = of(kept);
+        Ship ship = healed.ships.get(record.getUUID("Id"));
+        assertTrue(ship.transferHeld);
+        assertTrue(of(healed.save(new CompoundTag(), registries).getList("Ships", Tag.TAG_COMPOUND).getCompound(0)).ships.get(ship.id).transferHeld, "held survives saving");
+        assertFalse(of(record).ships.get(ship.id).transferHeld, "a transfer never quarantined is not held");
+        CompoundTag active = ship(BlockPos.ZERO); active.putBoolean(Ship.HELD, true);
+        assertFalse(of(active).ships.values().iterator().next().transferHeld, "an active record has nothing to hold");
+    }
     /** The journal of a phase not yet applied: one ship's record swapped or dropped, the rest as they are, and memory untouched. */
     @Test void aJournalCanCarryTheNextPhase() {
         CompoundTag a = ship(new BlockPos(256, 64, 0)), b = ship(new BlockPos(512, 64, 0));
@@ -156,7 +171,7 @@ class ShipSavedDataTest {
     /** The launched record written before memory changes is exactly what the ship saves once the launch is applied. */
     @Test void theLaunchedRecordMatchesTheAppliedLaunch() {
         Ship ship = Ship.load(redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, BlockPos.ZERO, new BlockPos(31, 1, 1)), registries);
-        ship.phase = "launching";
+        ship.phase = "launching"; ship.transferHeld = true;
         CompoundTag chest = new CompoundTag(); chest.putString("id", "minecraft:chest"); ship.blockEntities.put(BlockPos.ZERO, chest);
         CompoundTag launched = ship.saveLaunched(registries);
         assertEquals("launching", ship.phase, "building the record changes nothing");

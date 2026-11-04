@@ -86,6 +86,9 @@ public final class SkydockCommands {
         root.then(literal("repair-yard").requires(source -> source.hasPermission(2)).then(argument("ship", UuidArgument.uuid())
                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ShipSavedData.get(ctx.getSource().getServer()).ships.keySet().stream().map(java.util.UUID::toString), builder))
                 .executes(ctx -> repairYard(ctx.getSource(), UuidArgument.getUuid(ctx, "ship")))));
+        root.then(literal("resume-transfer").requires(source -> source.hasPermission(2)).then(argument("ship", UuidArgument.uuid())
+                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ShipSavedData.get(ctx.getSource().getServer()).ships.values().stream().filter(s -> s.transferHeld).map(s -> s.id.toString()), builder))
+                .executes(ctx -> resumeTransfer(ctx.getSource(), UuidArgument.getUuid(ctx, "ship")))));
         root.then(cargoCommands());
         dispatcher.register(root);
     }
@@ -99,6 +102,16 @@ public final class SkydockCommands {
         int pasted = ShipManager.repairYard(source.getServer(), ship);
         source.sendSuccess(() -> Component.translatable("message.skydock.repair_yard_done", pasted, id.toString()), true);
         return pasted;
+    }
+
+    /** Lets a transfer that was quarantined mid-way, and held when it loaded again, finish now; it then retries on its own if it pauses. */
+    private static int resumeTransfer(CommandSourceStack source, java.util.UUID id) {
+        Ship ship = ShipManager.get(source.getServer(), id);
+        if (ship == null) { source.sendFailure(Component.translatable("message.skydock.repair_yard_no_ship", id.toString())); return 0; }
+        if (!ship.transferHeld) { source.sendFailure(Component.translatable("message.skydock.resume_transfer_not_held", id.toString())); return 0; }
+        if (!ShipManager.releaseHeld(source.getServer(), ship)) { source.sendFailure(Component.translatable("message.skydock.resume_transfer_paused", id.toString())); return 0; }
+        source.sendSuccess(() -> Component.translatable("message.skydock.resume_transfer_done", id.toString()), true);
+        return 1;
     }
 
     /** The most reputation the command may set, leaving headroom below the integer limit that every gain saturates at. */
