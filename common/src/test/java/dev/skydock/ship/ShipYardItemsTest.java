@@ -38,14 +38,24 @@ class ShipYardItemsTest {
         near(ShipPose.rotate(new Vec3(0, 0, -.3), 90).add(.2, 0, 0), ShipManager.worldMotion(new Vec3(0, 0, -.3), 90, new Vec3(.2, 0, 0)));
         near(new Vec3(.2, -.04, 0), ShipManager.worldMotion(new Vec3(0, -.04, 0), 90, new Vec3(.2, 0, 0)), "an item at rest aboard moves with the hull");
     }
-    @Test void freshItemsAndItemsAtContainersStayForTheHoppersAboard() {
+    @Test void freshItemsAndItemsAtHoppersStayForAWhile() {
         BlockPos hopper = new BlockPos(515, 64, 260);
         java.util.function.Predicate<BlockPos> container = hopper::equals;
         assertTrue(ShipManager.relocates(true, ShipManager.LOOSE_ITEM_AGE, new BlockPos(520, 66, 262), container), "an old item clear of containers goes out");
         assertFalse(ShipManager.relocates(true, ShipManager.LOOSE_ITEM_AGE - 1, new BlockPos(520, 66, 262), container), "a fresh item waits");
-        assertFalse(ShipManager.relocates(true, 400, hopper, container), "an item inside the hopper's cell stays");
-        assertFalse(ShipManager.relocates(true, 400, hopper.above(), container), "an item resting on the hopper stays");
-        assertTrue(ShipManager.relocates(true, 400, hopper.above(2), container), "two above is out of a hopper's reach");
+        assertFalse(ShipManager.relocates(true, 100, hopper, container), "an item inside the hopper's cell stays");
+        assertFalse(ShipManager.relocates(true, 100, hopper.above(), container), "an item resting on the hopper stays");
+        assertTrue(ShipManager.relocates(true, 100, hopper.above(2), container), "two above is out of a hopper's reach");
         assertTrue(ShipManager.relocates(false, 0, hopper.above(), container), "an orb always goes out");
+        assertFalse(ShipManager.relocates(true, ShipManager.COLLECTOR_WAIT - 1, hopper.above(), container), "a hopper has until the wait runs out");
+        assertTrue(ShipManager.relocates(true, ShipManager.COLLECTOR_WAIT, hopper.above(), container), "an item a locked hopper never takes goes out before it despawns");
+        assertTrue(ShipManager.relocates(true, ShipManager.COLLECTOR_WAIT, hopper, container), "even inside the hopper's cell");
+    }
+    @Test void onlyHoppersCollectNotEveryContainer() {
+        assertTrue(ShipManager.collects(new net.minecraft.world.level.block.entity.HopperBlockEntity(BlockPos.ZERO, Blocks.HOPPER.defaultBlockState())));
+        assertFalse(ShipManager.collects(new net.minecraft.world.level.block.entity.JukeboxBlockEntity(BlockPos.ZERO, Blocks.JUKEBOX.defaultBlockState())), "a jukebox is a container but takes no items lying on it");
+        assertFalse(ShipManager.collects(new net.minecraft.world.level.block.entity.ChestBlockEntity(BlockPos.ZERO, Blocks.CHEST.defaultBlockState())));
+        assertFalse(ShipManager.collects(new net.minecraft.world.level.block.entity.DispenserBlockEntity(BlockPos.ZERO, Blocks.DISPENSER.defaultBlockState())));
+        assertFalse(ShipManager.collects(null));
     }
 }

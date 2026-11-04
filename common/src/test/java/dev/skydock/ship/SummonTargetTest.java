@@ -62,4 +62,17 @@ class SummonTargetTest {
         AABB besideDiagonal = new AABB(cx - .3, 71, cz - .3, cx + .3, 72.8, cz + .3);
         assertTrue(deck.intersects(besideDiagonal)); assertFalse(ShipManager.onHull(ship, ship.pose, besideDiagonal), "a mob in a corner of the box the turned hull leaves empty");
     }
+    @Test void aCreatureInsideTheHullTouchingNoBlockIsAboard() {
+        Ship ship = masted(); ship.blocks.put(new BlockPos(4, 3, 0), net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState());
+        ship.blocks.put(new BlockPos(6, 4, 0), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+        net.minecraft.world.phys.Vec3 roost = ship.blockToWorld(new net.minecraft.world.phys.Vec3(4.5, 2, .5));
+        AABB hop = creature(ship, 6.5, 1.6, .5), bat = new AABB(roost.x - .25, roost.y, roost.z - .25, roost.x + .25, roost.y + .9, roost.z + .25);
+        assertFalse(ShipManager.onHull(ship, ship.pose, hop)); assertFalse(ShipManager.onHull(ship, ship.pose, bat));
+        assertTrue(ShipManager.inHullCell(ship, ship.pose, ship.blockToWorld(new net.minecraft.world.phys.Vec3(6.5, 1.6, .5))), "a mob mid-hop over the deck");
+        assertTrue(ShipManager.inHullCell(ship, ship.pose, roost), "a bat hanging under a ceiling");
+        assertTrue(ShipManager.inHullCell(ship, ship.pose, ship.blockToWorld(new net.minecraft.world.phys.Vec3(2.5, .4, .5))), "a fish in a cell of the hull");
+        assertFalse(ShipManager.inHullCell(ship, ship.pose, ship.blockToWorld(new net.minecraft.world.phys.Vec3(6.5, 3.2, .5))), "a stored air state is no hull");
+        assertFalse(ShipManager.inHullCell(ship, ship.pose, ship.blockToWorld(new net.minecraft.world.phys.Vec3(5.5, 2.1, 1.5))), "a bat in the air beside the deck");
+        assertFalse(ShipManager.inHullCell(ship, ship.pose, ship.blockToWorld(new net.minecraft.world.phys.Vec3(5.5, -2.1, .5))), "a mob two blocks under the keel");
+    }
 }

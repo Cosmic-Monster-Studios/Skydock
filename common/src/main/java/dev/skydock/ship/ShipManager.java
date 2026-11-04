@@ -456,11 +456,17 @@ public final class ShipManager {
     static AABB deckBox(AABB hull) { return hull.expandTowards(0, 2, 0); }
     /** Whether a box stands on the hull's blocks or overlaps one of them: a creature there is aboard, unlike one in the air beside a diagonal hull or a mast. */
     static boolean onHull(Ship ship, ShipPose pose, AABB box) { return ShipCollision.supported(ship, pose, box) || !ShipCollision.shapes(ship, pose, box.deflate(1e-3)).isEmpty(); }
+    /** Whether the hull cell a point is in, or the cell below or above it, holds a hull block: a fish in a tank, a bat under a ceiling or a mob mid-hop is aboard. */
+    static boolean inHullCell(Ship ship, ShipPose pose, Vec3 feet) {
+        BlockPos cell = BlockPos.containing(pose.toLocal(feet).add(ship.center()));
+        for (BlockPos p : new BlockPos[]{cell, cell.below(), cell.above()}) { BlockState state = ship.blocks.get(p); if (state != null && !state.isAir()) return true; }
+        return false;
+    }
     private static boolean aboard(ServerLevel level, Ship ship) {
         if (ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship().equals(ship.id))) return true;
-        // Players, mobs, pets and villagers count whether or not they are attached, when they stand on or in the hull's blocks.
+        // Players, mobs, pets and villagers count whether or not they are attached, when they stand on or in the hull's blocks or in, on or under a hull cell.
         if (!level.getEntities((Entity) null, deckBox(ship.hullWorldBounds()), e -> e instanceof net.minecraft.world.entity.LivingEntity living && living.isAlive() && !living.isSpectator()
-                && onHull(ship, ship.pose, living.getBoundingBox())).isEmpty()) return true;
+                && (onHull(ship, ship.pose, living.getBoundingBox()) || inHullCell(ship, ship.pose, living.position()))).isEmpty()) return true;
         return !level.getEntities((Entity) null, ship.hullWorldBounds().inflate(2), e -> { Ship on = attachedShip(e); return on != null && on.id.equals(ship.id); }).isEmpty();
     }
     /** A summoned hull must land in loaded chunks, clear of terrain, fluids, other ships and every entity, the summoner included. */
@@ -495,18 +501,22 @@ public final class ShipManager {
     static Vec3 worldMotion(Vec3 yardMotion, double yaw, Vec3 shipVelocity) { return ShipPose.rotate(yardMotion, yaw).add(shipVelocity); }
     /** Ticks a dropped item lies in the shipyard before it is moved out; a hopper aboard takes one within its 8-tick cooldown. */
     static final int LOOSE_ITEM_AGE = 40;
+    /** Ticks an item in or on a hopper aboard waits for it; after that it goes out anyway, so a locked or full hopper never lets it despawn in the shipyard. */
+    static final int COLLECTOR_WAIT = 200;
     /**
-     * Whether a loose entity in the shipyard goes out to the world: every orb, and an item at least {@link #LOOSE_ITEM_AGE} ticks old
-     * that is not in or directly above a container cell (a hopper, chest or barrel aboard collects or holds it).
+     * Whether a loose entity in the shipyard goes out to the world: every orb, an item at least {@link #COLLECTOR_WAIT} ticks old,
+     * and an item at least {@link #LOOSE_ITEM_AGE} ticks old that is not in or directly above a collector cell (a hopper aboard takes it).
      */
-    static boolean relocates(boolean item, int age, BlockPos cell, java.util.function.Predicate<BlockPos> container) {
-        return !item || age >= LOOSE_ITEM_AGE && !container.test(cell) && !container.test(cell.below());
+    static boolean relocates(boolean item, int age, BlockPos cell, java.util.function.Predicate<BlockPos> collector) {
+        return !item || age >= COLLECTOR_WAIT || age >= LOOSE_ITEM_AGE && !collector.test(cell) && !collector.test(cell.below());
     }
+    /** Whether a block entity pulls in items lying in or on it: a hopper does; a chest, jukebox or dispenser holds items but never collects them. */
+    static boolean collects(net.minecraft.world.level.block.entity.BlockEntity be) { return be instanceof net.minecraft.world.level.block.entity.Hopper; }
     /** Items and orbs made aboard (jukebox discs, composters, dispensers, popped attachments) land in the shipyard; this moves them out beside the hull. */
     private static void returnLoose(ServerLevel yard, ServerLevel world, Ship ship) {
-        java.util.function.Predicate<BlockPos> container = p -> yard.getBlockEntity(p) instanceof net.minecraft.world.Container;
+        java.util.function.Predicate<BlockPos> collector = p -> collects(yard.getBlockEntity(p));
         for (Entity loose : yard.getEntities((Entity) null, yardBox(ship), e -> e.isAlive() && looseInCell(e.getClass())
-                && relocates(e instanceof net.minecraft.world.entity.item.ItemEntity, e.tickCount, e.blockPosition(), container)))
+                && relocates(e instanceof net.minecraft.world.entity.item.ItemEntity, e.tickCount, e.blockPosition(), collector)))
             loose.changeDimension(new net.minecraft.world.level.portal.DimensionTransition(world, yardToWorld(ship, loose.position()),
                     worldMotion(loose.getDeltaMovement(), ship.pose.yaw(), ship.velocity), loose.getYRot() + (float) ship.pose.yaw(), loose.getXRot(),
                     net.minecraft.world.level.portal.DimensionTransition.DO_NOTHING));
