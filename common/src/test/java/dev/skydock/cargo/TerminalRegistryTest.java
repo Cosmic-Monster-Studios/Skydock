@@ -69,7 +69,30 @@ class TerminalRegistryTest {
         assertFalse(CargoTerminalBlockEntity.needsTick(false, false, null), "a hand-placed terminal waits for the command");
         assertTrue(CargoTerminalBlockEntity.needsTick(false, false, offset));
         assertTrue(CargoTerminalBlockEntity.needsTick(true, false, offset));
+        assertTrue(CargoTerminalBlockEntity.needsTick(false, true, offset), "every load checks the registry again, though the villagers came once");
         assertFalse(CargoTerminalBlockEntity.needsTick(true, true, offset));
+    }
+    /** A crash can keep the terminal's chunk but lose the cargo file it registered in; its next load puts it back. */
+    @Test void aTerminalMissingFromTheRegistryRegistersAgain() {
+        GlobalPos terminal = at(400, 400); BlockPos pad = new BlockPos(400, 64, 393);
+        CargoSavedData data = new CargoSavedData();
+        assertTrue(data.ensureTerminal(terminal, pad));
+        assertEquals(new CargoSavedData.Terminal(terminal, pad, true), data.terminals.get(terminal)); assertTrue(data.isDirty());
+        data.setDirty(false);
+        assertFalse(data.ensureTerminal(terminal, pad), "a registered terminal is left alone");
+        assertFalse(data.isDirty());
+    }
+    @Test void aTerminalStandingWhereOneWasRetiredIsLiveAgain() {
+        GlobalPos terminal = at(-50, 70); CargoSavedData data = new CargoSavedData();
+        data.registerTerminal(terminal, terminal.pos()); data.removeTerminal(terminal, true);
+        // The cargo file saw the terminal destroyed, but the chunk that still holds it did not.
+        assertTrue(data.ensureTerminal(terminal, terminal.pos()));
+        assertTrue(data.retired.isEmpty()); assertTrue(data.terminals.get(terminal).generated());
+    }
+    @Test void aPredictedSiteAtTheTerminalBecomesTheTerminal() {
+        GlobalPos terminal = at(900, 900); CargoSavedData data = withSite(terminal);
+        assertTrue(data.ensureTerminal(terminal, terminal.pos()));
+        assertTrue(data.terminals.get(terminal).generated());
     }
     @Test void aBrokenTerminalDropsNothing() throws Exception {
         com.google.gson.JsonObject table = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(Path.of("src/main/resources/data/skydock/loot_table/blocks/cargo_terminal.json"))).getAsJsonObject();

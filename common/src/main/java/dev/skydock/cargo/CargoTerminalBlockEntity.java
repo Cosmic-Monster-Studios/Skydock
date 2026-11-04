@@ -19,18 +19,21 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * A terminal generated with an outpost carries {@code PadOffset}, the pad centre relative to the block for a terminal facing north,
- * rotated here with the block; it registers itself on its first server tick and spawns two villagers on the pad, once. A hand-placed
- * terminal has its pad 5 blocks in front and joins the network only through {@code /skydock cargo terminal place}.
+ * rotated here with the block. On its first server tick after every load it checks that it is registered, registering itself if not
+ * (a crash can save its chunk but not the cargo file), and it spawns two villagers on the pad, once. A hand-placed terminal has its
+ * pad 5 blocks in front and joins the network only through {@code /skydock cargo terminal place}.
  */
 public final class CargoTerminalBlockEntity extends BlockEntity {
     static final BlockPos HAND_PLACED_OFFSET = new BlockPos(0, 0, -5);
     private BlockPos padOffset;
-    private boolean registered, spawnedVillagers;
+    private boolean spawnedVillagers;
+    /** Transient: whether the registry was checked since this terminal loaded. */
+    private boolean checked;
     public CargoTerminalBlockEntity(BlockPos pos, BlockState state) { super(SkydockBlocks.CARGO_TERMINAL_ENTITY.get(), pos, state); }
 
-    /** Whether this terminal generated with an outpost (it carries a pad offset), rather than being placed by hand. */
     /** Forgets the outpost pad offset, so the terminal is a plain hand-placed one. */
     public void clearPad() { if (padOffset != null) { padOffset = null; setChanged(); } }
+    /** Whether this terminal generated with an outpost (it carries a pad offset), rather than being placed by hand. */
     public boolean fromOutpost() { return padOffset != null; }
     /** The pad centre in world coordinates. */
     public BlockPos pad() { return pad(worldPosition, getBlockState().getValue(HorizontalDirectionalBlock.FACING), padOffset); }
@@ -39,15 +42,14 @@ public final class CargoTerminalBlockEntity extends BlockEntity {
         return switch (facing) { case EAST -> Rotation.CLOCKWISE_90; case SOUTH -> Rotation.CLOCKWISE_180; case WEST -> Rotation.COUNTERCLOCKWISE_90; default -> Rotation.NONE; };
     }
 
-    /** Only a generated terminal (one with a pad offset) registers itself and spawns its villagers, each once. */
-    static boolean needsTick(boolean registered, boolean spawnedVillagers, BlockPos padOffset) { return padOffset != null && !(registered && spawnedVillagers); }
+    /** Only a generated terminal (one with a pad offset) ticks: to check its registration once per load, and to spawn its villagers once ever. */
+    static boolean needsTick(boolean checked, boolean spawnedVillagers, BlockPos padOffset) { return padOffset != null && !(checked && spawnedVillagers); }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, CargoTerminalBlockEntity terminal) {
-        if (!needsTick(terminal.registered, terminal.spawnedVillagers, terminal.padOffset) || !(level instanceof ServerLevel server)) return;
+        if (!needsTick(terminal.checked, terminal.spawnedVillagers, terminal.padOffset) || !(level instanceof ServerLevel server)) return;
         BlockPos pad = terminal.pad();
-        if (!terminal.registered) { CargoSavedData.get(server.getServer()).registerTerminal(GlobalPos.of(level.dimension(), pos), pad); terminal.registered = true; }
-        if (!terminal.spawnedVillagers) { terminal.spawnVillagers(server, pad, state.getValue(HorizontalDirectionalBlock.FACING)); terminal.spawnedVillagers = true; }
-        terminal.setChanged();
+        if (!terminal.checked) { CargoSavedData.get(server.getServer()).ensureTerminal(GlobalPos.of(level.dimension(), pos), pad); terminal.checked = true; }
+        if (!terminal.spawnedVillagers) { terminal.spawnVillagers(server, pad, state.getValue(HorizontalDirectionalBlock.FACING)); terminal.spawnedVillagers = true; terminal.setChanged(); }
     }
 
     private void spawnVillagers(ServerLevel level, BlockPos pad, Direction facing) {
@@ -66,12 +68,12 @@ public final class CargoTerminalBlockEntity extends BlockEntity {
     @Override protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         if (padOffset != null) tag.putIntArray("PadOffset", new int[] {padOffset.getX(), padOffset.getY(), padOffset.getZ()});
-        tag.putBoolean("Registered", registered); tag.putBoolean("SpawnedVillagers", spawnedVillagers);
+        tag.putBoolean("SpawnedVillagers", spawnedVillagers);
     }
     @Override protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         int[] offset = tag.contains("PadOffset", Tag.TAG_INT_ARRAY) ? tag.getIntArray("PadOffset") : new int[0];
         padOffset = offset.length == 3 ? new BlockPos(offset[0], offset[1], offset[2]) : null;
-        registered = tag.getBoolean("Registered"); spawnedVillagers = tag.getBoolean("SpawnedVillagers");
+        spawnedVillagers = tag.getBoolean("SpawnedVillagers");
     }
 }

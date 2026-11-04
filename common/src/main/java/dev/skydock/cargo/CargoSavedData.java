@@ -31,6 +31,11 @@ public final class CargoSavedData extends SavedData {
         terminals.values().removeIf(t -> !t.generated() && t.pos().dimension().equals(pos.dimension()) && Offers.distance(t.pos().pos(), pos.pos()) <= 64);
         terminals.put(pos, new Terminal(pos, pad, true)); setDirty(); TerminalSites.CACHE.clear();
     }
+    /** Registers a generated terminal that is missing from the registry (or recorded only as a predicted site), un-retiring its position; true when it did. */
+    public boolean ensureTerminal(GlobalPos pos, BlockPos pad) {
+        Terminal known = terminals.get(pos); if (known != null && known.generated()) return false;
+        retired.remove(pos); registerTerminal(pos, pad); return true;
+    }
     /**
      * Drops the terminal and every board shown at it. One that generated with an outpost ({@code outpost}) is retired, taking any predicted
      * site near it along, so contracts bound for it fail rather than follow a prediction of the outpost that is already there. A terminal
