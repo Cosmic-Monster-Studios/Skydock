@@ -310,6 +310,8 @@ public final class ShipManager {
         Ship ship = ShipSavedData.get(server).ships.values().stream().filter(s -> summonable(s, dimension, dock)).findFirst().orElse(null);
         if (ship == null) { tell(player, "message.skydock.summon_no_ship"); return false; }
         if (!permitted(player, ship)) { tell(player, "message.skydock.summon_not_permitted"); return false; }
+        // A dormant ship's chunks, and whoever is on it, may be unloaded: wake it and ask again once they load. No use or cooldown is spent.
+        if (ship.dormant && !ship.yardLost) { wake(server, ship); tell(player, "message.skydock.summon_stirring"); return false; }
         if (aboard(level, ship)) { tell(player, "message.skydock.summon_aboard"); return false; }
         ShipPose spot = null;
         for (ShipPose pose : SummonPlacement.candidates(player.position(), player.getYRot(), ship.hullBounds()))
@@ -337,8 +339,12 @@ public final class ShipManager {
         double spread = Math.max(1, size / 4);
         level.sendParticles(particle, at.x, at.y, at.z, (int) Math.min(400, 40 * spread), spread, spread / 2, spread, .5);
     }
+    /** The hull box raised 2 blocks: a living thing standing on or inside it would be left behind by a warp. */
+    static AABB deckBox(AABB hull) { return hull.expandTowards(0, 2, 0); }
     private static boolean aboard(ServerLevel level, Ship ship) {
         if (ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship().equals(ship.id))) return true;
+        // Players, mobs, pets and villagers count whether or not they are attached.
+        if (!level.getEntities((Entity) null, deckBox(ship.hullWorldBounds()), e -> e instanceof net.minecraft.world.entity.LivingEntity living && living.isAlive() && !living.isSpectator()).isEmpty()) return true;
         return !level.getEntities((Entity) null, ship.hullWorldBounds().inflate(2), e -> { Ship on = attachedShip(e); return on != null && on.id.equals(ship.id); }).isEmpty();
     }
     /** A summoned hull must land in loaded chunks, clear of terrain, fluids, other ships and every entity, the summoner included. */
