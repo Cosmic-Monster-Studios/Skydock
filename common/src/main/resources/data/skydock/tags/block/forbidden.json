@@ -11,6 +11,11 @@
     "minecraft:repeating_command_block",
     "minecraft:chain_command_block",
     "minecraft:structure_block",
-    "minecraft:jigsaw"
+    "minecraft:jigsaw",
+    "skydock:tin_crate",
+    "skydock:copper_crate",
+    "skydock:brass_crate",
+    "skydock:gold_crate",
+    "skydock:aether_crate"
   ]
 }

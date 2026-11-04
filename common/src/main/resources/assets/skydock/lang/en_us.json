@@ -158,7 +158,7 @@
   "pattern.skydock.saved.description": "A hull saved from a dock with /skydock blueprint export.",
   "error.skydock.dock_unloaded": "Load the entire dock before inspecting or launching.",
   "error.skydock.dock_height": "The envelope crosses the world build height.",
-  "error.skydock.dock_unmovable": "Remove unmovable blocks (bedrock, portals, or moving pistons).",
+  "error.skydock.dock_unmovable": "Remove %s: it cannot go aboard a ship.",
   "error.skydock.dock_fluid": "Drain water and lava, including waterlogged blocks, before launching.",
   "error.skydock.dock_too_many": "Too many blocks for this dock tier.",
   "error.skydock.dock_empty": "Build a ship inside the outlined envelope first.",

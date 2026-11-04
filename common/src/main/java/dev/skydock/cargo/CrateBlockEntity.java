@@ -42,6 +42,15 @@ public final class CrateBlockEntity extends BlockEntity {
     private Phase cued;
     public CrateBlockEntity(BlockPos pos, BlockState state) { super(SkydockBlocks.CRATE_ENTITY.get(), pos, state); }
 
+    /**
+     * What the renderer may draw: a column one block wide, 70 high for the Aether beam and 6 for the other ranks' lifted lids and bodies.
+     * NeoForge culls block entities by this method's box, and declaring it with the same signature (no {@code @Override}, as {@code common}
+     * cannot see the extension) replaces its one-block default.
+     */
+    public net.minecraft.world.phys.AABB getRenderBoundingBox() { return renderBox(worldPosition, rank()); }
+    static net.minecraft.world.phys.AABB renderBox(BlockPos pos, CrateRank rank) {
+        return new net.minecraft.world.phys.AABB(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + (rank == CrateRank.AETHER ? 70 : 6), pos.getZ() + 1);
+    }
     public CrateRank rank() { return ((CrateBlock) getBlockState().getBlock()).rank; }
     public boolean opened() { return openedAt >= 0; }
     /** Ticks since the show started, with the partial tick, for the renderer. */

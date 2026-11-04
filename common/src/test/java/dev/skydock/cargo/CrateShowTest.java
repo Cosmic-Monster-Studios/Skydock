@@ -39,4 +39,10 @@ class CrateShowTest {
     @Test void ownedEverythingMeansARefund() {
         assertEquals(Optional.empty(), CrateShow.patternPrize(CrateRank.AETHER, Set.copyOf(SHOP), SHOP, RandomSource.create(1)));
     }
+    @Test void renderBoxCoversTheBeamAndTheLiftedParts() {
+        net.minecraft.core.BlockPos at = new net.minecraft.core.BlockPos(4, 60, -3);
+        net.minecraft.world.phys.AABB aether = CrateBlockEntity.renderBox(at, CrateRank.AETHER), tin = CrateBlockEntity.renderBox(at, CrateRank.TIN);
+        assertEquals(new net.minecraft.world.phys.AABB(4, 60, -3, 5, 130, -2), aether);
+        assertEquals(new net.minecraft.world.phys.AABB(4, 60, -3, 5, 66, -2), tin);
+    }
 }

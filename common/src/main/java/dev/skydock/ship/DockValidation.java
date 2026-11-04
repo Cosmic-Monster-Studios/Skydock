@@ -33,7 +33,7 @@ public record DockValidation(Map<BlockPos, BlockState> blocks, double mass, doub
         for (BlockPos p : BlockPos.betweenClosed(BlockPos.ZERO, new BlockPos(tier.width - 1, tier.height - 1, tier.length - 1))) {
             BlockPos at = frame.toWorld(p); BlockState state = level.getBlockState(at);
             if (state.isAir() || state.is(SkydockBlocks.NOT_SHIP)) continue;
-            if (state.is(SkydockBlocks.FORBIDDEN) || state.getDestroySpeed(level, at) < 0) error = "error.skydock.dock_unmovable";
+            if (state.is(SkydockBlocks.FORBIDDEN) || state.getDestroySpeed(level, at) < 0) { error = "error.skydock.dock_unmovable"; args = List.of(state.getBlock().getName()); }
             if (!state.getFluidState().isEmpty()) error = "error.skydock.dock_fluid";
             state = state.rotate(back);
             BlockPos local = p.immutable(); blocks.put(local, state);
