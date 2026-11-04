@@ -52,7 +52,7 @@ public final class AssemblyManager {
             String name = catalog == null ? job.pattern.getPath() : catalog.name();
             String description = catalog == null ? "pattern.skydock.restored.description" : catalog.description();
             return new ShipPattern(job.pattern, name, description, dock.tier(), job.cells.stream()
-                    .map(cell -> new ShipPattern.Block(cell.pos(), cell.state(), cell.decoration())).toList());
+                    .map(cell -> new ShipPattern.Block(cell.pos(), cell.state(), cell.decoration())).toList(), catalog != null && catalog.shopOnly());
         }
         return ShipPatterns.get(dock.selectedPattern()).filter(pattern -> pattern.tier() == dock.tier())
                 .orElseGet(() -> ShipPatterns.defaultFor(dock.tier()));
@@ -116,6 +116,8 @@ public final class AssemblyManager {
         ServerLevel level = player.serverLevel();
         if (dock.assemblyJob() != null) { ShipManager.tell(player, "message.skydock.assembly_busy"); return false; }
         ShipPattern pattern = selected(dock);
+        // The assembling player's own unlocks count, so a teammate cannot build a pattern they have not bought.
+        if (!dev.skydock.cargo.Shop.visible(player, pattern)) { dock.setStatus("status.skydock.pattern_locked"); ShipManager.tell(player, dock.status()); return false; }
         Check check = validate(level, dock, pattern, dock.decorations());
         if (!check.clear()) { dock.setStatus(check.message()); ShipManager.tell(player, check.message()); return false; }
         Map<Item, Integer> cost = pattern.cost(dock.decorations());

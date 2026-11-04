@@ -27,6 +27,7 @@ import java.util.function.Predicate;
  * The datapack ship pattern file format. {@code layers} hold one list of rows per y level (bottom-up), each row a
  * string with one character per x and rows ordered from low z; {@code .} and space are air. Every other character
  * must be a {@code palette} key naming a block state; {@code decorations} lists the palette keys that are decorations.
+ * The optional {@code "unlock": "shop"} makes the pattern shop-only.
  */
 public final class PatternJson {
     /** Writer palette: ASCII letters and digits first, then every BMP letter in U+00C0-U+1FFF (about 4,000), each a single UTF-16 unit. */
@@ -50,6 +51,12 @@ public final class PatternJson {
         DockTier tier = null;
         for (DockTier candidate : DockTier.values()) if (candidate.key().equals(tierKey)) tier = candidate;
         if (tier == null) throw new IllegalArgumentException("Unknown tier '" + tierKey + "'");
+        boolean shopOnly = false;
+        if (json.has("unlock")) {
+            String unlock = json.get("unlock").isJsonPrimitive() ? json.get("unlock").getAsString() : json.get("unlock").toString();
+            if (!unlock.equals("shop")) throw new IllegalArgumentException("Unknown unlock '" + unlock + "'; the only value is 'shop'");
+            shopOnly = true;
+        }
         if (!json.has("palette") || !json.get("palette").isJsonObject()) throw new IllegalArgumentException("Missing palette object");
         Map<Character, BlockState> palette = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : json.getAsJsonObject("palette").entrySet()) {
@@ -93,7 +100,7 @@ public final class PatternJson {
         }
         long helms = blocks.stream().filter(cell -> helm.test(cell.state())).count();
         if (helms != 1) throw new IllegalArgumentException("A pattern needs exactly one helm, found " + helms);
-        return new ShipPattern(id, name, description, tier, blocks);
+        return new ShipPattern(id, name, description, tier, blocks, shopOnly);
     }
 
     /** Palette characters come from {@link #CHARACTERS}; a block that appears both as hull and decoration gets two. */
@@ -115,6 +122,7 @@ public final class PatternJson {
         json.addProperty("name", pattern.name());
         json.addProperty("description", pattern.description());
         json.addProperty("tier", pattern.tier().key());
+        if (pattern.shopOnly()) json.addProperty("unlock", "shop");
         JsonObject palette = new JsonObject();
         JsonArray decorations = new JsonArray();
         for (Map.Entry<ShipPattern.Block, Character> entry : keys.entrySet()) {

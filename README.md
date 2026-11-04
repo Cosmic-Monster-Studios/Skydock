@@ -105,6 +105,7 @@ Ship patterns load from `data/<namespace>/skydock_patterns/<name>.json` with the
 ```
 
 - `name` and `description` are translation keys or plain text. `tier` is `scout`, `brig`, `cruiser` or `dreadnought`.
+- `"unlock": "shop"` (optional; no other value is accepted) hides the pattern from dock screens until the player using the dock has unlocked it in the cargo shop or won it from a crate, and only that player's unlocks let them assemble it. Exported blueprints keep the flag.
 - `palette` maps one character to a block state in `/setblock` syntax (without NBT); `.` and space are air and cannot be keys. `decorations` optionally lists the palette characters that the dock's decoration toggle includes or leaves out.
 - `layers` has one list of rows per y level, bottom-up; each row is a string with one character per x, and rows run from low z (the bow, nearest a north-facing controller) to high z. Coordinates are dock-local, in the north-facing frame, starting at the interior's corner on the controller's left (x = 0), so pad rows with leading dots to center a hull. Being north-framed, a pattern builds in a dock facing any way.
 - A file is rejected whole, logged with its name, and ignored when it fails any check: unknown characters or blocks, cells outside the tier's interior, a block with no item form, or not exactly one helm. The other patterns still load. Assembly applies its usual checks (engines, lift, mass) when a pattern is built.

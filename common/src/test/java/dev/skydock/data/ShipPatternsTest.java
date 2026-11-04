@@ -213,6 +213,44 @@ class ShipPatternsTest {
         }
     }
 
+    /** The shop freighters must assemble with eight 40 kg cargo pods aboard, using the shipped mass rules. */
+    @Test void shopFreightersLiftAFullPodLoad() throws java.io.IOException {
+        com.google.gson.JsonObject rules = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/resources/data/skydock/skydock_mass/default.json"))).getAsJsonObject();
+        com.google.gson.JsonObject masses = rules.getAsJsonObject("blocks");
+        double defaultMass = rules.get("default_mass").getAsDouble(), liftPerCell = rules.get("lift_per_cell").getAsDouble(), pod = masses.get("skydock:cargo_pod").getAsDouble();
+        int perCell = rules.get("blocks_per_cell").getAsInt();
+        Map<String, DockTier> freighters = Map.of("brig_freighter", DockTier.BRIG, "cruiser_freighter", DockTier.CRUISER, "dreadnought_freighter", DockTier.DREADNOUGHT);
+        for (Map.Entry<String, DockTier> freighter : freighters.entrySet()) {
+            String text = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/data/skydock/skydock_patterns/" + freighter.getKey() + ".json"));
+            com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(text).getAsJsonObject();
+            // Skydock's blocks are not registered in unit tests, so vanilla stand-ins take their place for the parse.
+            String vanilla = text.replaceAll("skydock:lift_cell\\[[^\\]]*\\]", "minecraft:white_wool").replace("skydock:helm", "minecraft:lectern")
+                    .replaceAll("skydock:engine[a-z_]*", "minecraft:blast_furnace").replace("skydock:timber_railing", "minecraft:oak_fence").replace("skydock:brass_lantern", "minecraft:lantern");
+            ShipPattern pattern = PatternJson.parse(net.minecraft.resources.ResourceLocation.parse("skydock:" + freighter.getKey()),
+                    com.google.gson.JsonParser.parseString(vanilla).getAsJsonObject(), PatternJson::state, state -> state.is(Blocks.LECTERN));
+            assertTrue(pattern.shopOnly(), freighter.getKey());
+            assertEquals(freighter.getValue(), pattern.tier(), freighter.getKey());
+            assertConnected(pattern, false);
+            assertConnected(pattern, true);
+            Set<String> decorations = new HashSet<>();
+            json.getAsJsonArray("decorations").forEach(e -> decorations.add(e.getAsString()));
+            double mass = 0; int structural = 0, cells = 0, engines = 0;
+            for (var layer : json.getAsJsonArray("layers")) for (var row : layer.getAsJsonArray()) for (char c : row.getAsString().toCharArray()) {
+                if (c == '.' || c == ' ' || decorations.contains(String.valueOf(c))) continue;
+                String id = json.getAsJsonObject("palette").get(String.valueOf(c)).getAsString().split("\\[")[0];
+                structural++; mass += masses.has(id) ? masses.get(id).getAsDouble() : defaultMass;
+                if (id.equals("skydock:lift_cell")) cells++;
+                if (id.startsWith("skydock:engine")) engines++;
+            }
+            String report = freighter.getKey() + ": " + structural + " blocks, " + mass + " kg, " + cells + " cells, " + engines + " engines";
+            assertTrue(engines >= 1, report);
+            assertTrue(cells * liftPerCell >= mass + 8 * pod, report);
+            assertTrue(cells >= (structural + perCell - 1) / perCell, report);
+            assertTrue(pattern.blocks().size() <= freighter.getValue().defaultCap, report);
+        }
+    }
+
     private static void assertConnected(ShipPattern pattern, boolean decorations) {
         Set<BlockPos> occupied = pattern.included(decorations).stream().map(ShipPattern.Block::pos).collect(Collectors.toSet());
         Set<BlockPos> reached = new HashSet<>();

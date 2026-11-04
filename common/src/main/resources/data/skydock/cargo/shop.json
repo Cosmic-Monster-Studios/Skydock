@@ -1,0 +1,17 @@
+{
+  "entries": [
+    {"rank": 1, "price": 60, "item": "skydock:warp_anchor"},
+    {"rank": 1, "price": 40, "item": "skydock:shipwright_hammer"},
+    {"rank": 2, "price": 120, "item": "skydock:lift_cell", "count": 16},
+    {"rank": 2, "price": 150, "item": "skydock:engine_reinforced"},
+    {"rank": 3, "price": 400, "item": "skydock:engine_turbine"},
+    {"rank": 3, "price": 500, "pattern": "skydock:brig_freighter"},
+    {"rank": 4, "price": 1200, "item": "skydock:engine_aether"},
+    {"rank": 4, "price": 1500, "pattern": "skydock:cruiser_freighter"},
+    {"rank": 5, "price": 4000, "pattern": "skydock:dreadnought_freighter"},
+    {"rank": 5, "price": 200, "item": "skydock:brass_lantern", "count": 64},
+    {"rank": 5, "price": 200, "item": "skydock:canvas_awning", "count": 64},
+    {"rank": 5, "price": 200, "item": "skydock:timber_railing", "count": 64},
+    {"rank": 5, "price": 200, "item": "skydock:signal_flag", "count": 64}
+  ]
+}

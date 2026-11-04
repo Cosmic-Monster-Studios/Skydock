@@ -8,6 +8,8 @@ import dev.skydock.assembly.AssemblyInventory;
 import dev.skydock.assembly.AssemblyManager;
 import dev.skydock.assembly.AssemblyJob;
 import dev.skydock.block.DockBlockEntity;
+import dev.skydock.cargo.Shop;
+import dev.skydock.data.DockTier;
 import dev.skydock.data.ShipPattern;
 import dev.skydock.data.ShipPatterns;
 import dev.skydock.menu.DockMenu;
@@ -25,7 +27,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
@@ -38,11 +43,12 @@ public final class DockNetwork {
     public static final int INSPECT = 4;
     public static final int LAUNCH = 5;
     public static final int REDOCK = 6;
-    /** Menu buttons {@code PATTERN_BUTTON..MAX_PATTERN_BUTTON} select a pattern by its index in the tier's list. */
+    /** Menu buttons {@code PATTERN_BUTTON..MAX_PATTERN_BUTTON} select a pattern by its index in the tier's list as this player sees it. */
     public static final int PATTERN_BUTTON = 10, MAX_PATTERN_BUTTON = 99;
 
     public static Consumer<CompoundTag> clientReceiver = ignored -> {};
-    private static final Map<DockBlockEntity, Cached> SNAPSHOT_CACHE = new WeakHashMap<>();
+    /** Per dock and per player, since the pattern list depends on the player's shop unlocks. */
+    private static final Map<DockBlockEntity, Map<UUID, Cached>> SNAPSHOT_CACHE = new WeakHashMap<>();
 
     private record Cached(long tick, int revision, CompoundTag data) {}
 
@@ -112,7 +118,7 @@ public final class DockNetwork {
             case REQUEST -> {}
             case SELECT -> {
                 ResourceLocation id = ResourceLocation.tryParse(command.patternId);
-                if (id != null) dock.setSelection(id, command.decorations);
+                if (id != null && ShipPatterns.get(id).filter(pattern -> Shop.visible(player, pattern)).isPresent()) dock.setSelection(id, command.decorations);
             }
             case ASSEMBLE -> AssemblyManager.start(player, dock);
             case CANCEL -> AssemblyManager.cancel(player.serverLevel(), dock, "status.skydock.cancelled_operator");
@@ -144,7 +150,7 @@ public final class DockNetwork {
             default -> {
                 // 10 + index selects the tier's pattern at that index, so up to 90 patterns per tier.
                 int index = button - PATTERN_BUTTON;
-                var patterns = ShipPatterns.forTier(dock.tier());
+                var patterns = patterns(player, dock.tier());
                 if (button < PATTERN_BUTTON || button > MAX_PATTERN_BUTTON || index >= patterns.size()) return false;
                 dock.setSelection(patterns.get(index).id(), dock.decorations());
             }
@@ -153,9 +159,14 @@ public final class DockNetwork {
         return true;
     }
 
+    /** The tier's patterns this player may see: every free pattern and the shop-only ones they unlocked. */
+    public static List<ShipPattern> patterns(ServerPlayer player, DockTier tier) {
+        return ShipPatterns.forTier(tier).stream().filter(pattern -> Shop.visible(player, pattern)).toList();
+    }
+
     public static void sendSnapshot(ServerPlayer player, DockMenu menu, DockBlockEntity dock) {
         long now = player.level().getGameTime();
-        Cached cached = SNAPSHOT_CACHE.get(dock);
+        Cached cached = SNAPSHOT_CACHE.getOrDefault(dock, Map.of()).get(player.getUUID());
         if (cached != null && cached.revision == dock.revision() && now - cached.tick < 10) {
             CompoundTag data = cached.data.copy();
             data.putInt("Container", menu.containerId);
@@ -186,14 +197,16 @@ public final class DockNetwork {
         root.putInt("HullBlocks", dock.hullBlocks());
         root.putInt("Progress", job != null ? job.placed : complete ? total : 0);
         root.putInt("Total", total);
-        root.putString("Status", job != null || complete || manualHull ? dock.status() : !space.clear() ? space.message()
-                : !resources ? "status.skydock.resources_missing" : dock.status());
+        // A teammate may have selected a shop pattern this player has not unlocked; they see it but cannot build it.
+        boolean unlocked = job != null || Shop.visible(player, pattern);
+        root.putString("Status", job != null || complete || manualHull ? dock.status() : !unlocked ? "status.skydock.pattern_locked"
+                : !space.clear() ? space.message() : !resources ? "status.skydock.resources_missing" : dock.status());
         root.putBoolean("AssemblySpaceClear", space.clear());
         root.putBoolean("SpaceClear", space.clear());
-        root.putBoolean("CanAssemble", job == null && space.clear() && resources);
+        root.putBoolean("CanAssemble", job == null && unlocked && space.clear() && resources);
 
         ListTag patterns = new ListTag();
-        for (ShipPattern choice : ShipPatterns.forTier(dock.tier())) {
+        for (ShipPattern choice : patterns(player, dock.tier())) {
             CompoundTag entry = new CompoundTag();
             entry.putString("Id", choice.id().toString());
             entry.putString("Name", choice.name());
@@ -232,7 +245,7 @@ public final class DockNetwork {
         statsTag.putInt("Height", stats.height());
         statsTag.putInt("Length", stats.length());
         root.put("Stats", statsTag);
-        SNAPSHOT_CACHE.put(dock, new Cached(now, dock.revision(), root.copy()));
+        SNAPSHOT_CACHE.computeIfAbsent(dock, ignored -> new HashMap<>()).put(player.getUUID(), new Cached(now, dock.revision(), root.copy()));
         NetworkManager.sendToPlayer(player, new Snapshot(root));
     }
 }

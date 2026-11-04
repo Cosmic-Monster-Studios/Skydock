@@ -66,6 +66,7 @@ public final class CargoNetwork {
             case ACCEPT -> CargoService.accept(player, terminal, action.id);
             case DELIVER -> CargoService.deliver(player, terminal);
             case ABANDON -> CargoService.abandon(player, action.id);
+            case BUY -> CargoService.buy(player, action.id);
             default -> { return; }
         }
         CargoService.sync(player);

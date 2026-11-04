@@ -1,6 +1,7 @@
 package dev.skydock.cargo;
 
 import dev.skydock.block.SkydockBlocks;
+import dev.skydock.data.ShipPatterns;
 import dev.skydock.network.ShipNetwork;
 import dev.skydock.ship.Ship;
 import dev.skydock.ship.ShipManager;
@@ -121,6 +122,20 @@ public final class CargoService {
         ShipManager.tell(player, "message.skydock.cargo_abandoned", cargoName(c.cargoKey));
     }
 
+    /** Buys the shop entry at this index for the player, re-checking rank, balance and ownership; items go to the inventory or drop at their feet. */
+    public static void buy(ServerPlayer player, long index) {
+        List<ShopEntry> entries = Shop.entries(); if (index < 0 || index >= entries.size()) return;
+        ShopEntry entry = entries.get((int) index);
+        if (entry.isPattern() && ShipPatterns.get(entry.pattern()).isEmpty()) { ShipManager.tell(player, "message.skydock.shop_unavailable"); return; }
+        CargoSavedData data = CargoSavedData.get(player.getServer());
+        String refusal = Shop.buy(data.profile(player.getUUID()), entry);
+        if (!refusal.isEmpty()) { ShipManager.tell(player, refusal); return; }
+        data.setDirty();
+        if (entry.isPattern()) ShipManager.tell(player, "message.skydock.shop_bought_pattern", Shop.patternName(entry.pattern()), entry.price());
+        else { ItemStack stack = entry.item().copy(); ShipManager.tell(player, "message.skydock.shop_bought", stack.getCount(), stack.getHoverName(), entry.price()); give(player, stack); }
+        player.playNotifySound(SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 1, 1);
+    }
+
     /** A pod the terminal can reach and how to take it away. */
     private record Reachable(PodCargo cargo, Ship ship, BlockPos cell, int slot) {}
 
@@ -181,10 +196,17 @@ public final class CargoService {
         for (UUID holder : holders) { ServerPlayer online = server.getPlayerList().getPlayer(holder); if (online != null) sync(online); }
     }
 
-    /** Sends the player's profile, the rank ladder and each active contract's destination pad. */
+    /** Sends the player's profile, the rank ladder, the shop stock (pattern entries carry the pattern's name) and each active contract's destination pad. */
     public static void sync(ServerPlayer player) {
         CargoSavedData data = CargoSavedData.get(player.getServer()); CargoProfile p = data.profile(player.getUUID());
         CompoundTag tag = p.save(); ListTag ranks = new ListTag(); CargoRanks.ranks().forEach(r -> ranks.add(r.save())); tag.put("Ranks", ranks);
+        ListTag shop = new ListTag();
+        for (ShopEntry entry : Shop.entries()) {
+            CompoundTag line = entry.save();
+            if (entry.isPattern()) ShipPatterns.get(entry.pattern()).ifPresent(pattern -> line.putString("Name", pattern.name()));
+            shop.add(line);
+        }
+        tag.put("Shop", shop);
         List<CargoNetwork.Destination> destinations = new ArrayList<>();
         for (Contract c : p.contracts.values()) {
             GlobalPos at = resolveDestination(data.terminals, c.destination);

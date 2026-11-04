@@ -18,8 +18,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** An immutable ship recipe in north-frame dock-local coordinates, built in or loaded from a datapack. {@code name} and {@code description} are translation keys or plain text. */
-public record ShipPattern(ResourceLocation id, String name, String description, DockTier tier, List<Block> blocks) {
+/** An immutable ship recipe in north-frame dock-local coordinates, built in or loaded from a datapack. {@code name} and {@code description} are translation keys or plain text;
+ * a {@code shopOnly} pattern is hidden from players who have not unlocked it in the cargo shop. */
+public record ShipPattern(ResourceLocation id, String name, String description, DockTier tier, List<Block> blocks, boolean shopOnly) {
+    public ShipPattern(ResourceLocation id, String name, String description, DockTier tier, List<Block> blocks) { this(id, name, description, tier, blocks, false); }
+
     public ShipPattern {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(name, "name");

@@ -98,6 +98,22 @@ class PatternJsonTest {
             assertTrue(key.length() == 1 && Character.isLetterOrDigit(key.charAt(0)), key);
     }
 
+    @Test void unlockShopRoundTrips() {
+        ShipPattern shop = parse(VALID.replace("\"tier\": \"scout\",", "\"tier\": \"scout\", \"unlock\": \"shop\","));
+        assertTrue(shop.shopOnly());
+        assertFalse(parse(VALID).shopOnly());
+        JsonObject written = PatternJson.write(shop, BlockStateParser::serialize);
+        assertEquals("shop", written.get("unlock").getAsString());
+        assertEquals(shop, PatternJson.parse(ID, written, STATES, HELM));
+        assertFalse(PatternJson.write(parse(VALID), BlockStateParser::serialize).has("unlock"), "a free pattern writes no unlock");
+    }
+
+    @Test void unknownUnlockValueIsRejected() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> parse(VALID.replace("\"tier\": \"scout\",", "\"tier\": \"scout\", \"unlock\": \"quest\",")));
+        assertTrue(error.getMessage().contains("quest"), error.getMessage());
+    }
+
     @Test void hullsWithManyDistinctStatesRoundTrip() {
         java.util.List<BlockState> states = new java.util.ArrayList<>();
         for (Block stairs : new Block[] {Blocks.OAK_STAIRS, Blocks.STONE_STAIRS, Blocks.BRICK_STAIRS})

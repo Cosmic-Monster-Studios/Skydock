@@ -33,8 +33,8 @@ import java.util.UUID;
 
 /**
  * A placed crate. Opening it records the game time and the opener and syncs the time to clients, which animate the show from it;
- * the server plays the rank's sounds as phases change and, at the burst, rolls {@code skydock:crate/<rank>}, flings the stacks
- * into the air and removes the block.
+ * the server plays the rank's sounds as phases change and, at the burst, removes the block, rolls {@code skydock:crate/<rank>},
+ * flings the stacks into the air and awards the opener's pattern prize ({@link Shop#awardCratePrize}), online or not.
  */
 public final class CrateBlockEntity extends BlockEntity {
     private long openedAt = -1;
@@ -78,7 +78,10 @@ public final class CrateBlockEntity extends BlockEntity {
 
     private void burst(ServerLevel level, BlockPos pos, CrateRank rank) {
         Vec3 from = Vec3.atCenterOf(pos).add(0, CrateShow.lift(rank, CrateShow.duration(rank)), 0);
-        ServerPlayer player = opener == null ? null : level.getServer().getPlayerList().getPlayer(opener);
+        UUID who = opener;
+        ServerPlayer player = who == null ? null : level.getServer().getPlayerList().getPlayer(who);
+        // The crate is spent before anything can fail, so an error never rolls the loot again on the next tick.
+        openedAt = -1; level.removeBlock(pos, false);
         LootParams params = new LootParams.Builder(level).withParameter(LootContextParams.ORIGIN, from).withOptionalParameter(LootContextParams.THIS_ENTITY, player).create(LootContextParamSets.CHEST);
         ResourceKey<net.minecraft.world.level.storage.loot.LootTable> table = ResourceKey.create(Registries.LOOT_TABLE, Skydock.id("crate/" + rank.name().toLowerCase(Locale.ROOT)));
         RandomSource random = level.random;
@@ -87,11 +90,11 @@ public final class CrateBlockEntity extends BlockEntity {
             item.setDefaultPickUpDelay(); level.addFreshEntity(item);
         }
         level.sendParticles(rank == CrateRank.AETHER ? ParticleTypes.FLASH : ParticleTypes.POOF, from.x, from.y, from.z, rank == CrateRank.AETHER ? 1 : 8, .3, .3, .3, .05);
-        if (player != null) onBurst(player, rank);
-        level.removeBlock(pos, false);
+        if (who != null) {
+            try { Shop.awardCratePrize(level.getServer(), who, rank, random); }
+            catch (RuntimeException ex) { Skydock.LOGGER.error("Crate pattern prize failed for {}", who, ex); }
+        }
     }
-    /** Shop rewards (the Gold and Aether pattern prize, see {@link CrateShow#patternPrize}) are added here. */
-    void onBurst(ServerPlayer opener, CrateRank rank) {}
 
     public static void clientTick(Level level, BlockPos pos, BlockState state, CrateBlockEntity crate) {
         if (!crate.opened()) return;

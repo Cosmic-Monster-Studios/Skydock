@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** The cargo terminal: the player's offers and contracts here, the shop, and the rank ladder. Drawn in the dock screen's canvas style. */
+/** The cargo terminal: the player's offers and contracts here, the shop ({@link ShopPanel}), and the rank ladder. Drawn in the dock screen's canvas style. */
 public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> {
     static final int CANVAS = 0xFFE7D6AA, CANVAS_DARK = 0xFFD6BF8A, BRASS = 0xFFC69852, INK = 0xFF132C31, TEAL = 0xFF4FA89C,
             PALE = 0xFFF6EED8, MISSING = 0xFF9D3F38, MUTED = 0xFF536A67, CARD = 0xCCF6EED8;
@@ -25,6 +25,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
     private static final long CONFIRM_MS = 3000;
     private long armedContract = -1, armedUntil;
     private DockScreen.ShipwrightButton contractsTab, shopTab, reputationTab, deliverHere;
+    private ShopPanel shop;
     private final List<DockScreen.ShipwrightButton> acceptButtons = new ArrayList<>(), deliverButtons = new ArrayList<>(), abandonButtons = new ArrayList<>();
     private final List<Offer> offers = new ArrayList<>();
     private final List<Contract> contracts = new ArrayList<>();
@@ -43,7 +44,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         contractsTab = button(leftPos + 9, tabY, 80, 18, "gui.skydock.cargo.tab_contracts", () -> page = Page.CONTRACTS);
         shopTab = button(leftPos + 91, tabY, 60, 18, "gui.skydock.cargo.tab_shop", () -> page = Page.SHOP);
         reputationTab = button(leftPos + 153, tabY, 84, 18, "gui.skydock.cargo.tab_reputation", () -> page = Page.REPUTATION);
-        shopTab.active = false;
+        shop = new ShopPanel(font, action -> button(0, 0, 10, 10, "gui.skydock.cargo.buy", action), index -> send(CargoNetwork.BUY, index));
         for (int i = 0; i < CargoService.MAX_CONTRACTS; i++) {
             int slot = i;
             acceptButtons.add(button(0, 0, 10, 10, "gui.skydock.cargo.accept", () -> { if (slot < offers.size()) send(CargoNetwork.ACCEPT, offers.get(slot).id()); }));
@@ -73,7 +74,8 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         CargoProfile profile = ClientCargo.profile();
         offers.clear(); offers.addAll(profile.offers.getOrDefault(here(), List.of()));
         contracts.clear(); contracts.addAll(profile.contracts.values());
-        contractsTab.selected = page == Page.CONTRACTS; reputationTab.selected = page == Page.REPUTATION;
+        contractsTab.selected = page == Page.CONTRACTS; shopTab.selected = page == Page.SHOP; reputationTab.selected = page == Page.REPUTATION;
+        shop.update(page == Page.SHOP, leftPos + 9, bodyY(), imageWidth - 18, imageHeight - 57);
         boolean on = page == Page.CONTRACTS; int col = columnWidth(), left = leftPos + 9, right = left + col + 6, rows = bodyY() + 14;
         int rank = profile.peakRank();
         for (int i = 0; i < acceptButtons.size(); i++) {
@@ -94,6 +96,12 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         updateWidgets();
         super.render(graphics, mouseX, mouseY, partialTick);
         renderTooltip(graphics, mouseX, mouseY);
+        shop.renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    @Override public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (page == Page.SHOP) { shop.scroll(scrollY); return true; }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     @Override protected void renderBg(GuiGraphics graphics, float delta, int mouseX, int mouseY) {
@@ -110,7 +118,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         switch (page) {
             case CONTRACTS -> renderContracts(graphics);
             case REPUTATION -> renderReputation(graphics, leftPos + 9, bodyY(), imageWidth - 18, imageHeight - 57, profile);
-            case SHOP -> {}
+            case SHOP -> shop.render(graphics, leftPos + 9, bodyY(), imageWidth - 18, imageHeight - 57, mouseX, mouseY);
         }
     }
 
@@ -180,9 +188,10 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
             lines.add(I18n.get("gui.skydock.cargo.unlocks"));
             lines.add("  " + band(next));
             lines.add("  " + crateName(next.crate()));
+            for (ClientCargo.Listing listing : ClientCargo.shop()) if (listing.entry().rank() == next.level()) lines.add("  " + ShopPanel.label(listing));
         }
         int ly = sy + 5;
-        for (String line : lines) for (var part : font.split(net.minecraft.network.chat.FormattedText.of(line), sw - 8)) { graphics.drawString(font, part, sx + 4, ly, INK, false); ly += 10; }
+        for (String line : lines) for (var part : font.split(net.minecraft.network.chat.FormattedText.of(line), sw - 8)) { if (ly + 9 > y + height) return; graphics.drawString(font, part, sx + 4, ly, INK, false); ly += 10; }
     }
     private static String band(Rank r) {
         return r.maxDistance() == Integer.MAX_VALUE ? I18n.get("gui.skydock.cargo.band_open", r.minDistance()) : I18n.get("gui.skydock.cargo.band", r.minDistance(), r.maxDistance());
