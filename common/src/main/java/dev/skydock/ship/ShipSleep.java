@@ -14,9 +14,9 @@ public final class ShipSleep {
     private static final double STILL = 1e-6;
     private ShipSleep() {}
 
-    /** Crewed means a pilot, seated crew, or a boarding player. A ship rests when nothing moves it and it will not sink. */
-    public static boolean restful(boolean crewed, boolean cruise, double speedSq, boolean moored, double lift, double mass) {
-        return !crewed && !cruise && speedSq < STILL && (moored || lift >= mass);
+    /** Crewed means a pilot, seated crew, or a boarding player. A ship rests when nothing moves it and it will not sink: moored, buoyant, or already lying on terrain. */
+    public static boolean restful(boolean crewed, boolean cruise, double speedSq, boolean moored, double lift, double mass, boolean grounded) {
+        return !crewed && !cruise && speedSq < STILL && (moored || lift >= mass || grounded);
     }
     /** The unattended count after one once-a-second check: any player aboard or within {@link #ATTEND_RANGE} resets it. */
     public static long nextUnattended(boolean attended, long unattendedTicks) { return attended ? 0 : unattendedTicks + 20; }

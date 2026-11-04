@@ -490,7 +490,9 @@ public final class ShipManager {
                     ship.unattendedTicks = ShipSleep.nextUnattended(playerWithin(server, ship.dimension, ship.hullWorldBounds(), ShipSleep.ATTEND_RANGE), ship.unattendedTicks);
                     if (ship.cruise && ShipSleep.cruiseLapses(false, false, ship.unattendedTicks)) ship.cruise = false;
                     boolean crewed = ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship.equals(ship.id));
-                    boolean restful = ShipSleep.restful(crewed, ship.cruise, ship.velocity.lengthSqr(), ship.moored, ship.lift, ship.mass);
+                    // A sunk hull lying on the ground can fall no further. Only a ship that would otherwise sink is probed.
+                    boolean grounded = !ship.moored && ship.lift < ship.mass && ShipPhysics.grounded(level, ship);
+                    boolean restful = ShipSleep.restful(crewed, ship.cruise, ship.velocity.lengthSqr(), ship.moored, ship.lift, ship.mass, grounded);
                     ship.idleTicks = ShipSleep.nextIdle(restful, near, ship.idleTicks);
                     if (ShipSleep.sleeps(restful, near, ship.idleTicks)) { releaseTickets(server, ship); ship.dormant = true; }
                 }

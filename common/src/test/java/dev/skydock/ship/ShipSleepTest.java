@@ -4,14 +4,20 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ShipSleepTest {
-    @Test void parkedMooredShipRests() { assertTrue(ShipSleep.restful(false, false, 0, true, 0, 5000)); }
-    @Test void hoveringShipWithLiftRests() { assertTrue(ShipSleep.restful(false, false, 0, false, 6000, 5000)); }
-    @Test void sinkingShipNeverRests() { assertFalse(ShipSleep.restful(false, false, 0, false, 4000, 5000)); }
-    @Test void movingOrCruisingShipNeverRests() {
-        assertFalse(ShipSleep.restful(false, false, 1e-4, true, 0, 5000));
-        assertFalse(ShipSleep.restful(false, true, 0, true, 0, 5000));
+    @Test void parkedMooredShipRests() { assertTrue(ShipSleep.restful(false, false, 0, true, 0, 5000, false)); }
+    @Test void hoveringShipWithLiftRests() { assertTrue(ShipSleep.restful(false, false, 0, false, 6000, 5000, false)); }
+    @Test void sinkingShipNeverRests() { assertFalse(ShipSleep.restful(false, false, 0, false, 4000, 5000, false)); }
+    @Test void sunkShipLyingOnTerrainRests() { assertTrue(ShipSleep.restful(false, false, 0, false, 4000, 5000, true)); }
+    @Test void groundedShipStillNeedsNoCrewNoCruiseAndNoMotion() {
+        assertFalse(ShipSleep.restful(true, false, 0, false, 0, 5000, true), "crew aboard a wreck keep it awake");
+        assertFalse(ShipSleep.restful(false, true, 0, false, 0, 5000, true));
+        assertFalse(ShipSleep.restful(false, false, 1e-4, false, 0, 5000, true), "still sliding");
     }
-    @Test void boardingOrCrewKeepsAShipAwake() { assertFalse(ShipSleep.restful(true, false, 0, true, 0, 5000)); }
+    @Test void movingOrCruisingShipNeverRests() {
+        assertFalse(ShipSleep.restful(false, false, 1e-4, true, 0, 5000, false));
+        assertFalse(ShipSleep.restful(false, true, 0, true, 0, 5000, false));
+    }
+    @Test void boardingOrCrewKeepsAShipAwake() { assertFalse(ShipSleep.restful(true, false, 0, true, 0, 5000, false)); }
     @Test void sleepsOnlyAfterThirtyIdleSecondsWithNobodyNear() {
         assertFalse(ShipSleep.sleeps(true, false, 599));
         assertTrue(ShipSleep.sleeps(true, false, 600));

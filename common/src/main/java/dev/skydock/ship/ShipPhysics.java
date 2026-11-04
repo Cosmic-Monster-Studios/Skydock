@@ -116,6 +116,10 @@ public final class ShipPhysics {
         for (BlockPos p : ship.enginePositions()) result = Math.max(result, EngineTier.from(ship.state(p)).maxSpeed);
         return result;
     }
+    /** Whether terrain, or the bottom of the world, stops the hull a quarter block below its pose: a sunk ship lying on the ground. */
+    static boolean grounded(ServerLevel world, Ship ship) {
+        return collides(world, ship, new ShipPose(ship.pose.x(), ship.pose.y() - .25, ship.pose.z(), ship.pose.yaw()), true, List.of(), false);
+    }
     static boolean collides(ServerLevel world, Ship ship, ShipPose pose, boolean terrain, List<Ship> neighbors, boolean inside) {
         ShipPose.Transform transform = pose.transform();
         AABB bounds = transform.toWorld(ship.hullBounds());
