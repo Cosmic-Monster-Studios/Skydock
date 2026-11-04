@@ -131,7 +131,7 @@ public final class ShipManager {
     public static Ship attachedShip(Entity entity) {
         ShipAttachment attachment = attachment(entity);
         Ship ship = findShip(entity.level(), attachment.ship());
-        if (ship == null || !attachable(entity)) {
+        if (ship == null || !attachable(entity) || !entity.level().isClientSide && ShipAttachment.strayed(ship.hullWorldBounds(), entity.position())) {
             attachment.detach(entity, false);
             return null;
         }
@@ -168,7 +168,9 @@ public final class ShipManager {
         Vec3 packetPosition = new Vec3(packet.getX(player.getX()), packet.getY(player.getY()), packet.getZ(player.getZ()));
         UUID attached = attachment.ship();
         Vec3 rebased;
-        if (attached == null) {
+        // A frame naming another ship means the client left the attached one without the server seeing it go.
+        boolean switching = attached != null && !attached.equals(frame.ship());
+        if (attached == null || switching) {
             rebased = ShipMovementFrame.rebase(frame, frame.ship(), attachment.lastAcceptedSequence(),
                     ship.history, ship.pose, ship.center(), packetPosition);
             if (rebased == null) return packet;
@@ -177,6 +179,7 @@ public final class ShipManager {
             AABB currentBox = player.getBoundingBox().move(rebased.subtract(player.position()));
             if (!ShipCollision.supported(ship, historical, historicalBox)
                     || !ShipCollision.supported(ship, ship.pose, currentBox)) return packet;
+            if (switching) attachment.detach(player, false);
             attachment.attach(ship.id);
         } else {
             rebased = ShipMovementFrame.rebase(frame, attached, attachment.lastAcceptedSequence(),
@@ -191,11 +194,12 @@ public final class ShipManager {
                     packet.getYRot(player.getYRot()), packet.getXRot(player.getXRot()), packet.isOnGround());
         return new ServerboundMovePlayerPacket.Pos(rebased.x, rebased.y, rebased.z, packet.isOnGround());
     }
-    public static void finishMovement(ServerPlayer player) {
+    /** {@code teleporting} is true while the server waits for the client to accept a teleport; vanilla then ignores the move, and a deck correction would be built from the teleport's destination. */
+    public static void finishMovement(ServerPlayer player, boolean teleporting) {
         ShipAttachment attachment = attachment(player);
         Vec3 target = attachment.consumeAcceptedMovementTarget();
         boolean departing = attachment.consumeDetachAfterMovement();
-        if (target != null && player.position().distanceToSqr(target) > 1e-6) {
+        if (target != null && !teleporting && player.position().distanceToSqr(target) > 1e-6) {
             Ship ship = findShip(player.level(), attachment.ship());
             if (ship != null) ShipNetwork.correctDeck(player, ship, ship.worldToBlock(player.position()));
             return;
@@ -559,8 +563,10 @@ public final class ShipManager {
             boolean joining = boarding != null && boarding.ship.equals(ship.id);
             boolean attached = attachment.is(ship.id);
             if (!seated && !piloting && !joining) {
-                if (attachment.ship() != null && !attached && findShip(level, attachment.ship()) == null)
-                    attachment.detach(entity, false);
+                if (attachment.ship() != null && !attached) {
+                    Ship other = findShip(level, attachment.ship());
+                    if (other == null || ShipAttachment.strayed(other.hullWorldBounds(), entity.position())) attachment.detach(entity, false);
+                }
                 if (attachment.ship() != null && !attached) continue;
                 if (!attached && ShipCollision.supported(ship, previous, entity.getBoundingBox())) {
                     attachment.attach(ship.id);
