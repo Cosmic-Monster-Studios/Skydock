@@ -86,4 +86,13 @@ class CargoSavedDataTest {
         java.util.Set<Long> seen = new java.util.HashSet<>();
         for (int i = 0; i < 10_000; i++) { long id = data.newId(random::nextLong); assertNotEquals(0, id); assertTrue(seen.add(id)); data.voided.add(id); }
     }
+    /** Joining syncs a profile without saving one; only a change to cargo state creates it. */
+    @Test void peekingAtAProfileDoesNotCreateIt() {
+        CargoSavedData data = new CargoSavedData(); java.util.UUID player = java.util.UUID.randomUUID();
+        CargoProfile empty = data.peek(player);
+        assertEquals(0, empty.reputation); assertTrue(empty.contracts.isEmpty());
+        assertTrue(data.profiles.isEmpty()); assertFalse(data.isDirty());
+        CargoProfile real = data.profile(player); real.reputation = 30;
+        assertSame(real, data.peek(player));
+    }
 }

@@ -120,10 +120,10 @@ public final class Shop {
 
     /** Applies a crate's pattern prize to its opener's saved profile whether or not they are online, telling and syncing them if they are. */
     public static void awardCratePrize(MinecraftServer server, UUID opener, CrateRank rank, RandomSource random) {
-        CargoSavedData data = CargoSavedData.get(server); CargoProfile profile = data.profile(opener); int rankBefore = profile.peakRank();
+        CargoSavedData data = CargoSavedData.get(server); CargoProfile profile = data.peek(opener); int rankBefore = profile.peakRank();
         Prize prize = cratePrize(profile, rank, patterns(), random);
         if (prize.pattern() == null && !prize.refunded()) return;
-        data.setDirty();
+        data.keep(opener, profile); data.setDirty();
         ServerPlayer player = server.getPlayerList().getPlayer(opener);
         if (player == null) return;
         if (prize.refunded()) { ShipManager.tell(player, "message.skydock.crate_pattern_refund", PRIZE_REFUND); CargoService.announceRankUp(player, profile, rankBefore); }

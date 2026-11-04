@@ -51,7 +51,12 @@ public final class CargoSavedData extends SavedData {
         return terminals.stream().sorted(Comparator.<Terminal>comparingInt(t -> t.pos().dimension().equals(from.dimension()) ? 0 : 1)
                 .thenComparingDouble(t -> Offers.distance(t.pos().pos(), from.pos()))).limit(limit).toList();
     }
+    /** The player's profile, created and saved if new: for changes to cargo state. */
     public CargoProfile profile(UUID id) { return profiles.computeIfAbsent(id, k -> { setDirty(); return new CargoProfile(); }); }
+    /** The player's profile, or a fresh empty one that is not stored: for reads, so that merely joining never grows the save. */
+    public CargoProfile peek(UUID id) { CargoProfile p = profiles.get(id); return p == null ? new CargoProfile() : p; }
+    /** Stores a profile from {@link #peek} once it holds a change. */
+    public void keep(UUID id, CargoProfile p) { if (profiles.putIfAbsent(id, p) == null) setDirty(); }
     /**
      * A new contract or offer id: a random positive long that no held contract, offer on a board or voided id uses. A counter saved only
      * at autosave would hand out old ids again after a crash, matching old pods to a new contract. Ids saved before this load as they are.

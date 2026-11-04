@@ -178,7 +178,8 @@ public final class CargoService {
     }
 
     public static void accept(ServerPlayer player, GlobalPos terminal, long offerId) {
-        MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server); CargoProfile p = data.profile(player.getUUID());
+        // No profile means no board, so a stale accept creates nothing.
+        MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server); CargoProfile p = data.peek(player.getUUID());
         List<Offer> board = p.offers.get(terminal); if (board == null) return;
         Offer offer = board.stream().filter(o -> o.id() == offerId).findFirst().orElse(null); if (offer == null) return;
         // A screen left open can still show an offer whose terminal has since gone.
@@ -198,7 +199,7 @@ public final class CargoService {
 
     public static void abandon(ServerPlayer player, long contractId) {
         CargoSavedData data = CargoSavedData.get(player.getServer());
-        Contract c = data.profile(player.getUUID()).contracts.remove(contractId); if (c == null) return;
+        Contract c = data.peek(player.getUUID()).contracts.remove(contractId); if (c == null) return;
         data.voided.add(contractId); data.setDirty();
         ShipManager.tell(player, "message.skydock.cargo_abandoned", cargoName(c.cargoKey));
     }
@@ -218,9 +219,9 @@ public final class CargoService {
         // The caller resyncs after every action, so the stale screen gets the current stock.
         if (entry == null) { ShipManager.tell(player, "message.skydock.shop_changed"); return; }
         if (entry.isPattern() && ShipPatterns.get(entry.pattern()).isEmpty()) { ShipManager.tell(player, "message.skydock.shop_unavailable"); return; }
-        String refusal = Shop.buy(data.profile(player.getUUID()), entry);
+        CargoProfile p = data.peek(player.getUUID()); String refusal = Shop.buy(p, entry);
         if (!refusal.isEmpty()) { ShipManager.tell(player, refusal); return; }
-        data.setDirty();
+        data.keep(player.getUUID(), p); data.setDirty();
         if (entry.isPattern()) ShipManager.tell(player, "message.skydock.shop_bought_pattern", Shop.patternName(entry.pattern()), entry.price());
         else { ItemStack stack = entry.item().copy(); ShipManager.tell(player, "message.skydock.shop_bought", stack.getCount(), stack.getHoverName(), entry.price()); give(player, stack); syncInventory(player); }
         player.playNotifySound(SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 1, 1);
@@ -252,7 +253,7 @@ public final class CargoService {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server);
         CargoSavedData.Terminal site = data.terminals.get(terminal); ServerLevel level = server.getLevel(terminal.dimension());
         if (site == null || level == null) { ShipManager.tell(player, "message.skydock.cargo_terminal_unregistered"); return; }
-        CargoProfile me = data.profile(player.getUUID()); int rankBefore = me.peakRank(); long now = now(server);
+        CargoProfile me = data.peek(player.getUUID()); int rankBefore = me.peakRank(); long now = now(server);
         Set<Long> settled = new HashSet<>(); Set<UUID> holders = new LinkedHashSet<>(); Set<Ship> touched = new LinkedHashSet<>();
         int count = 0, gained = 0;
         for (Reachable pod : reachable(data, player, level, site.pad())) {
@@ -281,7 +282,7 @@ public final class CargoService {
         for (Ship ship : touched) { ship.revision++; ShipManager.refresh(server, ship); }
         if (!touched.isEmpty()) ShipNetwork.syncPlayers(server);
         if (count == 0) { ShipManager.tell(player, "message.skydock.cargo_nothing"); return; }
-        data.setDirty(); syncInventory(player);
+        data.keep(player.getUUID(), me); data.setDirty(); syncInventory(player);
         ShipManager.tell(player, byCount(count, "message.skydock.cargo_delivered_one", "message.skydock.cargo_delivered"), count, gained);
         announceRankUp(player, me, rankBefore);
         for (UUID holder : holders) { ServerPlayer online = server.getPlayerList().getPlayer(holder); if (online != null) sync(online); }
@@ -294,9 +295,9 @@ public final class CargoService {
         player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1, 1);
     }
 
-    /** Sends the player's profile, the rank ladder, the shop stock (pattern entries carry the pattern's name) and each active contract's destination pad. */
+    /** Sends the player's profile (an empty one, not stored, for a player who has none), the rank ladder, the shop stock (pattern entries carry the pattern's name) and each active contract's destination pad. */
     public static void sync(ServerPlayer player) {
-        CargoSavedData data = CargoSavedData.get(player.getServer()); CargoProfile p = data.profile(player.getUUID());
+        CargoSavedData data = CargoSavedData.get(player.getServer()); CargoProfile p = data.peek(player.getUUID());
         CompoundTag tag = p.save(); ListTag ranks = new ListTag(); CargoRanks.ranks().forEach(r -> ranks.add(r.save())); tag.put("Ranks", ranks);
         ListTag shop = new ListTag();
         for (ShopEntry entry : Shop.entries()) {

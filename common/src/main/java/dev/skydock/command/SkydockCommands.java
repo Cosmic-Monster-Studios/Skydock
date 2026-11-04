@@ -116,7 +116,7 @@ public final class SkydockCommands {
                 .then(literal("place").executes(ctx -> placeTerminal(ctx.getSource()))));
         cargo.then(literal("offer").then(argument("terminal", BlockPosArgument.blockPos()).then(literal("refresh").executes(ctx -> {
             ServerPlayer player = ctx.getSource().getPlayerOrException(); BlockPos pos = BlockPosArgument.getBlockPos(ctx, "terminal");
-            CargoSavedData data = CargoSavedData.get(ctx.getSource().getServer()); CargoProfile profile = data.profile(player.getUUID());
+            CargoSavedData data = CargoSavedData.get(ctx.getSource().getServer()); CargoProfile profile = data.peek(player.getUUID());
             GlobalPos at = GlobalPos.of(player.level().dimension(), pos);
             boolean had = profile.offers.remove(at) != null | profile.offersRefreshed.remove(at) != null;
             data.setDirty(); CargoService.sync(player);
@@ -135,9 +135,10 @@ public final class SkydockCommands {
     }
 
     private static int reputation(CommandSourceStack source, ServerPlayer target, Integer set) {
-        CargoProfile profile = CargoSavedData.get(source.getServer()).profile(target.getUUID());
+        CargoSavedData data = CargoSavedData.get(source.getServer());
+        CargoProfile profile = set == null ? data.peek(target.getUUID()) : data.profile(target.getUUID());
         if (set != null) {
-            profile.reputation = set; profile.spent = Math.min(profile.spent, set); CargoSavedData.get(source.getServer()).setDirty(); CargoService.sync(target);
+            profile.reputation = set; profile.spent = Math.min(profile.spent, set); data.setDirty(); CargoService.sync(target);
             source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_reputation_set", target.getDisplayName(), set), true);
         } else {
             source.sendSuccess(() -> Component.translatable("message.skydock.cargo_cmd_reputation", target.getDisplayName(), profile.reputation, profile.balance(), Component.translatable(CargoRanks.forReputation(profile.reputation).key())), false);
