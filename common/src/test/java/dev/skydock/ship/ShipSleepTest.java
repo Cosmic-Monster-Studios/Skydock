@@ -26,4 +26,22 @@ class ShipSleepTest {
         idle = ShipSleep.nextIdle(true, false, idle);
         assertFalse(ShipSleep.sleeps(true, false, idle), "leaving range must not put the ship to sleep at once");
     }
+    @Test void unattendedTimeBuildsOnlyWithNobodyAboardOrWithinRange() {
+        assertEquals(20, ShipSleep.nextUnattended(false, 0));
+        assertEquals(600, ShipSleep.nextUnattended(false, 580));
+        assertEquals(0, ShipSleep.nextUnattended(true, 580), "a player aboard or within 64 blocks resets the count");
+    }
+    @Test void cruiseLapsesAfterThirtyUnattendedSeconds() {
+        long ticks = 0; int checks = 0;
+        while (!ShipSleep.cruiseLapses(false, false, ticks)) { ticks = ShipSleep.nextUnattended(false, ticks); checks++; }
+        assertEquals(30, checks, "thirty once-a-second checks");
+        assertEquals(ShipSleep.CRUISE_LAPSE, ticks);
+        assertFalse(ShipSleep.cruiseLapses(false, false, 580));
+        assertTrue(ShipSleep.cruiseLapses(true, true, 600), "the unattended count alone is enough");
+    }
+    @Test void cruiseLapsesAtOnceWhenThePilotLeavesAnEmptyShip() {
+        assertTrue(ShipSleep.cruiseLapses(true, false, 0));
+        assertFalse(ShipSleep.cruiseLapses(true, true, 0), "other crew aboard keep it cruising");
+        assertFalse(ShipSleep.cruiseLapses(false, false, 0), "a pilot still aboard keeps it cruising");
+    }
 }

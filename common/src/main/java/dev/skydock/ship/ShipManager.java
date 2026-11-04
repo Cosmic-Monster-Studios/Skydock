@@ -452,10 +452,13 @@ public final class ShipManager {
             if (ship.yardLost) { if (!ship.dormant) { releaseTickets(server, ship); ship.dormant = true; } continue; }
             // Spread the once-a-second work across ticks so a large fleet does not rescan all at once.
             if ((tick + Math.floorMod(ship.id.hashCode(), 20)) % 20 == 0) {
-                boolean near = playerNear(server, ship);
+                boolean near = playerWithin(server, ship.dimension, ship.bounds(), ShipSleep.WAKE_RANGE);
                 if (ship.dormant && near) wake(server, ship);
                 if (!ship.dormant) {
                     forceTickets(server, ship); refresh(server, ship);
+                    // An unattended cruising ship would fly on for ever, loading chunks as it goes.
+                    ship.unattendedTicks = ShipSleep.nextUnattended(playerWithin(server, ship.dimension, ship.hullWorldBounds(), ShipSleep.ATTEND_RANGE), ship.unattendedTicks);
+                    if (ship.cruise && ShipSleep.cruiseLapses(false, false, ship.unattendedTicks)) ship.cruise = false;
                     boolean crewed = ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship.equals(ship.id));
                     boolean restful = ShipSleep.restful(crewed, ship.cruise, ship.velocity.lengthSqr(), ship.moored, ship.lift, ship.mass);
                     ship.idleTicks = ShipSleep.nextIdle(restful, near, ship.idleTicks);
@@ -467,6 +470,7 @@ public final class ShipManager {
             ship.previousPose = ship.pose;
             if (ship.pilot != null) {
                 ServerPlayer pilot = server.getPlayerList().getPlayer(ship.pilot);
+                if (pilot == null && ship.cruise && ShipSleep.cruiseLapses(true, crewAboard(server, ship), ship.unattendedTicks)) ship.cruise = false;
                 if (pilot == null || !pilot.isAlive() || !permitted(pilot, ship) || pilot.level() != level || ship.pilotHelm == null ||
                         pilot.position().distanceToSqr(ship.blockToWorld(Vec3.atCenterOf(ship.pilotHelm))) > 36) ship.pilot = null;
             }
@@ -487,10 +491,16 @@ public final class ShipManager {
         if (changed) data.setDirty();
     }
     private record SavedState(ShipPose pose, Vec3 velocity, String phase, boolean moored, boolean cruise, UUID pilot, int seated, int revision, double mass, double lift, double holdAltitude, double headingLock, double cruiseSpeed) {}
-    private static boolean playerNear(MinecraftServer server, Ship ship) {
-        double range = ShipSleep.WAKE_RANGE * ShipSleep.WAKE_RANGE; AABB box = ship.bounds();
+    private static boolean playerWithin(MinecraftServer server, ResourceKey<Level> dimension, AABB box, double range) {
         for (ServerPlayer player : server.getPlayerList().getPlayers())
-            if (player.level().dimension().equals(ship.dimension) && box.distanceToSqr(player.position()) <= range) return true;
+            if (player.level().dimension().equals(dimension) && box.distanceToSqr(player.position()) <= range * range) return true;
+        return false;
+    }
+    /** Whether an online player rides the ship: seated, boarding, or standing on its deck. */
+    private static boolean crewAboard(MinecraftServer server, Ship ship) {
+        if (BOARDING.values().stream().anyMatch(b -> b.ship.equals(ship.id))) return true;
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (player.level().dimension().equals(ship.dimension) && (ship.seated.containsKey(player.getUUID()) || attachment(player).is(ship.id))) return true;
         return false;
     }
     /** Call before touching a ship's shipyard blocks: a dormant ship holds no chunk tickets, so reading them would load chunks synchronously. */

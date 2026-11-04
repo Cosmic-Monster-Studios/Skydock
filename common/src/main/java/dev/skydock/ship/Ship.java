@@ -55,6 +55,8 @@ public final class Ship {
     /** Transient: a dormant ship skips ticking and holds no chunk tickets. Never saved; every ship starts awake. */
     public boolean dormant;
     public long idleTicks;
+    /** Transient: ticks with no player aboard or within {@link ShipSleep#ATTEND_RANGE} of the hull; cruise lapses at {@link ShipSleep#CRUISE_LAPSE}. */
+    public long unattendedTicks;
     /** Transient: every hull block vanished from the shipyard (its chunks were deleted), so the ship is held dormant until {@code /skydock repair-yard}. */
     public boolean yardLost;
     /** Transient: state as of the last tick, to mark saved data dirty only on change. */
