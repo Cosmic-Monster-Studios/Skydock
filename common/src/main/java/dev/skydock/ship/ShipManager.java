@@ -479,9 +479,20 @@ public final class ShipManager {
     static Vec3 yardToWorld(Ship ship, Vec3 yardPos) { return ship.blockToWorld(yardPos.subtract(Vec3.atLowerCornerOf(ship.yard))); }
     /** A loose entity's world motion: its motion in the north-frame shipyard turned with the hull, plus the hull's own. */
     static Vec3 worldMotion(Vec3 yardMotion, double yaw, Vec3 shipVelocity) { return ShipPose.rotate(yardMotion, yaw).add(shipVelocity); }
+    /** Ticks a dropped item lies in the shipyard before it is moved out; a hopper aboard takes one within its 8-tick cooldown. */
+    static final int LOOSE_ITEM_AGE = 40;
+    /**
+     * Whether a loose entity in the shipyard goes out to the world: every orb, and an item at least {@link #LOOSE_ITEM_AGE} ticks old
+     * that is not in or directly above a container cell (a hopper, chest or barrel aboard collects or holds it).
+     */
+    static boolean relocates(boolean item, int age, BlockPos cell, java.util.function.Predicate<BlockPos> container) {
+        return !item || age >= LOOSE_ITEM_AGE && !container.test(cell) && !container.test(cell.below());
+    }
     /** Items and orbs made aboard (jukebox discs, composters, dispensers, popped attachments) land in the shipyard; this moves them out beside the hull. */
     private static void returnLoose(ServerLevel yard, ServerLevel world, Ship ship) {
-        for (Entity loose : yard.getEntities((Entity) null, yardBox(ship), e -> e.isAlive() && looseInCell(e.getClass())))
+        java.util.function.Predicate<BlockPos> container = p -> yard.getBlockEntity(p) instanceof net.minecraft.world.Container;
+        for (Entity loose : yard.getEntities((Entity) null, yardBox(ship), e -> e.isAlive() && looseInCell(e.getClass())
+                && relocates(e instanceof net.minecraft.world.entity.item.ItemEntity, e.tickCount, e.blockPosition(), container)))
             loose.changeDimension(new net.minecraft.world.level.portal.DimensionTransition(world, yardToWorld(ship, loose.position()),
                     worldMotion(loose.getDeltaMovement(), ship.pose.yaw(), ship.velocity), loose.getYRot() + (float) ship.pose.yaw(), loose.getXRot(),
                     net.minecraft.world.level.portal.DimensionTransition.DO_NOTHING));

@@ -38,4 +38,14 @@ class ShipYardItemsTest {
         near(ShipPose.rotate(new Vec3(0, 0, -.3), 90).add(.2, 0, 0), ShipManager.worldMotion(new Vec3(0, 0, -.3), 90, new Vec3(.2, 0, 0)));
         near(new Vec3(.2, -.04, 0), ShipManager.worldMotion(new Vec3(0, -.04, 0), 90, new Vec3(.2, 0, 0)), "an item at rest aboard moves with the hull");
     }
+    @Test void freshItemsAndItemsAtContainersStayForTheHoppersAboard() {
+        BlockPos hopper = new BlockPos(515, 64, 260);
+        java.util.function.Predicate<BlockPos> container = hopper::equals;
+        assertTrue(ShipManager.relocates(true, ShipManager.LOOSE_ITEM_AGE, new BlockPos(520, 66, 262), container), "an old item clear of containers goes out");
+        assertFalse(ShipManager.relocates(true, ShipManager.LOOSE_ITEM_AGE - 1, new BlockPos(520, 66, 262), container), "a fresh item waits");
+        assertFalse(ShipManager.relocates(true, 400, hopper, container), "an item inside the hopper's cell stays");
+        assertFalse(ShipManager.relocates(true, 400, hopper.above(), container), "an item resting on the hopper stays");
+        assertTrue(ShipManager.relocates(true, 400, hopper.above(2), container), "two above is out of a hopper's reach");
+        assertTrue(ShipManager.relocates(false, 0, hopper.above(), container), "an orb always goes out");
+    }
 }
