@@ -618,7 +618,7 @@ public final class ShipManager {
             ship.previousPose = ship.pose;
             if (ship.pilot != null) {
                 ServerPlayer pilot = server.getPlayerList().getPlayer(ship.pilot);
-                if (pilot == null && ship.cruise && ShipSleep.cruiseLapses(true, crewAboard(server, ship), ship.unattendedTicks)) ship.cruise = false;
+                if (pilot == null && ship.cruise && ShipSleep.cruiseLapses(true, crewAboard(server, ship, null), ship.unattendedTicks)) ship.cruise = false;
                 if (pilot == null || !pilot.isAlive() || !permitted(pilot, ship) || pilot.level() != level || ship.pilotHelm == null ||
                         pilot.position().distanceToSqr(ship.blockToWorld(Vec3.atCenterOf(ship.pilotHelm))) > 36) ship.pilot = null;
             }
@@ -645,12 +645,25 @@ public final class ShipManager {
             if (player.level().dimension().equals(dimension) && box.distanceToSqr(player.position()) <= range * range) return true;
         return false;
     }
-    /** Whether an online player rides the ship: seated, boarding, or standing on its deck. */
-    private static boolean crewAboard(MinecraftServer server, Ship ship) {
-        if (BOARDING.values().stream().anyMatch(b -> b.ship.equals(ship.id))) return true;
+    /** Whether an online player other than {@code except} (null for none) rides the ship: seated, boarding, or standing on its deck. */
+    private static boolean crewAboard(MinecraftServer server, Ship ship, UUID except) {
+        if (BOARDING.entrySet().stream().anyMatch(b -> b.getValue().ship.equals(ship.id) && !b.getKey().equals(except))) return true;
         for (ServerPlayer player : server.getPlayerList().getPlayers())
-            if (player.level().dimension().equals(ship.dimension) && (ship.seated.containsKey(player.getUUID()) || attachment(player).is(ship.id))) return true;
+            if (!player.getUUID().equals(except) && player.level().dimension().equals(ship.dimension) && (ship.seated.containsKey(player.getUUID()) || attachment(player).is(ship.id))) return true;
         return false;
+    }
+    /**
+     * A player leaving the game who piloted, sat on or stood on a cruising ship turns its cruise off at once when no other crew is
+     * aboard, so a pilot who released the helm before logging out does not leave the ship flying on. Players removed by a server
+     * shutdown are not leaving the ship: cruise is saved as it was.
+     */
+    public static void playerLeft(ServerPlayer player) {
+        MinecraftServer server = player.getServer(); ShipSavedData data = server == null || !server.isRunning() ? null : SERVERS.get(server); if (data == null) return;
+        ShipAttachment attached = attachment(player); UUID id = player.getUUID();
+        for (Ship ship : data.ships.values()) {
+            boolean rode = id.equals(ship.pilot) || ship.seated.containsKey(id) || attached.is(ship.id);
+            if (ship.cruise && ShipSleep.cruiseLapses(rode, crewAboard(server, ship, id), 0)) ship.cruise = false;
+        }
     }
     /** Call before touching a ship's shipyard blocks: a dormant ship holds no chunk tickets, so reading them would load chunks synchronously. */
     public static void wake(MinecraftServer server, Ship ship) {

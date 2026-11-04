@@ -49,6 +49,7 @@ class ShipSleepTest {
         assertTrue(ShipSleep.cruiseLapses(true, false, 0));
         assertFalse(ShipSleep.cruiseLapses(true, true, 0), "other crew aboard keep it cruising");
         assertFalse(ShipSleep.cruiseLapses(false, false, 0), "a pilot still aboard keeps it cruising");
+        assertTrue(ShipSleep.cruiseLapses(true, false, 0), "so does a seated or deck rider leaving (the pilot released the helm first)");
     }
     @Test void aWokenShipStirsForASecondAndUntilItsEntitiesLoad() {
         assertTrue(ShipSleep.stirring(1000, 1000, true), "the tick it woke");

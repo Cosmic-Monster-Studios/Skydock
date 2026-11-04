@@ -33,6 +33,7 @@ public final class Skydock {
         DockNetwork.init();
         dev.skydock.cargo.CargoNetwork.init();
         dev.architectury.event.events.common.PlayerEvent.PLAYER_JOIN.register(dev.skydock.cargo.CargoService::sync);
+        dev.architectury.event.events.common.PlayerEvent.PLAYER_QUIT.register(dev.skydock.ship.ShipManager::playerLeft);
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new MassTable(), id("mass"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new PatternLoader(), id("patterns"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new dev.skydock.cargo.CargoRankLoader(), id("cargo_ranks"));

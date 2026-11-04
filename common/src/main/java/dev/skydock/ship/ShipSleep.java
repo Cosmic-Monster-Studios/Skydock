@@ -22,8 +22,11 @@ public final class ShipSleep {
     }
     /** The unattended count after one once-a-second check: any player aboard or within {@link #ATTEND_RANGE} resets it. */
     public static long nextUnattended(boolean attended, long unattendedTicks) { return attended ? 0 : unattendedTicks + 20; }
-    /** Cruise disengages, leaving the ship to coast to a stop, when its pilot left the game with no other crew aboard, or after {@link #CRUISE_LAPSE} unattended ticks. */
-    public static boolean cruiseLapses(boolean pilotLeft, boolean crewAboard, long unattendedTicks) { return pilotLeft && !crewAboard || unattendedTicks >= CRUISE_LAPSE; }
+    /**
+     * Cruise disengages, leaving the ship to coast to a stop, when its pilot or a crew member riding it (seated or on deck) left the game
+     * with no other crew aboard, or after {@link #CRUISE_LAPSE} unattended ticks.
+     */
+    public static boolean cruiseLapses(boolean riderLeft, boolean crewAboard, long unattendedTicks) { return riderLeft && !crewAboard || unattendedTicks >= CRUISE_LAPSE; }
     /**
      * A ship woken at {@code wokeAt} is still stirring at {@code now}, and a summon must wait, until {@link #WAKE_SETTLE} ticks have
      * passed and every chunk under the hull has its entities loaded; otherwise whoever is aboard would be left behind.
