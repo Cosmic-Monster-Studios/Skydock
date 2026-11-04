@@ -25,21 +25,46 @@ class ShipTransferTest {
             public void paste() { order.add("paste"); }
             public void clear() { order.add("clear"); }
             public void save(boolean pasted) { order.add(pasted ? "save pasted" : "save cleared"); }
+            public void mark(Ship.Step step) { order.add("mark " + step.name().toLowerCase()); }
             public void journal() { order.add("journal"); if (journalFails) throw new java.io.UncheckedIOException(new java.io.IOException("disk full")); }
             public void apply() { order.add("apply"); }
         };
     }
-    /** A crash between any two steps must replay safely, so the journal advances only after both worlds' writes are on disk, and memory only after the journal. */
+    private static List<String> ran(boolean launching, Ship.Step done) { List<String> order = new ArrayList<>(); ShipTransfer.run(recording(order, false), launching, done); return order; }
+    /** A crash between any two steps must replay safely, so each marker follows its side's save, the journal advances only after both, and memory only after the journal. */
     @Test void aPhaseAdvancesTheJournalOnlyAfterBothWorldsAreSaved() {
-        List<String> order = new ArrayList<>();
-        ShipTransfer.run(recording(order, false));
-        assertEquals(List.of("paste", "save pasted", "clear", "save cleared", "journal", "apply"), order);
+        var full = List.of("paste", "save pasted", "mark pasted", "clear", "save cleared", "mark cleared", "journal", "apply");
+        assertEquals(full, ran(true, Ship.Step.STARTED));
+        assertEquals(full, ran(false, Ship.Step.STARTED));
+    }
+    /** A replay skips what its marker says is done: a launch re-pastes its yard from the live berth until that is cleared; a redock never re-pastes its berth. */
+    @Test void aReplayResumesFromItsMarker() {
+        assertEquals(List.of("paste", "save pasted", "mark pasted", "clear", "save cleared", "mark cleared", "journal", "apply"), ran(true, Ship.Step.PASTED));
+        assertEquals(List.of("clear", "save cleared", "mark cleared", "journal", "apply"), ran(false, Ship.Step.PASTED));
+        assertEquals(List.of("journal", "apply"), ran(true, Ship.Step.CLEARED), "a cleared berth is not cleared again, so nothing put there since is wiped");
+        assertEquals(List.of("journal", "apply"), ran(false, Ship.Step.CLEARED));
     }
     /** A journal write that throws leaves the ship in its old phase in memory, matching the disk, so the pause and retry path replays it. */
     @Test void aFailedJournalWriteLeavesMemoryInTheOldPhase() {
         List<String> order = new ArrayList<>();
-        assertThrows(java.io.UncheckedIOException.class, () -> ShipTransfer.run(recording(order, true)));
-        assertEquals(List.of("paste", "save pasted", "clear", "save cleared", "journal"), order);
+        assertThrows(java.io.UncheckedIOException.class, () -> ShipTransfer.run(recording(order, true), true, Ship.Step.STARTED));
+        assertEquals(List.of("paste", "save pasted", "mark pasted", "clear", "save cleared", "mark cleared", "journal"), order);
+    }
+    /** A retry reads the berth whenever it holds the hull (a launch before its clear, a redock after its paste), else the shipyard; never a cleared side. */
+    @Test void aRetryReadsTheCopyThatHoldsTheHull() {
+        assertTrue(ShipTransfer.readsBerth(true, Ship.Step.STARTED));
+        assertTrue(ShipTransfer.readsBerth(true, Ship.Step.PASTED), "the yard paste is isolated; the berth stayed live");
+        assertFalse(ShipTransfer.readsBerth(true, Ship.Step.CLEARED), "the berth is cleared");
+        assertFalse(ShipTransfer.readsBerth(false, Ship.Step.STARTED));
+        assertTrue(ShipTransfer.readsBerth(false, Ship.Step.PASTED), "the yard is untouched but isolated; the berth copy is the live one");
+        assertTrue(ShipTransfer.readsBerth(false, Ship.Step.CLEARED), "the yard is cleared");
+    }
+    /** A record from before step markers, or with one this version does not know, reads as not yet pasted. */
+    @Test void anUnknownMarkerReadsAsStarted() {
+        assertEquals(Ship.Step.STARTED, Ship.step(""));
+        assertEquals(Ship.Step.STARTED, Ship.step("folded"));
+        assertEquals(Ship.Step.PASTED, Ship.step("pasted"));
+        assertEquals(Ship.Step.CLEARED, Ship.step("cleared"));
     }
     /** The envelope box holds exactly the cells inBerth accepts, for every dock facing. */
     @Test void theBerthBoxMatchesTheEnvelope() {
@@ -51,18 +76,32 @@ class ShipTransferTest {
                 assertEquals(ShipTransfer.inBerth(origin, rotation, tier, p), box.contains(net.minecraft.world.phys.Vec3.atCenterOf(p)), rotation + " " + p);
         }
     }
-    private static net.minecraft.nbt.CompoundTag items(int count) { var tag = new net.minecraft.nbt.CompoundTag(); tag.putInt("Count", count); return tag; }
-    /**
-     * A retry copies a cell from the side being moved from while its hull block stands there, else from the side it was already
-     * pasted to, and keeps the journal copy only when it stands on neither: a chest a hopper drained during the pause moves drained.
-     */
+    private static net.minecraft.nbt.CompoundTag items(int count) { var tag = entity(); tag.putInt("Count", count); return tag; }
+    private static net.minecraft.nbt.CompoundTag entity() { var tag = new net.minecraft.nbt.CompoundTag(); tag.putString("id", "minecraft:chest"); tag.putInt("x", 1); tag.putInt("y", 2); tag.putInt("z", 3); return tag; }
+    /** A retry copies a cell as it stands now in the copy it reads, and keeps the journal copy only where the hull block is gone: a chest a hopper drained during the pause moves drained. */
     @Test void aRetryCopiesWhatIsThereNow() {
-        BlockPos drained = new BlockPos(0, 0, 0), cleared = new BlockPos(1, 0, 0), lost = new BlockPos(2, 0, 0), plain = new BlockPos(3, 0, 0);
-        var journal = java.util.Map.of(drained, items(64), cleared, items(10), lost, items(5));
-        var from = java.util.Map.of(drained, items(0));
-        var to = java.util.Map.of(drained, items(64), cleared, items(9));
-        var fresh = ShipTransfer.refreshed(List.of(drained, cleared, lost, plain), journal, from::get, to::get);
-        assertEquals(java.util.Map.of(drained, items(0), cleared, items(9), lost, items(5)), fresh);
+        BlockPos drained = new BlockPos(0, 0, 0), lost = new BlockPos(2, 0, 0), plain = new BlockPos(3, 0, 0);
+        var journal = java.util.Map.of(drained, items(64), lost, items(5));
+        var live = java.util.Map.of(drained, items(0));
+        assertEquals(java.util.Map.of(drained, items(0), lost, items(5)), ShipTransfer.refreshed(List.of(drained, lost, plain), journal, live::get));
+    }
+    /** A live block entity that saved only its id and position is a default standing in for data that failed to load; it never replaces a journal copy with content. */
+    @Test void aBareLiveEntityKeepsTheJournalCopy() {
+        BlockPos healed = new BlockPos(0, 0, 0), fresh = new BlockPos(1, 0, 0), both = new BlockPos(2, 0, 0), emptied = new BlockPos(3, 0, 0);
+        var emptyList = items(0); emptyList.remove("Count"); emptyList.put("Items", new net.minecraft.nbt.ListTag());
+        var journal = java.util.Map.of(healed, items(64), both, entity(), emptied, items(64));
+        var live = java.util.Map.of(healed, entity(), fresh, entity(), both, entity(), emptied, emptyList);
+        assertEquals(java.util.Map.of(healed, items(64), fresh, entity(), both, entity(), emptied, emptyList),
+                ShipTransfer.refreshed(List.of(healed, fresh, both, emptied), journal, live::get), "an emptied container still saves its item list, so it moves empty");
+        assertTrue(ShipTransfer.bare(entity()));
+        assertTrue(ShipTransfer.bare(new net.minecraft.nbt.CompoundTag()));
+        assertFalse(ShipTransfer.bare(emptyList));
+    }
+    /** Once a redock's journal has dropped the ship, a ticket release that throws is logged, not passed on as a pause. */
+    @Test void aFailedTicketReleaseStillFinishesTheRedock() {
+        Ship ship = new Ship(); java.util.Map<java.util.UUID, Ship> ships = new java.util.HashMap<>(java.util.Map.of(ship.id, ship));
+        assertDoesNotThrow(() -> ShipTransfer.finishRedock(ships, ship, () -> { throw new IllegalStateException("ticket"); }));
+        assertTrue(ships.isEmpty());
     }
     /** A paused transfer guards the hull's envelope at its berth, turned with the dock. */
     @Test void theBerthEnvelopeFollowsTheDockRotation() {

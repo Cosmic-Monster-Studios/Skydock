@@ -111,6 +111,8 @@ public final class ShipSavedData extends SavedData {
             } catch (RuntimeException e) {
                 Skydock.LOGGER.error("Ship {} could not be loaded; its record is kept as saved and the ship stays out of the world", saved.hasUUID("Id") ? saved.getUUID("Id") : "(no id)", e);
                 data.quarantined.add(quarantine(saved));
+                // The held marker must reach disk, or a record that heals before the next save would be replayed after all.
+                if (midTransfer(saved)) data.setDirty();
             }
         }
         data.nextRegion = Math.max(tag.getInt("NextRegion"), highest + 1);

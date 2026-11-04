@@ -72,6 +72,10 @@ public final class Ship {
     static final String HELD = "TransferHeld";
     /** Persisted: this record was quarantined in the middle of a transfer, so it is never replayed automatically; {@code /skydock resume-transfer} releases it. */
     public boolean transferHeld;
+    /** How far the current transfer phase got, as its journal records it: the destination saved ({@code PASTED}), then the source cleared and saved too ({@code CLEARED}). */
+    public enum Step { STARTED, PASTED, CLEARED }
+    /** Persisted with the transfer; each marker is written only once the step it names is on disk. */
+    public Step transferStep = Step.STARTED;
     public final Map<UUID, BlockPos> seated = new HashMap<>();
 
     public DockFrame berthFrame() { return new DockFrame(dock, dockFacing, tier); }
@@ -209,6 +213,7 @@ public final class Ship {
         if (transferOrigin != null) {
             tag.putLong("TransferOrigin", transferOrigin.asLong()); tag.putLong("TransferDock", transferDock.asLong());
             tag.putString("TransferDimension", transferDimension.location().toString()); tag.putString("TransferFacing", transferFacing.getSerializedName());
+            if (transferStep != Step.STARTED) tag.putString("TransferStep", transferStep.name().toLowerCase(Locale.ROOT));
         }
         if (transferHeld) tag.putBoolean(HELD, true);
         if (pilot != null) tag.putUUID("Pilot", pilot);
@@ -228,11 +233,11 @@ public final class Ship {
     CompoundTag saveLaunched(HolderLookup.Provider registries) {
         CompoundTag tag = save(registries, true);
         tag.putString("Phase", "active"); tag.put("BlockData", new ListTag());
-        for (String key : new String[] {"TransferOrigin", "TransferDock", "TransferDimension", "TransferFacing", HELD}) tag.remove(key);
+        for (String key : new String[] {"TransferOrigin", "TransferDock", "TransferDimension", "TransferFacing", "TransferStep", HELD}) tag.remove(key);
         return tag;
     }
     /** Ends a launch in memory. The yard now holds the real block entities; keeping the journal copy would bloat every save. */
-    void finishLaunch() { phase = "active"; transferOrigin = null; transferHeld = false; blockEntities.clear(); }
+    void finishLaunch() { phase = "active"; transferOrigin = null; transferStep = Step.STARTED; transferHeld = false; blockEntities.clear(); }
 
     /** One state compound per distinct state instead of per block keeps saves of large hulls small. */
     private static void writeStates(CompoundTag tag, String paletteKey, String positionKey, String stateKey, Map<BlockPos, BlockState> map) {
@@ -262,6 +267,11 @@ public final class Ship {
         Direction facing = Direction.byName(name);
         return facing == null || facing.getAxis().isVertical() ? Direction.NORTH : facing;
     }
+    /** A record with no marker, or one this version does not know, is taken as not yet pasted, the least advanced reading. */
+    static Step step(String name) {
+        for (Step step : Step.values()) if (step.name().equalsIgnoreCase(name)) return step;
+        return Step.STARTED;
+    }
     public static Ship load(CompoundTag tag, HolderLookup.Provider registries) { return load(tag, registries, false); }
     static Ship loadPersisted(CompoundTag tag, HolderLookup.Provider registries) { return load(tag, registries, true); }
     private static Ship load(CompoundTag tag, HolderLookup.Provider registries, boolean migrateLegacy) {
@@ -285,6 +295,7 @@ public final class Ship {
             ship.transferOrigin = BlockPos.of(tag.getLong("TransferOrigin")); ship.transferDock = BlockPos.of(tag.getLong("TransferDock"));
             ship.transferDimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(tag.getString("TransferDimension")));
             ship.transferFacing = facing(tag.getString("TransferFacing"));
+            ship.transferStep = step(tag.getString("TransferStep"));
         }
         ship.transferHeld = tag.getBoolean(HELD) && !ship.phase.equals("active");
         if (tag.hasUUID("Pilot")) ship.pilot = tag.getUUID("Pilot");

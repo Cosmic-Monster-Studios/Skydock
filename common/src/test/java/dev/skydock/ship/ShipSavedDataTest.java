@@ -157,6 +157,27 @@ class ShipSavedDataTest {
         CompoundTag active = ship(BlockPos.ZERO); active.putBoolean(Ship.HELD, true);
         assertFalse(of(active).ships.values().iterator().next().transferHeld, "an active record has nothing to hold");
     }
+    /** A record quarantined mid-transfer marks the data dirty, so its held marker is written; an active one written back as it was does not. */
+    @Test void aQuarantinedTransferIsSavedWithItsHold() {
+        CompoundTag corrupt = redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, new BlockPos(500, 70, 0), new BlockPos(531, 71, 1)); corrupt.putString("Tier", "NO_SUCH_TIER");
+        CompoundTag tag = new CompoundTag(); ListTag ships = new ListTag(); ships.add(corrupt); tag.put("Ships", ships); tag.putInt("NextRegion", 2);
+        assertTrue(ShipSavedData.load(tag, registries).isDirty());
+        CompoundTag active = ship(new BlockPos(256, 64, 0)); active.putString("Tier", "NO_SUCH_TIER");
+        ships = new ListTag(); ships.add(active); tag.put("Ships", ships);
+        assertFalse(ShipSavedData.load(tag, registries).isDirty());
+    }
+    /** A transfer's step marker survives a save and load, and a new phase or a finished launch starts with none. */
+    @Test void theStepMarkerIsJournaled() {
+        Ship ship = Ship.load(redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, BlockPos.ZERO, new BlockPos(31, 1, 1)), registries);
+        assertEquals(Ship.Step.STARTED, ship.transferStep);
+        assertFalse(ship.save(registries, true).contains("TransferStep"));
+        ship.transferStep = Ship.Step.PASTED;
+        assertEquals(Ship.Step.PASTED, Ship.load(ship.save(registries, true), registries).transferStep);
+        ship.transferStep = Ship.Step.CLEARED;
+        assertEquals(Ship.Step.CLEARED, Ship.load(ship.save(registries, true), registries).transferStep);
+        ship.phase = "launching"; assertFalse(ship.saveLaunched(registries).contains("TransferStep"));
+        ship.finishLaunch(); assertEquals(Ship.Step.STARTED, ship.transferStep);
+    }
     /** The journal of a phase not yet applied: one ship's record swapped or dropped, the rest as they are, and memory untouched. */
     @Test void aJournalCanCarryTheNextPhase() {
         CompoundTag a = ship(new BlockPos(256, 64, 0)), b = ship(new BlockPos(512, 64, 0));
@@ -171,7 +192,7 @@ class ShipSavedDataTest {
     /** The launched record written before memory changes is exactly what the ship saves once the launch is applied. */
     @Test void theLaunchedRecordMatchesTheAppliedLaunch() {
         Ship ship = Ship.load(redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, BlockPos.ZERO, new BlockPos(31, 1, 1)), registries);
-        ship.phase = "launching"; ship.transferHeld = true;
+        ship.phase = "launching"; ship.transferHeld = true; ship.transferStep = Ship.Step.CLEARED;
         CompoundTag chest = new CompoundTag(); chest.putString("id", "minecraft:chest"); ship.blockEntities.put(BlockPos.ZERO, chest);
         CompoundTag launched = ship.saveLaunched(registries);
         assertEquals("launching", ship.phase, "building the record changes nothing");

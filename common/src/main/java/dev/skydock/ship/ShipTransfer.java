@@ -29,7 +29,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.function.Function;
 
-/** Journal is flushed before either world is edited, and advanced only once both are saved. Interrupted transfers can be replayed. */
+/** Journal is flushed before either world is edited, marked after each side is saved, and advanced only once both are. Interrupted transfers can be replayed. */
 public final class ShipTransfer {
     private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
     public static boolean changing;
@@ -108,41 +108,62 @@ public final class ShipTransfer {
     static AABB berthBox(BlockPos origin, Rotation rotation, DockTier tier) {
         return AABB.encapsulatingFullBlocks(origin, DockFrame.toWorld(origin, rotation, new BlockPos(tier.width - 1, tier.height - 1, tier.length - 1)));
     }
-    /** One transfer phase: paste the hull where it goes, clear it where it was, write the next phase to the journal, then apply it in memory. */
-    interface Steps { void paste(); void clear(); void save(boolean pasted); void journal(); void apply(); }
+    /** One transfer phase: paste the hull where it goes, clear it where it was, mark each step in the journal once it is saved, write the next phase to the journal, then apply it in memory. */
+    interface Steps { void paste(); void clear(); void save(boolean pasted); void mark(Ship.Step step); void journal(); void apply(); }
     /**
-     * Ordering invariant: the journal never advances past a phase whose world writes are not durable. Each side is saved before the
-     * next step, and the journal is written before memory changes, so a crash anywhere replays the same phase, and a journal write
-     * that throws leaves the ship in its old phase, where the pause and retry path picks it up. Pasting and clearing are idempotent.
+     * Which copy of the hull a retry reads, chosen for the whole transfer from the journal's step marker, never cell by cell. The berth
+     * is the live copy whenever it holds the hull: a launch until its berth is cleared, a redock once it has pasted there. Otherwise the
+     * shipyard copy is: a launch's once the berth is cleared, a redock's until it has pasted. The other copy is either cleared (a
+     * dispenser may have put a block into a cleared berth cell; it is not hull) or an isolated paste that live hoppers, menus or the
+     * outside half of a double chest may have drained the berth copy past, so reading it would duplicate items. A cleared side is
+     * never read.
      */
-    static void run(Steps steps) { steps.paste(); steps.save(true); steps.clear(); steps.save(false); steps.journal(); steps.apply(); }
+    static boolean readsBerth(boolean launching, Ship.Step done) { return launching ? done != Ship.Step.CLEARED : done != Ship.Step.STARTED; }
+    /** Whether a phase still has to paste: not once its destination is the copy {@link #readsBerth} reads, since pasting that over itself changes nothing but its live states. */
+    static boolean pastes(boolean launching, Ship.Step done) { return readsBerth(launching, done) == launching; }
     /**
-     * Re-reads the block entities a retried transfer will paste, cell by cell. Between a pause and its retry the side being moved from
-     * stays live: hoppers and droppers keep moving items in and out of it, and a menu opened before the pause could take items. Pasting
-     * the snapshot taken before the pause would then hand back what already left, duplicating it, so a cell whose hull block still
-     * stands on that side is copied as it is now. A cell already cleared there was pasted on the other side first (paste precedes
-     * clear), and that copy has lived on since, so it is read from there. Only a cell standing on neither side keeps the journal copy.
-     * Run it before the journal write that precedes a retry, so a crash after the clear cannot replay the stale copy.
+     * Ordering invariant: the journal never advances past a step whose world writes are not durable. Each side is saved before its
+     * marker is written and before the next step, and the journal is written before memory changes, so a crash anywhere replays the
+     * phase from its last marker, and a journal write that throws leaves the ship in its old phase, where the pause and retry path picks
+     * it up. A replay skips the steps its marker says are done.
      */
-    static Map<BlockPos, CompoundTag> refreshed(Collection<BlockPos> cells, Map<BlockPos, CompoundTag> journal, Function<BlockPos, CompoundTag> from, Function<BlockPos, CompoundTag> to) {
+    static void run(Steps steps, boolean launching, Ship.Step done) {
+        if (pastes(launching, done)) { steps.paste(); steps.save(true); steps.mark(Ship.Step.PASTED); }
+        if (done != Ship.Step.CLEARED) { steps.clear(); steps.save(false); steps.mark(Ship.Step.CLEARED); }
+        steps.journal(); steps.apply();
+    }
+    /** Whether saved block-entity data is only its id and position, as a block entity whose stored data failed to load saves. */
+    static boolean bare(CompoundTag data) {
+        for (String key : data.getAllKeys()) if (!key.equals("id") && !key.equals("x") && !key.equals("y") && !key.equals("z")) return false;
+        return true;
+    }
+    /**
+     * Re-reads the block entities a retried transfer will paste, cell by cell, from the one copy {@link #readsBerth} picks: between a
+     * pause and its retry that copy stays live, and pasting the snapshot taken before the pause would hand back what already left it.
+     * A cell whose hull block no longer stands there keeps the journal copy, and so does one whose live block entity is bare (see
+     * {@link #bare}) while the journal copy has content: that is a default entity standing in for data that failed to load, typical
+     * of a healed quarantine, not an emptied one (an emptied container still saves its empty item list). Run it before the journal
+     * write that precedes a retry, so a crash after the clear cannot replay the stale copy.
+     */
+    static Map<BlockPos, CompoundTag> refreshed(Collection<BlockPos> cells, Map<BlockPos, CompoundTag> journal, Function<BlockPos, CompoundTag> live) {
         Map<BlockPos, CompoundTag> fresh = new HashMap<>();
         for (BlockPos p : cells) {
-            CompoundTag data = from.apply(p);
-            if (data == null) data = to.apply(p);
-            if (data == null) data = journal.get(p);
+            CompoundTag data = live.apply(p), kept = journal.get(p);
+            if (data == null || bare(data) && kept != null && !bare(kept)) data = kept;
             if (data != null) fresh.put(p, data);
         }
         return fresh;
     }
-    /** Applies {@link #refreshed} to a ship with an unfinished transfer, reading both sides of it from the live world. */
+    /** Applies {@link #refreshed} to a ship with an unfinished transfer, reading the copy of the hull its step marker names from the live world. */
     public static void resnapshot(MinecraftServer server, Ship ship) {
         boolean launching = ship.phase.equals("launching");
         ServerLevel yard = server.getLevel(ShipManager.SHIPYARD), berth = ship.transferDimension == null ? null : server.getLevel(ship.transferDimension);
         if (yard == null || berth == null || ship.transferOrigin == null || !launching && !ship.phase.equals("redocking")) return;
         Rotation rotation = DockFrame.rotation(ship.transferFacing);
-        Function<BlockPos, CompoundTag> atBerth = p -> standing(ship, berth, DockFrame.toWorld(ship.transferOrigin, rotation, p), p);
-        Function<BlockPos, CompoundTag> atYard = p -> standing(ship, yard, ship.yard.offset(p), p);
-        Map<BlockPos, CompoundTag> fresh = refreshed(ship.blocks.keySet(), ship.blockEntities, launching ? atBerth : atYard, launching ? atYard : atBerth);
+        Function<BlockPos, CompoundTag> live = readsBerth(launching, ship.transferStep)
+                ? p -> standing(ship, berth, DockFrame.toWorld(ship.transferOrigin, rotation, p), p)
+                : p -> standing(ship, yard, ship.yard.offset(p), p);
+        Map<BlockPos, CompoundTag> fresh = refreshed(ship.blocks.keySet(), ship.blockEntities, live);
         ship.blockEntities.clear(); ship.blockEntities.putAll(fresh);
     }
     /** The block entity at {@code at} if hull cell {@code p}'s block still stands there (its properties may have changed, as a furnace's do), else null. */
@@ -151,6 +172,15 @@ public final class ShipTransfer {
         if (expected.isAir() || !level.getBlockState(at).is(expected.getBlock())) return null;
         BlockEntity entity = level.getBlockEntity(at);
         return entity == null ? null : entity.saveWithFullMetadata(level.registryAccess());
+    }
+    /**
+     * Ends a redock in memory once its journal has dropped the ship. Nothing is pending after that, so a ticket release that throws is
+     * logged rather than passed on, where it would report a finished redock as paused.
+     */
+    static void finishRedock(Map<UUID, Ship> ships, Ship ship, Runnable releaseTickets) {
+        ships.remove(ship.id);
+        try { releaseTickets.run(); }
+        catch (RuntimeException e) { Skydock.LOGGER.error("Ship {} redocked, but its chunk tickets could not be released", ship.id, e); }
     }
     public static void complete(MinecraftServer server, Ship ship) {
         if (ship.phase.equals("active")) return;
@@ -170,13 +200,15 @@ public final class ShipTransfer {
                 public void paste() { if (launching) ShipTransfer.paste(ship, yard, ship.yard, Rotation.NONE); else ShipTransfer.paste(ship, destination, berthOrigin, berth); }
                 public void clear() { if (launching) ShipTransfer.clear(ship, destination, berthOrigin, berth); else ShipTransfer.clear(ship, yard, ship.yard, Rotation.NONE); }
                 public void save(boolean pasted) { if (pasted == launching) saveChunks(yard, yardChunks); else saveChunks(destination, berthChunks); }
+                // Memory takes the marker first: the step it names is already on disk, so a retry after a failed write still reads the right side.
+                public void mark(Ship.Step step) { ship.transferStep = step; flush(server); }
                 // The journal gets the next phase computed from the ship as it stands; memory changes only once that write is on disk.
                 public void journal() { flush(server, ship.id, launching ? ship.saveLaunched(server.registryAccess()) : null); }
                 public void apply() {
                     if (launching) ship.finishLaunch();
-                    else { ShipSavedData.get(server).ships.remove(ship.id); ShipManager.releaseTickets(server, ship); }
+                    else finishRedock(ShipSavedData.get(server).ships, ship, () -> ShipManager.releaseTickets(server, ship));
                 }
-            });
+            }, launching, ship.transferStep);
         } finally { changing = false; ShipManager.fleetChanged(); }
     }
     private static void clear(Ship ship, ServerLevel level, BlockPos origin, Rotation rotation) {

@@ -334,7 +334,7 @@ public final class ShipManager {
         if (region >= 1_000_000) { tell(player, "message.skydock.shipyard_full"); return; }
         ship.yard = ShipSavedData.yardOf(region);
         ShipTransfer.snapshot(ship, player.serverLevel(), origin, frame.rotation());
-        ship.phase = "launching"; ship.transferOrigin = origin; ship.transferFacing = frame.facing(); ship.transferDock = pos; ship.transferDimension = ship.dimension;
+        ship.phase = "launching"; ship.transferStep = Ship.Step.STARTED; ship.transferOrigin = origin; ship.transferFacing = frame.facing(); ship.transferDock = pos; ship.transferDimension = ship.dimension;
         data.ships.put(ship.id, ship);
         try {
             ShipTransfer.flush(server); forceTickets(server, ship); ShipTransfer.complete(server, ship); transferred(player, pos); ShipNetwork.resync(server);
@@ -380,7 +380,7 @@ public final class ShipManager {
         ShipPose old = ship.pose; ship.pose = berth;
         carry(world, ship, old);
         ship.velocity = Vec3.ZERO; ship.pilot = null; ship.seated.clear();
-        ship.phase = "redocking"; ship.transferOrigin = origin; ship.transferFacing = frame.facing(); ship.transferDock = pos; ship.transferDimension = world.dimension();
+        ship.phase = "redocking"; ship.transferStep = Ship.Step.STARTED; ship.transferOrigin = origin; ship.transferFacing = frame.facing(); ship.transferDock = pos; ship.transferDimension = world.dimension();
         fleetChanged();
         try {
             ShipTransfer.flush(player.getServer()); ShipTransfer.complete(player.getServer(), ship); transferred(player, pos); ShipNetwork.resync(player.getServer());
