@@ -41,6 +41,16 @@ class ShipTransferTest {
         assertThrows(java.io.UncheckedIOException.class, () -> ShipTransfer.run(recording(order, true)));
         assertEquals(List.of("paste", "save pasted", "clear", "save cleared", "journal"), order);
     }
+    /** The envelope box holds exactly the cells inBerth accepts, for every dock facing. */
+    @Test void theBerthBoxMatchesTheEnvelope() {
+        BlockPos origin = new BlockPos(8, 64, 8); var tier = dev.skydock.data.DockTier.SCOUT;
+        for (var rotation : net.minecraft.world.level.block.Rotation.values()) {
+            var box = ShipTransfer.berthBox(origin, rotation, tier);
+            assertEquals(tier.width * tier.height * tier.length, Math.round(box.getXsize() * box.getYsize() * box.getZsize()));
+            for (BlockPos p : List.of(origin, origin.offset(-40, 0, -40), origin.offset(40, 0, 40), origin.offset(-31, 19, 31), origin.offset(31, 19, -31), origin.offset(31, 19, 31), origin.offset(-31, 19, -31)))
+                assertEquals(ShipTransfer.inBerth(origin, rotation, tier, p), box.contains(net.minecraft.world.phys.Vec3.atCenterOf(p)), rotation + " " + p);
+        }
+    }
     /** A paused transfer guards the hull's envelope at its berth, turned with the dock. */
     @Test void theBerthEnvelopeFollowsTheDockRotation() {
         BlockPos origin = new BlockPos(8, 64, 8); var east = net.minecraft.world.level.block.Rotation.CLOCKWISE_90;

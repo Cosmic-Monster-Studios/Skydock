@@ -112,6 +112,36 @@ class ShipSavedDataTest {
         CompoundTag tag = new CompoundTag(); tag.put("Ships", ships);
         return ShipSavedData.load(tag, registries);
     }
+    private static net.minecraft.world.phys.AABB scoutBerth(BlockPos corner) { return new net.minecraft.world.phys.AABB(corner.getX(), corner.getY(), corner.getZ(), corner.getX() + 32, corner.getY() + 20, corner.getZ() + 32); }
+
+    /** A paused redock into another dock holds that dock and anything overlapping its berth, so no launch or assembly there can duplicate the hull. */
+    @Test void aPausedRedockHoldsItsTargetBerth() {
+        BlockPos target = new BlockPos(500, 70, 0), origin = new BlockPos(531, 71, 1);
+        ShipSavedData data = of(redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, target, origin));
+        assertFalse(data.reserves(Level.OVERWORLD, target, null), "it is not the ship's home berth");
+        assertTrue(data.transferHolds(Level.OVERWORLD, target, scoutBerth(new BlockPos(1000, 0, 1000))), "the target dock itself");
+        // Facing east, the envelope runs from the origin toward -X and +Z: x 500..531, z 1..32.
+        assertTrue(data.transferHolds(Level.OVERWORLD, new BlockPos(9, 9, 9), scoutBerth(new BlockPos(520, 80, 20))), "another dock whose berth overlaps it");
+        assertFalse(data.transferHolds(Level.OVERWORLD, new BlockPos(9, 9, 9), scoutBerth(new BlockPos(532, 71, 1))), "a berth beside it");
+        assertFalse(data.transferHolds(Level.NETHER, target, scoutBerth(new BlockPos(520, 80, 20))));
+        assertTrue(data.transferProtects(Level.OVERWORLD, origin.offset(-31, 19, 31)));
+        assertFalse(data.transferProtects(Level.OVERWORLD, origin.offset(1, 0, 0)));
+        assertFalse(of(ship(new BlockPos(256, 64, 0))).transferHolds(Level.OVERWORLD, BlockPos.ZERO, scoutBerth(BlockPos.ZERO)), "an active ship holds nothing as a transfer");
+    }
+    /** A record quarantined mid-transfer still guards and reserves its transfer berth; what cannot be read widens the guard. */
+    @Test void aQuarantinedTransferStillGuardsItsBerth() {
+        BlockPos target = new BlockPos(500, 70, 0), origin = new BlockPos(531, 71, 1);
+        CompoundTag corrupt = redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, target, origin); corrupt.putString("Tier", "NO_SUCH_TIER");
+        ShipSavedData data = of(corrupt);
+        assertTrue(data.ships.isEmpty());
+        assertTrue(data.transferHolds(Level.OVERWORLD, target, scoutBerth(new BlockPos(1000, 0, 1000))));
+        assertTrue(data.transferProtects(Level.OVERWORLD, origin.offset(-95, 47, 95)), "an unreadable tier guards the largest envelope");
+        corrupt.putString("TransferFacing", "sideways"); corrupt.putString("TransferDimension", "Not A Valid:Key!");
+        data = of(corrupt);
+        assertTrue(data.transferProtects(Level.NETHER, origin.offset(10, 0, 10)), "an unreadable facing guards every turn, an unreadable dimension every dimension");
+        assertFalse(ShipSavedData.midTransfer(ship(BlockPos.ZERO)));
+        assertNull(ShipSavedData.transferOf(ship(BlockPos.ZERO)));
+    }
     /** The journal of a phase not yet applied: one ship's record swapped or dropped, the rest as they are, and memory untouched. */
     @Test void aJournalCanCarryTheNextPhase() {
         CompoundTag a = ship(new BlockPos(256, 64, 0)), b = ship(new BlockPos(512, 64, 0));

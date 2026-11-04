@@ -9,7 +9,11 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.phys.AABB;
+import dev.skydock.data.DockFrame;
+import dev.skydock.data.DockTier;
 import java.util.*;
 
 public final class ShipSavedData extends SavedData {
@@ -34,6 +38,59 @@ public final class ShipSavedData extends SavedData {
     public boolean reserves(ResourceKey<Level> dimension, BlockPos dock, UUID except) {
         for (Ship ship : ships.values()) if (!ship.id.equals(except) && ship.dimension.equals(dimension) && dock.equals(ship.dock)) return true;
         for (CompoundTag saved : quarantined) { Berth berth = berthOf(saved); if (berth != null && berth.is(dimension, dock)) return true; }
+        return false;
+    }
+    /**
+     * The berth of a transfer that has not finished. A null dimension, a null origin (no envelope known), or several rotations stand
+     * for what a quarantined record could not tell; each widens what the transfer guards rather than narrowing it.
+     */
+    record Transfer(ResourceKey<Level> dimension, BlockPos dock, BlockPos origin, List<Rotation> rotations, DockTier tier) {
+        private boolean in(ResourceKey<Level> where) { return dimension == null || dimension.equals(where); }
+        /** Whether world {@code pos} lies in this transfer's berth envelope. */
+        boolean protects(ResourceKey<Level> where, BlockPos pos) {
+            if (!in(where) || origin == null) return false;
+            for (Rotation rotation : rotations) if (ShipTransfer.inBerth(origin, rotation, tier, pos)) return true;
+            return false;
+        }
+        /** Whether this transfer targets {@code dock} or its envelope overlaps that dock's berth {@code envelope}. */
+        boolean holds(ResourceKey<Level> where, BlockPos dock, AABB envelope) {
+            if (!in(where)) return false;
+            if (dock.equals(this.dock)) return true;
+            if (origin != null) for (Rotation rotation : rotations) if (ShipTransfer.berthBox(origin, rotation, tier).intersects(envelope)) return true;
+            return false;
+        }
+    }
+    /** Whether a raw record is in the middle of a transfer: it names a transfer berth, or its phase is anything but "active". */
+    static boolean midTransfer(CompoundTag saved) { return saved.contains("TransferOrigin", Tag.TAG_LONG) || !"active".equals(saved.getString("Phase")); }
+    /** Reads a raw record's unfinished transfer without trusting it: null when it is not mid-transfer or names no berth at all. */
+    static Transfer transferOf(CompoundTag saved) {
+        if (!midTransfer(saved)) return null;
+        BlockPos origin = saved.contains("TransferOrigin", Tag.TAG_LONG) ? BlockPos.of(saved.getLong("TransferOrigin")) : null;
+        BlockPos dock = saved.contains("TransferDock", Tag.TAG_LONG) ? BlockPos.of(saved.getLong("TransferDock")) : null;
+        if (origin == null && dock == null) return null;
+        ResourceLocation dimension = saved.contains("TransferDimension", Tag.TAG_STRING) ? ResourceLocation.tryParse(saved.getString("TransferDimension")) : null;
+        net.minecraft.core.Direction facing = net.minecraft.core.Direction.byName(saved.getString("TransferFacing"));
+        List<Rotation> rotations = facing == null || facing.getAxis().isVertical() ? List.of(Rotation.values()) : List.of(DockFrame.rotation(facing));
+        DockTier tier = DockTier.DREADNOUGHT;
+        try { tier = DockTier.valueOf(saved.getString("Tier")); } catch (IllegalArgumentException e) { /* the largest tier covers any hull */ }
+        return new Transfer(dimension == null ? null : ResourceKey.create(Registries.DIMENSION, dimension), dock, origin, rotations, tier);
+    }
+    /** Every transfer that has not finished: loaded ships out of the "active" phase, and quarantined records that were mid-transfer. */
+    List<Transfer> transfers() {
+        List<Transfer> transfers = new ArrayList<>();
+        for (Ship ship : ships.values()) if (!ship.phase.equals("active") && ship.transferOrigin != null)
+            transfers.add(new Transfer(ship.transferDimension, ship.transferDock, ship.transferOrigin, List.of(DockFrame.rotation(ship.transferFacing)), ship.tier));
+        for (CompoundTag saved : quarantined) { Transfer transfer = transferOf(saved); if (transfer != null) transfers.add(transfer); }
+        return transfers;
+    }
+    /** Whether an unfinished transfer targets {@code dock} in {@code dimension} or overlaps its berth {@code envelope}; a launch or assembly there would duplicate that hull. */
+    public boolean transferHolds(ResourceKey<Level> dimension, BlockPos dock, AABB envelope) {
+        for (Transfer transfer : transfers()) if (transfer.holds(dimension, dock, envelope)) return true;
+        return false;
+    }
+    /** Whether {@code pos} in {@code dimension} lies in the berth of an unfinished transfer. */
+    public boolean transferProtects(ResourceKey<Level> dimension, BlockPos pos) {
+        for (Transfer transfer : transfers()) if (transfer.protects(dimension, pos)) return true;
         return false;
     }
     /** The shipyard corner of region {@code region}: regions are 256-block squares, 1,000 to a row. */

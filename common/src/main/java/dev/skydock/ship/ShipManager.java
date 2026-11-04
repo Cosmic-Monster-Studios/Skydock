@@ -43,6 +43,11 @@ public final class ShipManager {
         if (level.isClientSide || level.getServer() == null) return false;
         return ShipSavedData.get(level.getServer()).reserves(level.dimension(), dock, null);
     }
+    /** Whether an unfinished transfer targets {@code dock} or overlaps its berth, so no new ship may be built or launched there. */
+    public static boolean transferPending(Level level, DockBlockEntity dock) {
+        if (level.isClientSide || level.getServer() == null) return false;
+        return ShipSavedData.get(level.getServer()).transferHolds(level.dimension(), dock.getBlockPos(), dock.frame().envelope());
+    }
     public static void start(MinecraftServer server) {
         ShipSavedData data = ShipSavedData.get(server); SERVERS.put(server, data); fleetChanged();
         for (Ship ship : List.copyOf(data.ships.values())) {
@@ -71,13 +76,10 @@ public final class ShipManager {
         }
         if (finished) ShipNetwork.resync(server);
     }
-    /** Whether {@code pos} is in the berth of a transfer that has not finished; like an assembly's cells, no one may break, place or use it until the transfer resumes. */
+    /** Whether {@code pos} is in the berth of a transfer that has not finished, quarantined records included; like an assembly's cells, no one may break, place or use it until the transfer resumes. */
     public static boolean transferProtects(ServerLevel level, BlockPos pos) {
-        ShipSavedData data = SERVERS.get(level.getServer()); if (data == null) return false;
-        for (Ship ship : data.ships.values())
-            if (!ship.phase.equals("active") && ship.transferOrigin != null && level.dimension().equals(ship.transferDimension)
-                    && ShipTransfer.inBerth(ship.transferOrigin, DockFrame.rotation(ship.transferFacing), ship.tier, pos)) return true;
-        return false;
+        ShipSavedData data = SERVERS.get(level.getServer());
+        return data != null && data.transferProtects(level.dimension(), pos);
     }
     public static void stop(MinecraftServer server) { SERVERS.remove(server); WORLD_TICKETS.clear(); BOARDING.clear(); JOINED.clear(); LAST_TRANSFER.clear(); fleetChanged(); ShipDamage.clear(); ShipInteractions.clear(); }
     /** Launch and redock each flush the journal and chunks to disk, so one berth cannot be cycled every tick. */
@@ -257,6 +259,7 @@ public final class ShipManager {
         if (settling(player, pos)) return;
         MinecraftServer server = player.getServer(); ShipSavedData data = ShipSavedData.get(server);
         if (data.reserves(player.level().dimension(), pos, null)) { tell(player, "message.skydock.berth_reserved_launched"); return; }
+        if (data.transferHolds(player.level().dimension(), pos, dock.frame().envelope())) { tell(player, "message.skydock.berth_transfer_pending"); return; }
         DockValidation result = DockValidation.scan(player.serverLevel(), dock);
         if (!result.valid()) { tell(player, result.summary()); return; }
         if (server.getLevel(SHIPYARD) == null) { tell(player, "message.skydock.shipyard_missing"); return; }
@@ -296,6 +299,7 @@ public final class ShipManager {
         if (dock.tier().ordinal() < ship.tier.ordinal()) { tell(player, "message.skydock.berth_too_small"); return; }
         ShipSavedData data = ShipSavedData.get(player.getServer());
         if (data.reserves(ship.dimension, pos, ship.id)) { tell(player, "message.skydock.berth_reserved_other"); return; }
+        if (data.transferHolds(ship.dimension, pos, dock.frame().envelope())) { tell(player, "message.skydock.berth_transfer_pending"); return; }
         // A smaller hull is centred in the berth's local frame, then the whole berth is turned to the dock's facing.
         DockFrame frame = dock.frame();
         BlockPos offset = new BlockPos((frame.tier().width - ship.tier.width) / 2, 0, (frame.tier().length - ship.tier.length) / 2);

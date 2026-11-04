@@ -20,6 +20,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.AABB;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
@@ -100,6 +101,10 @@ public final class ShipTransfer {
     static boolean inBerth(BlockPos origin, Rotation rotation, DockTier tier, BlockPos pos) {
         BlockPos local = pos.subtract(origin).rotate(DockFrame.inverse(rotation));
         return local.getX() >= 0 && local.getX() < tier.width && local.getY() >= 0 && local.getY() < tier.height && local.getZ() >= 0 && local.getZ() < tier.length;
+    }
+    /** The block box of that envelope, the same cells {@link #inBerth} accepts. */
+    static AABB berthBox(BlockPos origin, Rotation rotation, DockTier tier) {
+        return AABB.encapsulatingFullBlocks(origin, DockFrame.toWorld(origin, rotation, new BlockPos(tier.width - 1, tier.height - 1, tier.length - 1)));
     }
     /** One transfer phase: paste the hull where it goes, clear it where it was, write the next phase to the journal, then apply it in memory. */
     interface Steps { void paste(); void clear(); void save(boolean pasted); void journal(); void apply(); }

@@ -62,6 +62,8 @@ public final class AssemblyManager {
         if (pattern.tier() != dock.tier()) return new Check(false, "error.skydock.assembly_tier");
         if (dock.assemblyJob() == null && ShipManager.berthReserved(level, dock.getBlockPos()))
             return new Check(false, "error.skydock.assembly_reserved");
+        if (dock.assemblyJob() == null && ShipManager.transferPending(level, dock))
+            return new Check(false, "error.skydock.assembly_transfer_pending");
         List<ShipPattern.Block> cells = pattern.included(decorations);
         if (cells.size() > MassTable.cap(dock.tier())) return new Check(false, "error.skydock.assembly_limit");
         ShipPattern.Stats stats = pattern.stats(decorations);
