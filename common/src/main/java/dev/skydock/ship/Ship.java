@@ -70,11 +70,24 @@ public final class Ship {
     public Direction transferFacing = Direction.NORTH;
     /** The record key marking a transfer that was quarantined mid-way; see {@link #transferHeld}. */
     static final String HELD = "TransferHeld";
-    /** Persisted: this record was quarantined in the middle of a transfer, so it is never replayed automatically; {@code /skydock resume-transfer} releases it. */
+    /**
+     * Persisted: this transfer is never replayed automatically, because its record was quarantined mid-way or its retries kept failing
+     * (see {@link ShipManager#GIVE_UP}); {@code /skydock resume-transfer} releases it.
+     */
     public boolean transferHeld;
-    /** How far the current transfer phase got, as its journal records it: the destination saved ({@code PASTED}), then the source cleared and saved too ({@code CLEARED}). */
-    public enum Step { STARTED, PASTED, CLEARED }
-    /** Persisted with the transfer; each marker is written only once the step it names is on disk. */
+    /** The record key of {@link #transferQuarantined}. A held record without it is from before the key, when only a quarantine held. */
+    static final String QUARANTINED = "TransferQuarantined";
+    /** Persisted until the transfer finishes, released or not: this record was quarantined mid-way, so its live block entities may be defaults standing in for data that failed to load. */
+    public boolean transferQuarantined;
+    /** Transient: failed retries of the current transfer in a row; see {@link ShipManager#failedRetry}. */
+    public int transferFailures;
+    /**
+     * How far the current transfer phase got. {@code PASTING} and {@code CLEARING} are set in memory as each step begins and reach the
+     * journal with its next write, so a step cut short is known to have begun; {@code PASTED} and {@code CLEARED} are written once that
+     * side is saved.
+     */
+    public enum Step { STARTED, PASTING, PASTED, CLEARING, CLEARED }
+    /** Persisted with the transfer; a done marker is written only once the step it names is on disk. */
     public Step transferStep = Step.STARTED;
     public final Map<UUID, BlockPos> seated = new HashMap<>();
 
@@ -216,6 +229,7 @@ public final class Ship {
             if (transferStep != Step.STARTED) tag.putString("TransferStep", transferStep.name().toLowerCase(Locale.ROOT));
         }
         if (transferHeld) tag.putBoolean(HELD, true);
+        if (transferHeld || transferQuarantined) tag.putBoolean(QUARANTINED, transferQuarantined);
         if (pilot != null) tag.putUUID("Pilot", pilot);
         if (pilot != null && pilotAnchor != null) {
             tag.putDouble("AnchorX", pilotAnchor.x); tag.putDouble("AnchorY", pilotAnchor.y); tag.putDouble("AnchorZ", pilotAnchor.z);
@@ -233,11 +247,11 @@ public final class Ship {
     CompoundTag saveLaunched(HolderLookup.Provider registries) {
         CompoundTag tag = save(registries, true);
         tag.putString("Phase", "active"); tag.put("BlockData", new ListTag());
-        for (String key : new String[] {"TransferOrigin", "TransferDock", "TransferDimension", "TransferFacing", "TransferStep", HELD}) tag.remove(key);
+        for (String key : new String[] {"TransferOrigin", "TransferDock", "TransferDimension", "TransferFacing", "TransferStep", HELD, QUARANTINED}) tag.remove(key);
         return tag;
     }
     /** Ends a launch in memory. The yard now holds the real block entities; keeping the journal copy would bloat every save. */
-    void finishLaunch() { phase = "active"; transferOrigin = null; transferStep = Step.STARTED; transferHeld = false; blockEntities.clear(); }
+    void finishLaunch() { phase = "active"; transferOrigin = null; transferStep = Step.STARTED; transferHeld = transferQuarantined = false; transferFailures = 0; blockEntities.clear(); }
 
     /** One state compound per distinct state instead of per block keeps saves of large hulls small. */
     private static void writeStates(CompoundTag tag, String paletteKey, String positionKey, String stateKey, Map<BlockPos, BlockState> map) {
@@ -298,6 +312,7 @@ public final class Ship {
             ship.transferStep = step(tag.getString("TransferStep"));
         }
         ship.transferHeld = tag.getBoolean(HELD) && !ship.phase.equals("active");
+        ship.transferQuarantined = (tag.contains(QUARANTINED) ? tag.getBoolean(QUARANTINED) : tag.getBoolean(HELD)) && !ship.phase.equals("active");
         if (tag.hasUUID("Pilot")) ship.pilot = tag.getUUID("Pilot");
         if (tag.contains("AnchorX")) ship.pilotAnchor = new Vec3(tag.getDouble("AnchorX"), tag.getDouble("AnchorY"), tag.getDouble("AnchorZ"));
         var lookup = registries.lookupOrThrow(Registries.BLOCK);

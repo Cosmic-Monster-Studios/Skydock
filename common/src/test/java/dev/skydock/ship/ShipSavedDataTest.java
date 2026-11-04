@@ -157,6 +157,26 @@ class ShipSavedDataTest {
         CompoundTag active = ship(BlockPos.ZERO); active.putBoolean(Ship.HELD, true);
         assertFalse(of(active).ships.values().iterator().next().transferHeld, "an active record has nothing to hold");
     }
+    /** A quarantined record stays marked quarantined once released, so every replay of that transfer keeps journal contents over bare live data; a retry hold never is. */
+    @Test void aReleasedQuarantinedTransferStaysQuarantined() {
+        CompoundTag record = redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, new BlockPos(500, 70, 0), new BlockPos(531, 71, 1));
+        CompoundTag corrupt = record.copy(); corrupt.putString("Tier", "NO_SUCH_TIER");
+        CompoundTag kept = of(corrupt).save(new CompoundTag(), registries).getList("Ships", Tag.TAG_COMPOUND).getCompound(0);
+        kept.putString("Tier", "SCOUT");
+        Ship ship = of(kept).ships.get(record.getUUID("Id"));
+        assertTrue(ship.transferQuarantined);
+        ship.transferHeld = false;
+        Ship released = Ship.load(ship.save(registries, true), registries);
+        assertFalse(released.transferHeld); assertTrue(released.transferQuarantined, "released, it is still a quarantined record");
+        CompoundTag legacy = record.copy(); legacy.putBoolean(Ship.HELD, true);
+        assertTrue(Ship.load(legacy, registries).transferQuarantined, "a hold from before the marker was a quarantine");
+        Ship stuck = Ship.load(record, registries); stuck.transferHeld = true;
+        Ship reloaded = Ship.load(stuck.save(registries, true), registries);
+        assertTrue(reloaded.transferHeld); assertFalse(reloaded.transferQuarantined, "a transfer held after failed retries was never quarantined");
+        assertFalse(Ship.load(record, registries).transferQuarantined);
+        released.phase = "launching"; assertFalse(released.saveLaunched(registries).contains(Ship.QUARANTINED));
+        released.finishLaunch(); assertFalse(released.transferQuarantined);
+    }
     /** A record quarantined mid-transfer marks the data dirty, so its held marker is written; an active one written back as it was does not. */
     @Test void aQuarantinedTransferIsSavedWithItsHold() {
         CompoundTag corrupt = redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, new BlockPos(500, 70, 0), new BlockPos(531, 71, 1)); corrupt.putString("Tier", "NO_SUCH_TIER");
@@ -173,8 +193,7 @@ class ShipSavedDataTest {
         assertFalse(ship.save(registries, true).contains("TransferStep"));
         ship.transferStep = Ship.Step.PASTED;
         assertEquals(Ship.Step.PASTED, Ship.load(ship.save(registries, true), registries).transferStep);
-        ship.transferStep = Ship.Step.CLEARED;
-        assertEquals(Ship.Step.CLEARED, Ship.load(ship.save(registries, true), registries).transferStep);
+        for (Ship.Step step : Ship.Step.values()) { ship.transferStep = step; assertEquals(step, Ship.load(ship.save(registries, true), registries).transferStep); }
         ship.phase = "launching"; assertFalse(ship.saveLaunched(registries).contains("TransferStep"));
         ship.finishLaunch(); assertEquals(Ship.Step.STARTED, ship.transferStep);
     }
@@ -192,7 +211,7 @@ class ShipSavedDataTest {
     /** The launched record written before memory changes is exactly what the ship saves once the launch is applied. */
     @Test void theLaunchedRecordMatchesTheAppliedLaunch() {
         Ship ship = Ship.load(redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, BlockPos.ZERO, new BlockPos(31, 1, 1)), registries);
-        ship.phase = "launching"; ship.transferHeld = true; ship.transferStep = Ship.Step.CLEARED;
+        ship.phase = "launching"; ship.transferHeld = true; ship.transferQuarantined = true; ship.transferStep = Ship.Step.CLEARED; ship.transferFailures = 4;
         CompoundTag chest = new CompoundTag(); chest.putString("id", "minecraft:chest"); ship.blockEntities.put(BlockPos.ZERO, chest);
         CompoundTag launched = ship.saveLaunched(registries);
         assertEquals("launching", ship.phase, "building the record changes nothing");

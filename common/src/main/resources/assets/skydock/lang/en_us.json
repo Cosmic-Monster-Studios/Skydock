@@ -69,6 +69,7 @@
   "message.skydock.resume_transfer_paused": "Released the transfer of ship %s, but it paused again; it now retries on its own. See the server log.",
   "message.skydock.resume_transfer_done": "The held transfer of ship %s finished.",
   "message.skydock.transfer_paused": "Transfer paused; it will resume automatically.",
+  "message.skydock.transfer_held": "The transfer of ship %1$s failed %2$s retries in a row and is now held. Check the server log, fix the cause, then run /skydock resume-transfer %1$s.",
   "message.skydock.cancel_before_redock": "Cancel or finish the active assembly before redocking.",
   "message.skydock.no_owned_ship": "No owned ship is available in this dimension.",
   "message.skydock.berth_too_small": "The berth must be the same tier or larger.",

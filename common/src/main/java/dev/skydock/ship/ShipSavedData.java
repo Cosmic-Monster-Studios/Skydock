@@ -122,10 +122,11 @@ public final class ShipSavedData extends SavedData {
     /**
      * The record kept for a ship that failed to load. One caught mid-transfer is marked held: while it was out of the world its berth or
      * yard may have moved on, so if it loads again later it must wait for an operator instead of being replayed from a stale journal.
+     * It is marked quarantined as well, which outlasts the release (see {@link Ship#transferQuarantined}).
      */
     static CompoundTag quarantine(CompoundTag saved) {
         CompoundTag kept = saved.copy();
-        if (midTransfer(saved)) kept.putBoolean(Ship.HELD, true);
+        if (midTransfer(saved)) { kept.putBoolean(Ship.HELD, true); kept.putBoolean(Ship.QUARANTINED, true); }
         return kept;
     }
     @Override public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) { return save(tag, registries, null, null); }
