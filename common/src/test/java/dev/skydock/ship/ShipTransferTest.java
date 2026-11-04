@@ -3,6 +3,7 @@ package dev.skydock.ship;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import org.junit.jupiter.api.Test;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,5 +19,16 @@ class ShipTransferTest {
         // Clockwise 90: local (x, z) lands at (-z, x) from the origin.
         assertEquals(Set.of(new ChunkPos(0,0), new ChunkPos(0,1), new ChunkPos(-1,0)),
                 ShipTransfer.chunksOf(cells, new BlockPos(8, 64, 8), net.minecraft.world.level.block.Rotation.CLOCKWISE_90));
+    }
+    /** A crash between any two steps must replay safely, so the journal advances only after both worlds' writes are on disk. */
+    @Test void aPhaseAdvancesTheJournalOnlyAfterBothWorldsAreSaved() {
+        List<String> order = new ArrayList<>();
+        ShipTransfer.run(new ShipTransfer.Steps() {
+            public void paste() { order.add("paste"); }
+            public void clear() { order.add("clear"); }
+            public void save(boolean pasted) { order.add(pasted ? "save pasted" : "save cleared"); }
+            public void advance() { order.add("journal"); }
+        });
+        assertEquals(List.of("paste", "save pasted", "clear", "save cleared", "journal"), order);
     }
 }

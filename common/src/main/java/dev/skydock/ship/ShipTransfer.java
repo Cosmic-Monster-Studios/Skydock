@@ -24,7 +24,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.util.*;
 
-/** Journal is flushed before either world is edited. Interrupted transfers can be replayed. */
+/** Journal is flushed before either world is edited, and advanced only once both are saved. Interrupted transfers can be replayed. */
 public final class ShipTransfer {
     private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
     public static boolean changing;
@@ -73,9 +73,8 @@ public final class ShipTransfer {
         try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
         catch (AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
     }
-    /** Writes the journal, then the given chunks of a level a phase edited, and waits for those writes before the next phase begins. */
-    public static void flush(MinecraftServer server, ServerLevel level, Set<ChunkPos> chunks) {
-        flush(server);
+    /** Queues the given chunks of a level a phase edited and waits until region storage has written them. */
+    static void saveChunks(ServerLevel level, Set<ChunkPos> chunks) {
         ServerChunkCache cache = level.getChunkSource();
         for (ChunkPos pos : chunks) {
             ChunkAccess chunk = cache.getChunkNow(pos.x, pos.z);
@@ -83,33 +82,40 @@ public final class ShipTransfer {
         }
         cache.chunkMap.flushWorker();
     }
+    /** One transfer phase: paste the hull where it goes, clear it where it was, then advance the journal. */
+    interface Steps { void paste(); void clear(); void save(boolean pasted); void advance(); }
+    /**
+     * Ordering invariant: the journal never advances past a phase whose world writes are not durable. Each side is saved before the
+     * next step, and the journal is written last, so a crash anywhere replays the same phase, and pasting and clearing are idempotent.
+     */
+    static void run(Steps steps) { steps.paste(); steps.save(true); steps.clear(); steps.save(false); steps.advance(); }
     public static void complete(MinecraftServer server, Ship ship) {
         if (ship.phase.equals("active")) return;
+        boolean launching = ship.phase.equals("launching");
+        if (!launching && !ship.phase.equals("redocking")) throw new IllegalStateException("Unknown transfer phase " + ship.phase);
         ServerLevel yard = server.getLevel(ShipManager.SHIPYARD);
         ServerLevel destination = server.getLevel(ship.transferDimension);
         if (yard == null || destination == null) throw new IllegalStateException("Transfer dimension missing; journal retained");
         ShipManager.wake(server, ship);
         Rotation berth = DockFrame.rotation(ship.transferFacing);
         Set<ChunkPos> yardChunks = chunksOf(ship.blocks.keySet(), ship.yard), berthChunks = chunksOf(ship.blocks.keySet(), ship.transferOrigin, berth);
+        BlockPos berthOrigin = ship.transferOrigin;
         changing = true;
         try {
-            if (ship.phase.equals("launching")) {
-                paste(ship, yard, ship.yard, Rotation.NONE);
-                flush(server, yard, yardChunks);
-                clear(ship, destination, ship.transferOrigin, berth);
-                ship.phase = "active";
-                ship.transferOrigin = null;
-                // The yard now holds the real block entities; keeping the journal copy would bloat every save.
-                ship.blockEntities.clear();
-                flush(server, destination, berthChunks);
-            } else if (ship.phase.equals("redocking")) {
-                paste(ship, destination, ship.transferOrigin, berth);
-                flush(server, destination, berthChunks);
-                clear(ship, yard, ship.yard, Rotation.NONE);
-                ShipSavedData.get(server).ships.remove(ship.id);
-                ShipManager.releaseTickets(server, ship);
-                flush(server, yard, yardChunks);
-            } else throw new IllegalStateException("Unknown transfer phase " + ship.phase);
+            // Launching pastes into the yard and clears the berth; redocking does the reverse.
+            run(new Steps() {
+                public void paste() { if (launching) ShipTransfer.paste(ship, yard, ship.yard, Rotation.NONE); else ShipTransfer.paste(ship, destination, berthOrigin, berth); }
+                public void clear() { if (launching) ShipTransfer.clear(ship, destination, berthOrigin, berth); else ShipTransfer.clear(ship, yard, ship.yard, Rotation.NONE); }
+                public void save(boolean pasted) { if (pasted == launching) saveChunks(yard, yardChunks); else saveChunks(destination, berthChunks); }
+                public void advance() {
+                    if (launching) {
+                        ship.phase = "active"; ship.transferOrigin = null;
+                        // The yard now holds the real block entities; keeping the journal copy would bloat every save.
+                        ship.blockEntities.clear();
+                    } else { ShipSavedData.get(server).ships.remove(ship.id); ShipManager.releaseTickets(server, ship); }
+                    flush(server);
+                }
+            });
         } finally { changing = false; ShipManager.fleetChanged(); }
     }
     private static void clear(Ship ship, ServerLevel level, BlockPos origin, Rotation rotation) {
