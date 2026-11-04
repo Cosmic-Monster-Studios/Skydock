@@ -112,6 +112,8 @@ public final class PodEntity extends Entity {
     @Override public boolean hurt(DamageSource source, float amount) { return false; }
     @Override public void checkDespawn() {}
     @Override public boolean shouldBeSaved() { return !isRemoved(); }
+    /** The balloon rides about four blocks above the pod, so culling has to keep the pod drawn while only the balloon is in view. */
+    @Override public net.minecraft.world.phys.AABB getBoundingBoxForCulling() { var box = getBoundingBox(); return box.setMaxY(Math.max(box.maxY, box.minY + 4)).inflate(.25, 0, .25); }
     @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < 256 * 256; }
 
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(OPEN, false); }

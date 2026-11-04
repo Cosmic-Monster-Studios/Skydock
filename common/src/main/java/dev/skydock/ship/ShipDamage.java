@@ -83,12 +83,15 @@ public final class ShipDamage {
         Vec3 center = pose.toWorld(hull.getCenter());
         world.playSound(null, center.x, center.y, center.z, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.BLOCKS,
                 (float) Math.min(2, .4 + (speed - rules.minSpeed()) * .15), .7f + world.random.nextFloat() * .2f);
-        int broken = damageHull(server, world, ship, pose, contacts, speed - rules.minSpeed(), velocity, rules);
+        boolean[] ejected = {false};
+        int broken = damageHull(server, world, ship, pose, contacts, speed - rules.minSpeed(), velocity, rules, ejected);
         if (rules.damageOtherShips()) for (Ship other : struck) {
             double relative = (velocity.subtract(other.velocity).length() + Math.abs(Math.toRadians(turn)) * radius) * 20;
             ShipManager.wake(server, other);
-            damageHull(server, world, other, other.pose, cellsTouching(other, ship, pose), relative - rules.minSpeed(), velocity.reverse(), rules);
+            damageHull(server, world, other, other.pose, cellsTouching(other, ship, pose), relative - rules.minSpeed(), velocity.reverse(), rules, ejected);
         }
+        // An ejected pod's cell must stop colliding on clients now, not at the next periodic hull sync.
+        if (ejected[0]) dev.skydock.network.ShipNetwork.syncPlayers(server);
         ServerPlayer pilot = ship.pilot == null ? null : server.getPlayerList().getPlayer(ship.pilot);
         if (pilot != null && broken > 0)
             pilot.displayClientMessage(broken == 1 ? Component.translatable("message.skydock.hull_breached_one") : Component.translatable("message.skydock.hull_breached", broken), true);
@@ -106,7 +109,7 @@ public final class ShipDamage {
     }
 
     private static int damageHull(MinecraftServer server, ServerLevel world, Ship ship, ShipPose pose, List<BlockPos> contacts,
-                                  double excessSpeed, Vec3 direction, CollisionRules rules) {
+                                  double excessSpeed, Vec3 direction, CollisionRules rules, boolean[] ejected) {
         int budget = budget(rules, excessSpeed, ship.mass);
         ServerLevel yard = server.getLevel(ShipManager.SHIPYARD);
         if (budget == 0 || yard == null || contacts.isEmpty()) return 0;
@@ -124,7 +127,7 @@ public final class ShipDamage {
             BlockPos at = ship.yard.offset(cell);
             if (!breaks(rules, excessSpeed, state.getDestroySpeed(yard, at))) continue;
             // A pod is thrown clear under its balloon instead of breaking.
-            if (state.is(SkydockBlocks.CARGO_POD.get())) { dev.skydock.cargo.PodEntity.eject(world, yard, ship, pose, cell, direction); broken++; continue; }
+            if (state.is(SkydockBlocks.CARGO_POD.get())) { dev.skydock.cargo.PodEntity.eject(world, yard, ship, pose, cell, direction); ejected[0] = true; broken++; continue; }
             shatter(world, yard, ship, pose, cell, state);
             broken++;
         }
