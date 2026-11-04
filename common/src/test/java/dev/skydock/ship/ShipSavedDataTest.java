@@ -9,6 +9,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -62,5 +63,42 @@ class ShipSavedDataTest {
     @Test void regionsMatchTheYardLayout() {
         for (int region : new int[] {0, 1, 999, 1000, 123_456, 999_999})
             assertEquals(region, ShipSavedData.regionOf(new BlockPos((region % 1000) * 256, 64, (region / 1000) * 256)));
+    }
+
+    /** A quarantined record keeps its dock's berth: no new ship launches there and no other ship redocks into it. */
+    @Test void aQuarantinedShipStillReservesItsBerth() {
+        BlockPos dock = new BlockPos(40, 70, -12);
+        CompoundTag corrupt = ship(new BlockPos(256, 64, 0)); corrupt.putLong("Dock", dock.asLong()); corrupt.putString("Tier", "NO_SUCH_TIER");
+        ListTag ships = new ListTag(); ships.add(corrupt);
+        CompoundTag tag = new CompoundTag(); tag.put("Ships", ships);
+        ShipSavedData data = ShipSavedData.load(tag, registries);
+        assertTrue(data.ships.isEmpty());
+        assertTrue(data.reserves(Level.OVERWORLD, dock, null));
+        assertTrue(data.reserves(Level.OVERWORLD, dock, java.util.UUID.randomUUID()), "a redocking ship cannot take it either");
+        assertFalse(data.reserves(Level.NETHER, dock, null));
+        assertFalse(data.reserves(Level.OVERWORLD, dock.east(), null));
+    }
+    @Test void aLoadedShipReservesItsBerthExceptFromItself() {
+        CompoundTag good = ship(new BlockPos(256, 64, 0));
+        ListTag ships = new ListTag(); ships.add(good);
+        CompoundTag tag = new CompoundTag(); tag.put("Ships", ships);
+        ShipSavedData data = ShipSavedData.load(tag, registries);
+        assertTrue(data.reserves(Level.OVERWORLD, BlockPos.ZERO, null));
+        assertFalse(data.reserves(Level.OVERWORLD, BlockPos.ZERO, good.getUUID("Id")), "a ship redocking into its own berth");
+    }
+    @Test void aRawRecordsBerthIsReadDefensively() {
+        CompoundTag raw = new CompoundTag();
+        assertNull(ShipSavedData.berthOf(raw), "no dock, no reservation");
+        raw.putString("Dock", "not a number");
+        assertNull(ShipSavedData.berthOf(raw));
+        raw.putLong("Dock", new BlockPos(1, 2, 3).asLong());
+        ShipSavedData.Berth anywhere = ShipSavedData.berthOf(raw);
+        assertTrue(anywhere.is(Level.OVERWORLD, new BlockPos(1, 2, 3)) && anywhere.is(Level.NETHER, new BlockPos(1, 2, 3)), "an unreadable dimension reserves the spot everywhere");
+        raw.putString("Dimension", "Not A Valid:Key!");
+        assertTrue(ShipSavedData.berthOf(raw).is(Level.END, new BlockPos(1, 2, 3)));
+        raw.putString("Dimension", "minecraft:the_nether");
+        ShipSavedData.Berth nether = ShipSavedData.berthOf(raw);
+        assertTrue(nether.is(Level.NETHER, new BlockPos(1, 2, 3)));
+        assertFalse(nether.is(Level.OVERWORLD, new BlockPos(1, 2, 3)));
     }
 }

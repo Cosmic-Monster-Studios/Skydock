@@ -126,4 +126,16 @@ class ShipPersistenceFuzzTest {
         });
         assertTrue(loaded[0] > 300, "most damaged tags still load: " + loaded[0]);
     }
+
+    /** A quarantined record's berth is read from any damaged tag without throwing, and an intact Dock and Dimension are read as saved. */
+    @Test void aDamagedRecordsBerthIsReadWithoutThrowing() {
+        Fuzz.check("Ship berth of corrupted record", 3000, (r, log) -> {
+            Ship s = ship(r, true); CompoundTag bad = NbtFuzz.corrupt(r, s.save(registries, true), Fuzz.pick(r, .02, .1, .3, .9), log);
+            ShipSavedData.Berth berth = ShipSavedData.berthOf(bad);
+            if (bad.contains("Dock", net.minecraft.nbt.Tag.TAG_LONG)) {
+                assertNotNull(berth); assertEquals(BlockPos.of(bad.getLong("Dock")), berth.dock());
+                if (bad.getString("Dimension").equals(s.dimension.location().toString())) assertTrue(berth.is(s.dimension, berth.dock()));
+            } else assertNull(berth);
+        });
+    }
 }

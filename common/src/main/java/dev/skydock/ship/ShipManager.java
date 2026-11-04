@@ -41,8 +41,7 @@ public final class ShipManager {
     public static Ship get(MinecraftServer server, UUID id) { return ShipSavedData.get(server).ships.get(id); }
     public static boolean berthReserved(Level level, BlockPos dock) {
         if (level.isClientSide || level.getServer() == null) return false;
-        return ShipSavedData.get(level.getServer()).ships.values().stream()
-                .anyMatch(ship -> ship.dimension.equals(level.dimension()) && ship.dock.equals(dock));
+        return ShipSavedData.get(level.getServer()).reserves(level.dimension(), dock, null);
     }
     public static void start(MinecraftServer server) {
         ShipSavedData data = ShipSavedData.get(server); SERVERS.put(server, data); fleetChanged();
@@ -257,7 +256,7 @@ public final class ShipManager {
         if (dock.assemblyJob() != null) { tell(player, "message.skydock.wait_assembly"); return; }
         if (settling(player, pos)) return;
         MinecraftServer server = player.getServer(); ShipSavedData data = ShipSavedData.get(server);
-        if (data.ships.values().stream().anyMatch(s -> s.dimension.equals(player.level().dimension()) && s.dock.equals(pos))) { tell(player, "message.skydock.berth_reserved_launched"); return; }
+        if (data.reserves(player.level().dimension(), pos, null)) { tell(player, "message.skydock.berth_reserved_launched"); return; }
         DockValidation result = DockValidation.scan(player.serverLevel(), dock);
         if (!result.valid()) { tell(player, result.summary()); return; }
         if (server.getLevel(SHIPYARD) == null) { tell(player, "message.skydock.shipyard_missing"); return; }
@@ -296,7 +295,7 @@ public final class ShipManager {
         wake(player.getServer(), ship);
         if (dock.tier().ordinal() < ship.tier.ordinal()) { tell(player, "message.skydock.berth_too_small"); return; }
         ShipSavedData data = ShipSavedData.get(player.getServer());
-        if (data.ships.values().stream().anyMatch(s -> !s.id.equals(ship.id) && s.dimension.equals(ship.dimension) && s.dock.equals(pos))) { tell(player, "message.skydock.berth_reserved_other"); return; }
+        if (data.reserves(ship.dimension, pos, ship.id)) { tell(player, "message.skydock.berth_reserved_other"); return; }
         // A smaller hull is centred in the berth's local frame, then the whole berth is turned to the dock's facing.
         DockFrame frame = dock.frame();
         BlockPos offset = new BlockPos((frame.tier().width - ship.tier.width) / 2, 0, (frame.tier().length - ship.tier.length) / 2);

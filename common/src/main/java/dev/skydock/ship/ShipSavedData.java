@@ -3,8 +3,12 @@ package dev.skydock.ship;
 import dev.skydock.Skydock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.*;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 import java.util.*;
 
@@ -15,6 +19,22 @@ public final class ShipSavedData extends SavedData {
     public int nextRegion;
     public static ShipSavedData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(ShipSavedData::new, ShipSavedData::load, null), "skydock_ships");
+    }
+    /** The berth a quarantined record was launched from; a null dimension (unreadable) stands for every dimension. */
+    record Berth(ResourceKey<Level> dimension, BlockPos dock) {
+        boolean is(ResourceKey<Level> where, BlockPos at) { return (dimension == null || dimension.equals(where)) && dock.equals(at); }
+    }
+    /** Reads a raw ship record's berth without trusting it: null when it names no dock. */
+    static Berth berthOf(CompoundTag saved) {
+        if (!saved.contains("Dock", Tag.TAG_LONG)) return null;
+        ResourceLocation dimension = saved.contains("Dimension", Tag.TAG_STRING) ? ResourceLocation.tryParse(saved.getString("Dimension")) : null;
+        return new Berth(dimension == null ? null : ResourceKey.create(Registries.DIMENSION, dimension), BlockPos.of(saved.getLong("Dock")));
+    }
+    /** Whether the berth of {@code dock} in {@code dimension} is held by a ship other than {@code except}, or by a quarantined record, which keeps it until an operator restores the ship. */
+    public boolean reserves(ResourceKey<Level> dimension, BlockPos dock, UUID except) {
+        for (Ship ship : ships.values()) if (!ship.id.equals(except) && ship.dimension.equals(dimension) && dock.equals(ship.dock)) return true;
+        for (CompoundTag saved : quarantined) { Berth berth = berthOf(saved); if (berth != null && berth.is(dimension, dock)) return true; }
+        return false;
     }
     /** The shipyard corner of region {@code region}: regions are 256-block squares, 1,000 to a row. */
     static BlockPos yardOf(int region) { return new BlockPos((region % 1000) * 256, 64, (region / 1000) * 256); }
