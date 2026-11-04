@@ -43,8 +43,8 @@ public final class TerminalSites {
         Optional<Holder.Reference<Structure>> structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE).getHolder(STRUCTURE);
         if (set.isPresent() && structure.isPresent() && set.get().value().placement() instanceof RandomSpreadStructurePlacement placement) {
             boolean added = false;
-            for (ChunkPos chunk : predicted(level, placement, from, max)) {
-                BlockPos centre = new BlockPos(chunk.getMiddleBlockX(), level.getSeaLevel(), chunk.getMiddleBlockZ());
+            for (ChunkPos chunk : predicted(level, placement, from, min, max)) {
+                BlockPos centre = middle(chunk, level.getSeaLevel());
                 GlobalPos pos = GlobalPos.of(level.dimension(), centre);
                 if (found.containsKey(pos) || data.terminals.containsKey(pos) || !inBand(from, centre, min, max) || shadowed(data.terminals.values(), pos)) continue;
                 if (level.structureManager().checkStructurePresence(chunk, structure.get().value(), placement, false) == StructureCheckResult.START_NOT_PRESENT) continue;
@@ -56,19 +56,30 @@ public final class TerminalSites {
         return new ArrayList<>(found.keySet());
     }
 
-    private static List<ChunkPos> predicted(ServerLevel level, RandomSpreadStructurePlacement placement, BlockPos from, int max) {
-        long seed = level.getChunkSource().getGeneratorState().getLevelSeed();
-        int spacing = placement.spacing();
-        int minRx = Math.floorDiv((from.getX() - max) >> 4, spacing), maxRx = Math.floorDiv((from.getX() + max) >> 4, spacing);
-        int minRz = Math.floorDiv((from.getZ() - max) >> 4, spacing), maxRz = Math.floorDiv((from.getZ() + max) >> 4, spacing);
-        List<ChunkPos> out = new ArrayList<>(); int regions = 0;
+    private static List<ChunkPos> predicted(ServerLevel level, RandomSpreadStructurePlacement placement, BlockPos from, int min, int max) {
+        return candidateChunks(level.getChunkSource().getGeneratorState().getLevelSeed(), placement, from, min, max);
+    }
+
+    /**
+     * The chunk each placement region would start an outpost in, for the regions reaching {@code max} blocks of {@code from}, kept when its middle is within {@code [min, max]} horizontally; nearest first.
+     * {@link RandomSpreadStructurePlacement#getPotentialStructureChunk} takes the coordinates of any chunk in a region, as vanilla's locate passes them, not the region's index.
+     * At most {@link #MAX_REGIONS} regions are walked, in a square around the region holding {@code from}, so a cap keeps the closest sites.
+     */
+    static List<ChunkPos> candidateChunks(long seed, RandomSpreadStructurePlacement placement, BlockPos from, int min, int max) {
+        int spacing = placement.spacing(), reach = ((int) Math.sqrt(MAX_REGIONS) - 1) / 2;
+        int cx = Math.floorDiv(from.getX() >> 4, spacing), cz = Math.floorDiv(from.getZ() >> 4, spacing);
+        int minRx = Math.max(cx - reach, Math.floorDiv((from.getX() - max) >> 4, spacing)), maxRx = Math.min(cx + reach, Math.floorDiv((from.getX() + max) >> 4, spacing));
+        int minRz = Math.max(cz - reach, Math.floorDiv((from.getZ() - max) >> 4, spacing)), maxRz = Math.min(cz + reach, Math.floorDiv((from.getZ() + max) >> 4, spacing));
+        List<ChunkPos> out = new ArrayList<>();
         for (int rx = minRx; rx <= maxRx; rx++)
             for (int rz = minRz; rz <= maxRz; rz++) {
-                if (++regions > MAX_REGIONS) return out;
-                out.add(placement.getPotentialStructureChunk(seed, rx, rz));
+                ChunkPos chunk = placement.getPotentialStructureChunk(seed, rx * spacing, rz * spacing);
+                if (inBand(from, middle(chunk, from.getY()), min, max)) out.add(chunk);
             }
+        out.sort(Comparator.comparingDouble(chunk -> Offers.distance(from, middle(chunk, from.getY()))));
         return out;
     }
+    private static BlockPos middle(ChunkPos chunk, int y) { return new BlockPos(chunk.getMiddleBlockX(), y, chunk.getMiddleBlockZ()); }
 
     /** Whether a generated terminal stands within {@link CargoService#SITE_MATCH} blocks horizontally of {@code site} in its dimension. */
     static boolean shadowed(Collection<CargoSavedData.Terminal> terminals, GlobalPos site) {
