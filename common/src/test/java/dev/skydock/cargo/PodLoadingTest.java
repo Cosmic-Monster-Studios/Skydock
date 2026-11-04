@@ -38,4 +38,12 @@ class PodLoadingTest {
         assertFalse(ship.blocks.containsKey(ABOVE));
         assertTrue(ShipRepair.missing(ship.blueprint, p -> true, p -> false, Vec3.ZERO, 100).stream().noneMatch(ABOVE::equals));
     }
+    @Test void onlyTheHolderTakesAnIntactPodFromAHull() {
+        java.util.UUID holder = java.util.UUID.randomUUID(), crew = java.util.UUID.randomUUID();
+        PodTag intact = new PodTag(4, 0, false), ejected = new PodTag(4, 0, true);
+        assertTrue(PodLoading.takeable(holder, holder, intact));
+        assertFalse(PodLoading.takeable(holder, crew, intact));
+        assertTrue(PodLoading.takeable(holder, crew, ejected), "anyone may take an ejected pod");
+        assertTrue(PodLoading.takeable(null, crew, intact), "a pod whose contract is gone is anyone's");
+    }
 }

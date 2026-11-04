@@ -44,6 +44,16 @@ public final class Delivery {
         return new Result(pay, crate, !reduced, settled, null);
     }
 
+    /**
+     * A pod that fell out of the world. It counts as lost; when that settles the contract the holder is owed the lowered completion
+     * crate, but only if they delivered a pod. An index already accounted for, or outside the contract, changes nothing.
+     */
+    public static Result lose(Contract contract, int index) {
+        if (index < 0 || index >= contract.pods || contract.delivered.contains(index) || !contract.lost.add(index)) return NOTHING;
+        boolean settled = contract.settled();
+        return new Result(0, null, false, settled, settled && !contract.delivered.isEmpty() ? contract.crate.lower() : null);
+    }
+
     /** A pod whose contract is gone: half of the lowest rank's base unless {@link #acceptsOrphan} refuses it. */
     public static Result orphan(CargoProfile deliverer, long contractId, GlobalPos origin, GlobalPos at, Set<Long> voided) {
         if (!acceptsOrphan(contractId, origin, at, voided)) return NOTHING;

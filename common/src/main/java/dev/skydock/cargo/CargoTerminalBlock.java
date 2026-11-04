@@ -20,7 +20,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.*;
 import net.minecraft.world.phys.BlockHitResult;
 
-/** The world block at a cargo outpost. Its block entity registers the terminal; breaking it removes the terminal from the registry. */
+/** The world block at a cargo outpost. A generated one registers itself (see {@link CargoTerminalBlockEntity}); breaking it removes the terminal from the registry and drops nothing. */
 public final class CargoTerminalBlock extends HorizontalDirectionalBlock implements EntityBlock {
     public static final MapCodec<CargoTerminalBlock> CODEC = simpleCodec(CargoTerminalBlock::new);
     public CargoTerminalBlock(Properties properties) { super(properties); registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH)); }

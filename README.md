@@ -103,7 +103,7 @@ These use the same validation and permissions as the controls and do not bypass 
 
 `summon` calls the ship launched from that dock as the Warp Anchor does, without the item or its cooldown. `use` operates the ship block under your crosshair; `target` identifies it for diagnostics. Control commands expire after ten ticks without fresh input. The diagnostic `status` output includes ship IDs, pose, velocity, mass/lift, and shipyard coordinates. Operators see every ship; other players see only ships they own or share by team. `blueprint export` (permission level 2) saves the hull in a dock as a ship pattern; see [Datapacks](#datapacks).
 
-The `cargo` commands need permission level 2. `reputation` prints a player's reputation, or sets it and syncs them. `terminal list` prints every known terminal with its pad and whether it has generated. `terminal place` registers the terminal block you are looking at. `offer refresh` clears your own offers at that terminal so they regenerate when you next open it. `crate` gives you a crate of that rank.
+The `cargo` commands need permission level 2. `reputation` prints a player's reputation, or sets it and syncs them. `terminal list` prints every known terminal with its pad and whether it has generated. `terminal place` registers the terminal block you are looking at: outpost terminals join the cargo network by themselves, but a terminal placed by hand (from the creative tab) joins only this way. A broken terminal drops nothing. `offer refresh` clears your own offers at that terminal so they regenerate when you next open it. `crate` gives you a crate of that rank.
 
 ## Datapacks
 

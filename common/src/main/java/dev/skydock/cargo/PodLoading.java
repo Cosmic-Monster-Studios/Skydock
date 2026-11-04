@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import java.util.Map;
+import java.util.UUID;
 
 /** Putting cargo pods into a moored ship's hull and taking them out again. */
 public final class PodLoading {
@@ -61,6 +62,9 @@ public final class PodLoading {
     /** Drops the cell from the live hull and the blueprint, so neither a refresh nor the hammer brings it back. */
     public static void forget(Ship ship, BlockPos cell) { ship.blocks.remove(cell); ship.blueprint.remove(cell); }
 
+    /** Whether a player may take a pod off a hull: the contract holder may, and anyone may take an ejected pod or one whose contract is gone. */
+    public static boolean takeable(UUID holder, UUID player, PodTag tag) { return holder == null || holder.equals(player) || tag.ejected(); }
+
     public static void take(ServerPlayer player, Ship ship, BlockPos local) {
         var server = player.getServer(); ServerLevel yard = server.getLevel(ShipManager.SHIPYARD); if (yard == null) return;
         BlockPos at = ship.yard.offset(local);
@@ -73,8 +77,7 @@ public final class PodLoading {
         }
         PodCargo cargo = pod.cargo(); PodTag tag = cargo.tag();
         var holder = CargoSavedData.get(server).findContract(tag.contract());
-        boolean mine = holder != null && holder.getKey().equals(player.getUUID());
-        if (!(mine || tag.ejected() || holder == null)) { ShipManager.tell(player, "message.skydock.pod_not_yours"); return; }
+        if (!takeable(holder == null ? null : holder.getKey(), player.getUUID(), tag)) { ShipManager.tell(player, "message.skydock.pod_not_yours"); return; }
         yard.setBlock(at, Blocks.AIR.defaultBlockState(), FLAGS);
         forget(ship, local);
         ItemStack item = CargoPodItem.create(tag, cargo.cargoKey(), cargo.destination());

@@ -30,9 +30,9 @@ public final class CargoRankLoader extends SimpleJsonResourceReloadListener {
             Rank rank = new Rank(r.get("level").getAsInt(), r.get("key").getAsString(), r.get("threshold").getAsInt(),
                     r.get("min_distance").getAsInt(), max, r.get("deadline_days").getAsInt(),
                     CrateRank.valueOf(r.get("crate").getAsString().toUpperCase(Locale.ROOT)), r.get("base_per_pod").getAsInt());
-            if (rank.minDistance() <= 0 || rank.basePerPod() < 0 || rank.deadlineDays() <= 0 || rank.threshold() < 0)
+            if (rank.minDistance() <= 0 || rank.maxDistance() < rank.minDistance() || rank.basePerPod() < 0 || rank.deadlineDays() <= 0 || rank.threshold() < 0)
                 throw new IllegalArgumentException("Invalid rank " + rank.key());
-            if (!out.isEmpty() && (rank.threshold() <= out.getLast().threshold() || rank.minDistance() <= out.getLast().minDistance()))
+            if (!out.isEmpty() && (rank.level() <= out.getLast().level() || rank.threshold() <= out.getLast().threshold() || rank.minDistance() <= out.getLast().minDistance()))
                 throw new IllegalArgumentException("Ranks must ascend: " + rank.key());
             out.add(rank);
         }

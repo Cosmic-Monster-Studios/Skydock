@@ -88,7 +88,11 @@ public final class PodEntity extends Entity {
         if (cargo != null) {
             CargoSavedData data = CargoSavedData.get(world.getServer());
             var holder = data.findContract(cargo.tag().contract());
-            if (holder != null) { holder.getValue().lost.add(cargo.tag().index()); data.setDirty(); }
+            if (holder != null) {
+                CargoService.applyResult(data, holder.getKey(), holder.getValue(), Delivery.lose(holder.getValue(), cargo.tag().index()));
+                net.minecraft.server.level.ServerPlayer online = world.getServer().getPlayerList().getPlayer(holder.getKey());
+                if (online != null) CargoService.sync(online);
+            }
         }
         discard();
     }

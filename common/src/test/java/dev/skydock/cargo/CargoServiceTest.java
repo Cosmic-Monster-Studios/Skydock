@@ -94,4 +94,13 @@ class CargoServiceTest {
         assertEquals("many", CargoService.byCount(0, "one", "many"));
         assertEquals("many", CargoService.byCount(3, "one", "many"));
     }
+    @Test void voidLossOfTheLastPodDropsTheContractAndQueuesTheHolderCrate() {
+        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
+        Contract c = contract(13, 2); data.profile(holder).contracts.put(c.id, c);
+        CargoService.applyResult(data, holder, c, Delivery.deliver(data.profile(holder), holder, c, new PodTag(13, 0, false), true, false, THERE));
+        data.setDirty(false);
+        CargoService.applyResult(data, holder, c, Delivery.lose(c, 1));
+        assertNull(data.findContract(13)); assertTrue(data.voided.contains(13L)); assertTrue(data.isDirty());
+        assertEquals(java.util.List.of(CrateRank.TIN), data.profile(holder).pendingCrates);
+    }
 }

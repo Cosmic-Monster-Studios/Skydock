@@ -18,9 +18,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Registers its terminal on the first server tick. A generated terminal carries {@code PadOffset}, the pad centre relative to the
- * block for a terminal facing north, rotated here with the block; a hand-placed one has its pad 5 blocks in front. Generated
- * terminals also spawn two villagers on the pad, once.
+ * A terminal generated with an outpost carries {@code PadOffset}, the pad centre relative to the block for a terminal facing north,
+ * rotated here with the block; it registers itself on its first server tick and spawns two villagers on the pad, once. A hand-placed
+ * terminal has its pad 5 blocks in front and joins the network only through {@code /skydock cargo terminal place}.
  */
 public final class CargoTerminalBlockEntity extends BlockEntity {
     static final BlockPos HAND_PLACED_OFFSET = new BlockPos(0, 0, -5);
@@ -35,11 +35,14 @@ public final class CargoTerminalBlockEntity extends BlockEntity {
         return switch (facing) { case EAST -> Rotation.CLOCKWISE_90; case SOUTH -> Rotation.CLOCKWISE_180; case WEST -> Rotation.COUNTERCLOCKWISE_90; default -> Rotation.NONE; };
     }
 
+    /** Only a generated terminal (one with a pad offset) registers itself and spawns its villagers, each once. */
+    static boolean needsTick(boolean registered, boolean spawnedVillagers, BlockPos padOffset) { return padOffset != null && !(registered && spawnedVillagers); }
+
     public static void serverTick(Level level, BlockPos pos, BlockState state, CargoTerminalBlockEntity terminal) {
-        if (terminal.registered && (terminal.spawnedVillagers || terminal.padOffset == null) || !(level instanceof ServerLevel server)) return;
+        if (!needsTick(terminal.registered, terminal.spawnedVillagers, terminal.padOffset) || !(level instanceof ServerLevel server)) return;
         BlockPos pad = terminal.pad();
         if (!terminal.registered) { CargoSavedData.get(server.getServer()).registerTerminal(GlobalPos.of(level.dimension(), pos), pad); terminal.registered = true; }
-        if (!terminal.spawnedVillagers && terminal.padOffset != null) { terminal.spawnVillagers(server, pad, state.getValue(HorizontalDirectionalBlock.FACING)); terminal.spawnedVillagers = true; }
+        if (!terminal.spawnedVillagers) { terminal.spawnVillagers(server, pad, state.getValue(HorizontalDirectionalBlock.FACING)); terminal.spawnedVillagers = true; }
         terminal.setChanged();
     }
 

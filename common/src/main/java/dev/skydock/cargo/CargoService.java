@@ -39,7 +39,7 @@ public final class CargoService {
     }
     public static long deadline(long now, int days) { return now + days * Offers.DAY_TICKS; }
 
-    /** Applies a delivery's consequences to the holder: a stranger-earned completion crate is queued, a settled contract dropped and its id voided. */
+    /** Applies a delivery's (or a loss's) consequences to the holder: a stranger-earned completion crate is queued, a settled contract dropped and its id voided. */
     public static void applyResult(CargoSavedData data, UUID holder, Contract contract, Delivery.Result result) {
         CargoProfile p = data.profile(holder);
         if (result.holderCrate() != null) p.pendingCrates.add(result.holderCrate());
@@ -48,7 +48,10 @@ public final class CargoService {
         data.setDirty();
     }
 
-    /** The registered terminal a contract delivers to: its destination, or the generated terminal that replaced that predicted site; null when gone. */
+    /**
+     * The registered terminal a contract delivers to: its destination when that is still registered, else the first real (generated or
+     * command-placed) terminal in the same dimension within {@link #SITE_MATCH} blocks of it horizontally; null when there is none.
+     */
     public static GlobalPos resolveDestination(Map<GlobalPos, CargoSavedData.Terminal> terminals, GlobalPos destination) {
         if (terminals.containsKey(destination)) return destination;
         for (CargoSavedData.Terminal t : terminals.values())
@@ -160,7 +163,8 @@ public final class CargoService {
     /** A pod the terminal can reach and how to take it away. */
     private record Reachable(PodCargo cargo, Ship ship, BlockPos cell, int slot) {}
 
-    private static List<Reachable> reachable(ServerPlayer player, ServerLevel level, BlockPos pad) {
+    /** Pods in the inventory, and hull pods the player could take off by hand ({@link PodLoading#takeable}) on moored ships they may operate. */
+    private static List<Reachable> reachable(CargoSavedData data, ServerPlayer player, ServerLevel level, BlockPos pad) {
         List<Reachable> out = new ArrayList<>(); Inventory inventory = player.getInventory();
         for (int i = 0; i < inventory.getContainerSize(); i++) { int slot = i; CargoPodItem.cargo(inventory.getItem(i)).ifPresent(c -> out.add(new Reachable(c, null, null, slot))); }
         ServerLevel yard = player.getServer().getLevel(ShipManager.SHIPYARD); if (yard == null) return out;
@@ -168,21 +172,24 @@ public final class CargoService {
         for (Ship ship : ShipManager.ships(level)) {
             if (!ship.moored || !ShipManager.permitted(player, ship) || ship.hullWorldBounds().getCenter().distanceTo(centre) > DELIVERY_RANGE) continue;
             for (Map.Entry<BlockPos, BlockState> cell : ship.blocks.entrySet())
-                if (cell.getValue().is(SkydockBlocks.CARGO_POD.get()) && yard.getBlockEntity(ship.yard.offset(cell.getKey())) instanceof CargoPodBlockEntity pod && pod.cargo() != null)
+                if (cell.getValue().is(SkydockBlocks.CARGO_POD.get()) && yard.getBlockEntity(ship.yard.offset(cell.getKey())) instanceof CargoPodBlockEntity pod && pod.cargo() != null
+                        && PodLoading.takeable(holderOf(data, pod.cargo().tag().contract()), player.getUUID(), pod.cargo().tag()))
                     out.add(new Reachable(pod.cargo(), ship, cell.getKey(), -1));
         }
         return out;
     }
 
+    private static UUID holderOf(CargoSavedData data, long contract) { Map.Entry<UUID, Contract> held = data.findContract(contract); return held == null ? null : held.getKey(); }
+
     /** Takes every pod bound here (and every orphan pod) from the player's inventory and moored ships in range, and pays for each. */
     public static void deliver(ServerPlayer player, GlobalPos terminal) {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server);
         CargoSavedData.Terminal site = data.terminals.get(terminal); ServerLevel level = server.getLevel(terminal.dimension());
-        if (site == null || level == null) return;
+        if (site == null || level == null) { ShipManager.tell(player, "message.skydock.cargo_terminal_unregistered"); return; }
         CargoProfile me = data.profile(player.getUUID()); int rankBefore = me.peakRank(); long now = now(server);
         Set<Long> settled = new HashSet<>(); Set<UUID> holders = new LinkedHashSet<>(); Set<Ship> touched = new LinkedHashSet<>();
         int count = 0, gained = 0;
-        for (Reachable pod : reachable(player, level, site.pad())) {
+        for (Reachable pod : reachable(data, player, level, site.pad())) {
             PodTag tag = pod.cargo().tag(); if (settled.contains(tag.contract())) continue;
             Map.Entry<UUID, Contract> held = data.findContract(tag.contract());
             Delivery.Result result;

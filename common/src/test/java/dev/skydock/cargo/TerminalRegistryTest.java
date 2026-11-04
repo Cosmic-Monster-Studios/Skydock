@@ -64,4 +64,15 @@ class TerminalRegistryTest {
         assertEquals("minecraft:yellow_concrete", nameAt.apply(new BlockPos(p.getInt(0), p.getInt(1) - 1, p.getInt(2) - 1)), "the terminal stands at the pad's painted edge");
         assertEquals(3955, template.getInt("DataVersion"));
     }
+    @Test void onlyAGeneratedTerminalRegistersItself() {
+        BlockPos offset = new BlockPos(0, 0, -7);
+        assertFalse(CargoTerminalBlockEntity.needsTick(false, false, null), "a hand-placed terminal waits for the command");
+        assertTrue(CargoTerminalBlockEntity.needsTick(false, false, offset));
+        assertTrue(CargoTerminalBlockEntity.needsTick(true, false, offset));
+        assertFalse(CargoTerminalBlockEntity.needsTick(true, true, offset));
+    }
+    @Test void aBrokenTerminalDropsNothing() throws Exception {
+        com.google.gson.JsonObject table = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(Path.of("src/main/resources/data/skydock/loot_table/blocks/cargo_terminal.json"))).getAsJsonObject();
+        assertTrue(table.getAsJsonArray("pools").isEmpty());
+    }
 }

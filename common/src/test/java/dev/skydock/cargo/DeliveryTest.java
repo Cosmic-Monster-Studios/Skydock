@@ -121,4 +121,20 @@ class DeliveryTest {
         assertFalse(Delivery.acceptsOrphan(7, ORIGIN, DEST, Set.of(7L)));
         assertTrue(Delivery.acceptsOrphan(7, ORIGIN, DEST, Set.of()));
     }
+    @Test void losingTheLastPodSettlesTheContract() {
+        Contract c = contract(2, CrateRank.BRASS); CargoProfile p = new CargoProfile();
+        Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, DEST);
+        Delivery.Result r = Delivery.lose(c, 1);
+        assertTrue(r.settled()); assertEquals(CrateRank.COPPER, r.holderCrate()); assertEquals(0, r.reputation()); assertNull(r.crate());
+        assertTrue(c.lost.contains(1));
+        assertEquals(new Delivery.Result(0, null, false, false, null), Delivery.lose(c, 1), "a pod is lost only once");
+    }
+    @Test void losingTheLastPodWithNothingDeliveredPaysNoCrate() {
+        Contract c = contract(2, CrateRank.BRASS);
+        Delivery.Result first = Delivery.lose(c, 0);
+        assertFalse(first.settled()); assertNull(first.holderCrate());
+        Delivery.Result last = Delivery.lose(c, 1);
+        assertTrue(last.settled()); assertNull(last.holderCrate());
+        assertFalse(Delivery.lose(c, 5).settled(), "an index outside the contract is ignored");
+    }
 }

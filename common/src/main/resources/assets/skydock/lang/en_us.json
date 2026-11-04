@@ -391,6 +391,7 @@
   "message.skydock.cargo_delivered": "Delivered %s pods for %s reputation.",
   "message.skydock.cargo_delivered_one": "Delivered %s pod for %s reputation.",
   "message.skydock.cargo_nothing": "No pods for this terminal are in reach.",
+  "message.skydock.cargo_terminal_unregistered": "This terminal is not on the cargo network.",
   "message.skydock.cargo_rank_up": "Promoted to %s!",
   "message.skydock.cargo_destination_gone": "The terminal for your %s contract is gone; the contract has failed.",
   "message.skydock.cargo_abandoned": "Abandoned the %s contract.",
