@@ -217,6 +217,15 @@ public final class Ship {
         }
         return tag;
     }
+    /** The record this ship will have once {@link #finishLaunch} runs, built without changing the ship, so the journal can be written first. */
+    CompoundTag saveLaunched(HolderLookup.Provider registries) {
+        CompoundTag tag = save(registries, true);
+        tag.putString("Phase", "active"); tag.put("BlockData", new ListTag());
+        for (String key : new String[] {"TransferOrigin", "TransferDock", "TransferDimension", "TransferFacing"}) tag.remove(key);
+        return tag;
+    }
+    /** Ends a launch in memory. The yard now holds the real block entities; keeping the journal copy would bloat every save. */
+    void finishLaunch() { phase = "active"; transferOrigin = null; blockEntities.clear(); }
 
     /** One state compound per distinct state instead of per block keeps saves of large hulls small. */
     private static void writeStates(CompoundTag tag, String paletteKey, String positionKey, String stateKey, Map<BlockPos, BlockState> map) {

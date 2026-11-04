@@ -20,15 +20,25 @@ class ShipTransferTest {
         assertEquals(Set.of(new ChunkPos(0,0), new ChunkPos(0,1), new ChunkPos(-1,0)),
                 ShipTransfer.chunksOf(cells, new BlockPos(8, 64, 8), net.minecraft.world.level.block.Rotation.CLOCKWISE_90));
     }
-    /** A crash between any two steps must replay safely, so the journal advances only after both worlds' writes are on disk. */
-    @Test void aPhaseAdvancesTheJournalOnlyAfterBothWorldsAreSaved() {
-        List<String> order = new ArrayList<>();
-        ShipTransfer.run(new ShipTransfer.Steps() {
+    private static ShipTransfer.Steps recording(List<String> order, boolean journalFails) {
+        return new ShipTransfer.Steps() {
             public void paste() { order.add("paste"); }
             public void clear() { order.add("clear"); }
             public void save(boolean pasted) { order.add(pasted ? "save pasted" : "save cleared"); }
-            public void advance() { order.add("journal"); }
-        });
+            public void journal() { order.add("journal"); if (journalFails) throw new java.io.UncheckedIOException(new java.io.IOException("disk full")); }
+            public void apply() { order.add("apply"); }
+        };
+    }
+    /** A crash between any two steps must replay safely, so the journal advances only after both worlds' writes are on disk, and memory only after the journal. */
+    @Test void aPhaseAdvancesTheJournalOnlyAfterBothWorldsAreSaved() {
+        List<String> order = new ArrayList<>();
+        ShipTransfer.run(recording(order, false));
+        assertEquals(List.of("paste", "save pasted", "clear", "save cleared", "journal", "apply"), order);
+    }
+    /** A journal write that throws leaves the ship in its old phase in memory, matching the disk, so the pause and retry path replays it. */
+    @Test void aFailedJournalWriteLeavesMemoryInTheOldPhase() {
+        List<String> order = new ArrayList<>();
+        assertThrows(java.io.UncheckedIOException.class, () -> ShipTransfer.run(recording(order, true)));
         assertEquals(List.of("paste", "save pasted", "clear", "save cleared", "journal"), order);
     }
     /** A paused transfer guards the hull's envelope at its berth, turned with the dock. */

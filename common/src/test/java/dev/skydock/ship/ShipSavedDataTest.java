@@ -101,4 +101,37 @@ class ShipSavedDataTest {
         assertTrue(nether.is(Level.NETHER, new BlockPos(1, 2, 3)));
         assertFalse(nether.is(Level.OVERWORLD, new BlockPos(1, 2, 3)));
     }
+
+    private static CompoundTag redocking(BlockPos yard, BlockPos home, BlockPos target, BlockPos origin) {
+        Ship ship = Ship.load(ship(yard), registries); ship.dock = home;
+        ship.phase = "redocking"; ship.transferDock = target; ship.transferOrigin = origin; ship.transferFacing = net.minecraft.core.Direction.EAST; ship.transferDimension = Level.OVERWORLD;
+        return ship.save(registries, true);
+    }
+    private static ShipSavedData of(CompoundTag... records) {
+        ListTag ships = new ListTag(); for (CompoundTag record : records) ships.add(record);
+        CompoundTag tag = new CompoundTag(); tag.put("Ships", ships);
+        return ShipSavedData.load(tag, registries);
+    }
+    /** The journal of a phase not yet applied: one ship's record swapped or dropped, the rest as they are, and memory untouched. */
+    @Test void aJournalCanCarryTheNextPhase() {
+        CompoundTag a = ship(new BlockPos(256, 64, 0)), b = ship(new BlockPos(512, 64, 0));
+        ShipSavedData data = of(a, b);
+        ListTag dropped = data.save(new CompoundTag(), registries, a.getUUID("Id"), null).getList("Ships", Tag.TAG_COMPOUND);
+        assertEquals(1, dropped.size()); assertEquals(b.getUUID("Id"), dropped.getCompound(0).getUUID("Id"));
+        CompoundTag swapped = a.copy(); swapped.putString("Phase", "swapped");
+        ListTag replaced = data.save(new CompoundTag(), registries, a.getUUID("Id"), swapped).getList("Ships", Tag.TAG_COMPOUND);
+        assertEquals(2, replaced.size()); assertTrue(replaced.contains(swapped));
+        assertEquals(2, data.ships.size());
+    }
+    /** The launched record written before memory changes is exactly what the ship saves once the launch is applied. */
+    @Test void theLaunchedRecordMatchesTheAppliedLaunch() {
+        Ship ship = Ship.load(redocking(new BlockPos(256, 64, 0), BlockPos.ZERO, BlockPos.ZERO, new BlockPos(31, 1, 1)), registries);
+        ship.phase = "launching";
+        CompoundTag chest = new CompoundTag(); chest.putString("id", "minecraft:chest"); ship.blockEntities.put(BlockPos.ZERO, chest);
+        CompoundTag launched = ship.saveLaunched(registries);
+        assertEquals("launching", ship.phase, "building the record changes nothing");
+        assertFalse(ship.blockEntities.isEmpty());
+        ship.finishLaunch();
+        assertEquals(launched, ship.save(registries, true));
+    }
 }

@@ -59,9 +59,12 @@ public final class ShipSavedData extends SavedData {
         if (data.nextRegion != tag.getInt("NextRegion")) data.setDirty();
         return data;
     }
-    @Override public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+    @Override public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) { return save(tag, registries, null, null); }
+    /** Saves with ship {@code id}'s record replaced by {@code record}, or left out when that is null: the journal of a phase not yet applied in memory. */
+    CompoundTag save(CompoundTag tag, HolderLookup.Provider registries, UUID id, CompoundTag record) {
         tag.putInt("NextRegion", nextRegion);
-        ListTag shipsTag = new ListTag(); ships.values().forEach(s -> shipsTag.add(s.save(registries, true)));
+        ListTag shipsTag = new ListTag();
+        ships.values().forEach(s -> { if (!s.id.equals(id)) shipsTag.add(s.save(registries, true)); else if (record != null) shipsTag.add(record); });
         quarantined.forEach(saved -> shipsTag.add(saved.copy()));
         tag.put("Ships", shipsTag); return tag;
     }

@@ -56,11 +56,13 @@ public final class ShipTransfer {
      * Writes only the Skydock journal, and returns once it is durably on disk. It does not go through SavedData.save(File):
      * NeoForge queues that on a worker thread, where an older autosave snapshot could land after this write.
      */
-    public static void flush(MinecraftServer server) {
+    public static void flush(MinecraftServer server) { flush(server, null, null); }
+    /** The same, but with ship {@code id}'s record replaced by {@code record}, or dropped when that is null; memory is not touched. */
+    static void flush(MinecraftServer server, UUID id, CompoundTag record) {
         ShipSavedData data = ShipSavedData.get(server); data.setDirty();
         Path file = server.getWorldPath(LevelResource.ROOT).resolve("data").resolve("skydock_ships.dat");
         CompoundTag root = new CompoundTag();
-        root.put("data", data.save(new CompoundTag(), server.registryAccess()));
+        root.put("data", data.save(new CompoundTag(), server.registryAccess(), id, record));
         NbtUtils.addCurrentDataVersion(root);
         try { Files.createDirectories(file.getParent()); journalWriter.write(root, file); }
         catch (IOException e) { throw new UncheckedIOException("Could not write the Skydock journal", e); }
@@ -88,13 +90,14 @@ public final class ShipTransfer {
         BlockPos local = pos.subtract(origin).rotate(DockFrame.inverse(rotation));
         return local.getX() >= 0 && local.getX() < tier.width && local.getY() >= 0 && local.getY() < tier.height && local.getZ() >= 0 && local.getZ() < tier.length;
     }
-    /** One transfer phase: paste the hull where it goes, clear it where it was, then advance the journal. */
-    interface Steps { void paste(); void clear(); void save(boolean pasted); void advance(); }
+    /** One transfer phase: paste the hull where it goes, clear it where it was, write the next phase to the journal, then apply it in memory. */
+    interface Steps { void paste(); void clear(); void save(boolean pasted); void journal(); void apply(); }
     /**
      * Ordering invariant: the journal never advances past a phase whose world writes are not durable. Each side is saved before the
-     * next step, and the journal is written last, so a crash anywhere replays the same phase, and pasting and clearing are idempotent.
+     * next step, and the journal is written before memory changes, so a crash anywhere replays the same phase, and a journal write
+     * that throws leaves the ship in its old phase, where the pause and retry path picks it up. Pasting and clearing are idempotent.
      */
-    static void run(Steps steps) { steps.paste(); steps.save(true); steps.clear(); steps.save(false); steps.advance(); }
+    static void run(Steps steps) { steps.paste(); steps.save(true); steps.clear(); steps.save(false); steps.journal(); steps.apply(); }
     public static void complete(MinecraftServer server, Ship ship) {
         if (ship.phase.equals("active")) return;
         boolean launching = ship.phase.equals("launching");
@@ -113,13 +116,11 @@ public final class ShipTransfer {
                 public void paste() { if (launching) ShipTransfer.paste(ship, yard, ship.yard, Rotation.NONE); else ShipTransfer.paste(ship, destination, berthOrigin, berth); }
                 public void clear() { if (launching) ShipTransfer.clear(ship, destination, berthOrigin, berth); else ShipTransfer.clear(ship, yard, ship.yard, Rotation.NONE); }
                 public void save(boolean pasted) { if (pasted == launching) saveChunks(yard, yardChunks); else saveChunks(destination, berthChunks); }
-                public void advance() {
-                    if (launching) {
-                        ship.phase = "active"; ship.transferOrigin = null;
-                        // The yard now holds the real block entities; keeping the journal copy would bloat every save.
-                        ship.blockEntities.clear();
-                    } else { ShipSavedData.get(server).ships.remove(ship.id); ShipManager.releaseTickets(server, ship); }
-                    flush(server);
+                // The journal gets the next phase computed from the ship as it stands; memory changes only once that write is on disk.
+                public void journal() { flush(server, ship.id, launching ? ship.saveLaunched(server.registryAccess()) : null); }
+                public void apply() {
+                    if (launching) ship.finishLaunch();
+                    else { ShipSavedData.get(server).ships.remove(ship.id); ShipManager.releaseTickets(server, ship); }
                 }
             });
         } finally { changing = false; ShipManager.fleetChanged(); }
