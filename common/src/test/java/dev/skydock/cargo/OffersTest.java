@@ -112,7 +112,7 @@ class OffersTest {
         assertTrue(generate(3, List.of()).isEmpty());
         assertTrue(generate(3, List.of(GlobalPos.of(Level.NETHER, new BlockPos(500, 64, 0)))).isEmpty());
     }
-    @Test void refreshesAfterADayOrWhenShort() {
+    @Test void refreshesAfterADay() {
         CargoProfile p = new CargoProfile();
         List<Offer> three = generate(1, List.of(at(500, 0)));
         int[] calls = {0};
@@ -123,8 +123,22 @@ class OffersTest {
         assertEquals(1, calls[0]);
         assertTrue(Offers.refreshIfDue(p, AT, 1000 + Offers.DAY_TICKS, make));
         assertEquals(2, calls[0]);
-        p.offers.get(AT).remove(0);
-        assertTrue(Offers.refreshIfDue(p, AT, 1000 + Offers.DAY_TICKS + 5, make));
-        assertEquals(3, calls[0]);
     }
+    @Test void aShortBoardOnlyFillsItsEmptySlot() {
+        CargoProfile p = new CargoProfile();
+        Offer own = offer(1, 1), preview = offer(2, 2), random = offer(3, 1);
+        Offers.refreshIfDue(p, AT, 1000, () -> List.of(own, preview, random));
+        p.offers.get(AT).remove(preview);
+        Offer freshOwn = offer(4, 1), freshPreview = offer(5, 2), freshRandom = offer(6, 1);
+        assertTrue(Offers.refreshIfDue(p, AT, 2000, () -> List.of(freshOwn, freshPreview, freshRandom)));
+        assertEquals(List.of(own, random, freshPreview), p.offers.get(AT), "the untaken offers stay; only the taken preview slot is refilled");
+        assertEquals(1000L, p.offersRefreshed.get(AT), "filling a slot does not restart the day");
+        assertFalse(Offers.refreshIfDue(p, AT, 3000, () -> List.of(offer(7, 1), offer(8, 2), offer(9, 1))), "a full board waits for its day");
+        p.offers.get(AT).remove(own);
+        assertFalse(Offers.refreshIfDue(p, AT, 3000, () -> List.of(offer(10, 2))), "nothing fresh for the missing slot leaves the board as it is");
+        assertEquals(2, p.offers.get(AT).size());
+        assertTrue(Offers.refreshIfDue(p, AT, 1000 + Offers.DAY_TICKS, () -> List.of(offer(11, 1))));
+        assertEquals(List.of(offer(11, 1)), p.offers.get(AT), "the whole board still refreshes once a day");
+    }
+    static Offer offer(long id, int rank) { return new Offer(id, at(500 * rank, 0), rank, CrateRank.TIN, "cargo.skydock.name.silk", 1, 2, 10); }
 }

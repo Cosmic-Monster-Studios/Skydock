@@ -77,16 +77,24 @@ public final class Offers {
     }
 
     /**
-     * Replaces the board at {@code at} when it is empty, short, or a full day old; returns whether it did.
-     * Mutates the profile in place, so the caller must mark the saved data dirty.
+     * Replaces the board at {@code at} when there is none or it is a full day old. A short board (an offer was taken) only has its
+     * empty slots filled from a fresh board, keeping the untaken offers and its day: a fresh offer fills a slot when no kept offer has
+     * its rank. Returns whether the board changed. Mutates the profile in place, so the caller must mark the saved data dirty.
      */
     public static boolean refreshIfDue(CargoProfile p, GlobalPos at, long gameTime, Supplier<List<Offer>> make) {
         List<Offer> current = p.offers.get(at);
         Long last = p.offersRefreshed.get(at);
-        boolean due = current == null || current.size() < BOARD_SIZE || last == null || gameTime - last >= DAY_TICKS;
-        if (!due) return false;
-        p.offers.put(at, new ArrayList<>(make.get()));
-        p.offersRefreshed.put(at, gameTime);
+        if (current == null || last == null || gameTime - last >= DAY_TICKS) {
+            p.offers.put(at, new ArrayList<>(make.get()));
+            p.offersRefreshed.put(at, gameTime);
+            return true;
+        }
+        if (current.size() >= BOARD_SIZE) return false;
+        List<Offer> board = new ArrayList<>(current), fresh = new ArrayList<>(make.get());
+        for (Offer kept : current) for (Iterator<Offer> it = fresh.iterator(); it.hasNext(); ) if (it.next().rankLevel() == kept.rankLevel()) { it.remove(); break; }
+        for (Iterator<Offer> it = fresh.iterator(); it.hasNext() && board.size() < BOARD_SIZE; ) board.add(it.next());
+        if (board.size() == current.size()) return false;
+        p.offers.put(at, board);
         return true;
     }
 }
