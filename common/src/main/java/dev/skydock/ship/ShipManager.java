@@ -12,6 +12,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.*;
 import net.minecraft.util.Mth;
+import net.minecraft.world.CompoundContainer;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.*;
@@ -51,7 +53,8 @@ public final class ShipManager {
     public static void start(MinecraftServer server) {
         ShipSavedData data = ShipSavedData.get(server); SERVERS.put(server, data); fleetChanged();
         for (Ship ship : List.copyOf(data.ships.values())) {
-            try { ShipTransfer.complete(server, ship); }
+            if (ship.phase.equals("active")) continue;
+            try { retry(server, ship); }
             catch (Exception e) { Skydock.LOGGER.error("Ship {} transfer remains in its recovery journal", ship.id, e); }
         }
     }
@@ -65,21 +68,52 @@ public final class ShipManager {
         boolean finished = false;
         for (Ship ship : List.copyOf(data.ships.values())) {
             if (ship.phase.equals("active")) continue;
-            boolean launching = ship.phase.equals("launching"); ResourceKey<Level> where = ship.transferDimension; BlockPos dock = ship.transferDock;
-            try { ShipTransfer.flush(server); ShipTransfer.complete(server, ship); }
+            try { retry(server, ship); }
             catch (Exception e) { Skydock.LOGGER.error("Ship {} transfer is still paused; retrying in {} ticks", ship.id, RESUME_TICKS, e); continue; }
             finished = true; Skydock.LOGGER.info("Ship {} paused transfer resumed and finished", ship.id);
-            ServerLevel level = where == null ? null : server.getLevel(where);
-            if (level != null && dock != null && level.getBlockEntity(dock) instanceof DockBlockEntity entity) {
-                if (launching) entity.clearHullMarker("status.skydock.launched"); else entity.markManualHull(ship.blocks.size());
-            }
         }
         if (finished) ShipNetwork.resync(server);
+    }
+    /**
+     * Replays an unfinished transfer: re-reads what it moves from the live world, writes the journal (a pause may have come before it
+     * reached disk), then completes the phase and updates the dock's status. Throws while the transfer is still paused.
+     */
+    private static void retry(MinecraftServer server, Ship ship) {
+        boolean launching = ship.phase.equals("launching"); ResourceKey<Level> where = ship.transferDimension; BlockPos dock = ship.transferDock;
+        ShipTransfer.resnapshot(server, ship); ShipTransfer.flush(server); ShipTransfer.complete(server, ship);
+        ServerLevel level = where == null ? null : server.getLevel(where);
+        if (level != null && dock != null && level.getBlockEntity(dock) instanceof DockBlockEntity entity) {
+            if (launching) entity.clearHullMarker("status.skydock.launched"); else entity.markManualHull(ship.blocks.size());
+        }
     }
     /** Whether {@code pos} is in the berth of a transfer that has not finished, quarantined records included; like an assembly's cells, no one may break, place or use it until the transfer resumes. */
     public static boolean transferProtects(ServerLevel level, BlockPos pos) {
         ShipSavedData data = SERVERS.get(level.getServer());
         return data != null && data.transferProtects(level.dimension(), pos);
+    }
+    /**
+     * Closes every open menu backed by a container in either copy of a paused transfer's hull. New menus there are refused while it is
+     * paused, but one opened before would stay valid, and whatever it took would come back when the retry pastes the hull.
+     */
+    static void closeMenus(MinecraftServer server, Ship ship) {
+        Set<Container> held = Collections.newSetFromMap(new IdentityHashMap<>());
+        ServerLevel yard = server.getLevel(SHIPYARD), berth = ship.transferDimension == null ? null : server.getLevel(ship.transferDimension);
+        for (BlockPos p : ship.blocks.keySet()) {
+            if (yard != null) heldContainer(yard, ship.yard.offset(p), held);
+            if (berth != null && ship.transferOrigin != null) heldContainer(berth, DockFrame.toWorld(ship.transferOrigin, DockFrame.rotation(ship.transferFacing), p), held);
+        }
+        if (held.isEmpty()) return;
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (player.containerMenu != player.inventoryMenu && backedBy(player.containerMenu.slots.stream().map(slot -> slot.container).toList(), held)) player.closeContainer();
+    }
+    private static void heldContainer(ServerLevel level, BlockPos at, Set<Container> held) {
+        if (level.isLoaded(at) && level.getBlockEntity(at) instanceof Container container) held.add(container);
+    }
+    /** Whether any of a menu's slot containers is one of {@code held}, or a double chest with a half among them. */
+    static boolean backedBy(Collection<Container> slots, Set<Container> held) {
+        for (Container container : slots)
+            if (held.contains(container) || container instanceof CompoundContainer both && held.stream().anyMatch(both::contains)) return true;
+        return false;
     }
     public static void stop(MinecraftServer server) { SERVERS.remove(server); WORLD_TICKETS.clear(); BOARDING.clear(); JOINED.clear(); LAST_TRANSFER.clear(); fleetChanged(); ShipDamage.clear(); ShipInteractions.clear(); }
     /** Launch and redock each flush the journal and chunks to disk, so one berth cannot be cycled every tick. */
@@ -285,7 +319,7 @@ public final class ShipManager {
             tell(player, "message.skydock.launched", ship.blocks.size());
         } catch (Exception ex) {
             Skydock.LOGGER.error("Launch retained in journal for {}", ship.id, ex);
-            tell(player, "message.skydock.transfer_paused");
+            closeMenus(server, ship); tell(player, "message.skydock.transfer_paused");
         }
     }
     public static void redockNearest(ServerPlayer player, BlockPos pos) {
@@ -330,7 +364,7 @@ public final class ShipManager {
             dock.markManualHull(ship.blocks.size());
             tell(player, "message.skydock.redocked");
         }
-        catch (Exception ex) { Skydock.LOGGER.error("Redock retained in journal for {}", ship.id, ex); tell(player, "message.skydock.transfer_paused"); }
+        catch (Exception ex) { Skydock.LOGGER.error("Redock retained in journal for {}", ship.id, ex); closeMenus(player.getServer(), ship); tell(player, "message.skydock.transfer_paused"); }
     }
     /** Whether {@code box} overlaps any of {@code cells}; touching a cell's face does not count. */
     static boolean inCells(Set<BlockPos> cells, AABB box) {

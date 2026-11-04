@@ -17,6 +17,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.storage.LevelResource;
@@ -26,6 +27,7 @@ import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.util.*;
+import java.util.function.Function;
 
 /** Journal is flushed before either world is edited, and advanced only once both are saved. Interrupted transfers can be replayed. */
 public final class ShipTransfer {
@@ -114,6 +116,42 @@ public final class ShipTransfer {
      * that throws leaves the ship in its old phase, where the pause and retry path picks it up. Pasting and clearing are idempotent.
      */
     static void run(Steps steps) { steps.paste(); steps.save(true); steps.clear(); steps.save(false); steps.journal(); steps.apply(); }
+    /**
+     * Re-reads the block entities a retried transfer will paste, cell by cell. Between a pause and its retry the side being moved from
+     * stays live: hoppers and droppers keep moving items in and out of it, and a menu opened before the pause could take items. Pasting
+     * the snapshot taken before the pause would then hand back what already left, duplicating it, so a cell whose hull block still
+     * stands on that side is copied as it is now. A cell already cleared there was pasted on the other side first (paste precedes
+     * clear), and that copy has lived on since, so it is read from there. Only a cell standing on neither side keeps the journal copy.
+     * Run it before the journal write that precedes a retry, so a crash after the clear cannot replay the stale copy.
+     */
+    static Map<BlockPos, CompoundTag> refreshed(Collection<BlockPos> cells, Map<BlockPos, CompoundTag> journal, Function<BlockPos, CompoundTag> from, Function<BlockPos, CompoundTag> to) {
+        Map<BlockPos, CompoundTag> fresh = new HashMap<>();
+        for (BlockPos p : cells) {
+            CompoundTag data = from.apply(p);
+            if (data == null) data = to.apply(p);
+            if (data == null) data = journal.get(p);
+            if (data != null) fresh.put(p, data);
+        }
+        return fresh;
+    }
+    /** Applies {@link #refreshed} to a ship with an unfinished transfer, reading both sides of it from the live world. */
+    public static void resnapshot(MinecraftServer server, Ship ship) {
+        boolean launching = ship.phase.equals("launching");
+        ServerLevel yard = server.getLevel(ShipManager.SHIPYARD), berth = ship.transferDimension == null ? null : server.getLevel(ship.transferDimension);
+        if (yard == null || berth == null || ship.transferOrigin == null || !launching && !ship.phase.equals("redocking")) return;
+        Rotation rotation = DockFrame.rotation(ship.transferFacing);
+        Function<BlockPos, CompoundTag> atBerth = p -> standing(ship, berth, DockFrame.toWorld(ship.transferOrigin, rotation, p), p);
+        Function<BlockPos, CompoundTag> atYard = p -> standing(ship, yard, ship.yard.offset(p), p);
+        Map<BlockPos, CompoundTag> fresh = refreshed(ship.blocks.keySet(), ship.blockEntities, launching ? atBerth : atYard, launching ? atYard : atBerth);
+        ship.blockEntities.clear(); ship.blockEntities.putAll(fresh);
+    }
+    /** The block entity at {@code at} if hull cell {@code p}'s block still stands there (its properties may have changed, as a furnace's do), else null. */
+    private static CompoundTag standing(Ship ship, ServerLevel level, BlockPos at, BlockPos p) {
+        BlockState expected = ship.state(p);
+        if (expected.isAir() || !level.getBlockState(at).is(expected.getBlock())) return null;
+        BlockEntity entity = level.getBlockEntity(at);
+        return entity == null ? null : entity.saveWithFullMetadata(level.registryAccess());
+    }
     public static void complete(MinecraftServer server, Ship ship) {
         if (ship.phase.equals("active")) return;
         boolean launching = ship.phase.equals("launching");

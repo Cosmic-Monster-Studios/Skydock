@@ -51,6 +51,19 @@ class ShipTransferTest {
                 assertEquals(ShipTransfer.inBerth(origin, rotation, tier, p), box.contains(net.minecraft.world.phys.Vec3.atCenterOf(p)), rotation + " " + p);
         }
     }
+    private static net.minecraft.nbt.CompoundTag items(int count) { var tag = new net.minecraft.nbt.CompoundTag(); tag.putInt("Count", count); return tag; }
+    /**
+     * A retry copies a cell from the side being moved from while its hull block stands there, else from the side it was already
+     * pasted to, and keeps the journal copy only when it stands on neither: a chest a hopper drained during the pause moves drained.
+     */
+    @Test void aRetryCopiesWhatIsThereNow() {
+        BlockPos drained = new BlockPos(0, 0, 0), cleared = new BlockPos(1, 0, 0), lost = new BlockPos(2, 0, 0), plain = new BlockPos(3, 0, 0);
+        var journal = java.util.Map.of(drained, items(64), cleared, items(10), lost, items(5));
+        var from = java.util.Map.of(drained, items(0));
+        var to = java.util.Map.of(drained, items(64), cleared, items(9));
+        var fresh = ShipTransfer.refreshed(List.of(drained, cleared, lost, plain), journal, from::get, to::get);
+        assertEquals(java.util.Map.of(drained, items(0), cleared, items(9), lost, items(5)), fresh);
+    }
     /** A paused transfer guards the hull's envelope at its berth, turned with the dock. */
     @Test void theBerthEnvelopeFollowsTheDockRotation() {
         BlockPos origin = new BlockPos(8, 64, 8); var east = net.minecraft.world.level.block.Rotation.CLOCKWISE_90;
