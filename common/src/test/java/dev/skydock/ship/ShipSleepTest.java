@@ -50,4 +50,14 @@ class ShipSleepTest {
         assertFalse(ShipSleep.cruiseLapses(true, true, 0), "other crew aboard keep it cruising");
         assertFalse(ShipSleep.cruiseLapses(false, false, 0), "a pilot still aboard keeps it cruising");
     }
+    @Test void aWokenShipStirsForASecondAndUntilItsEntitiesLoad() {
+        assertTrue(ShipSleep.stirring(1000, 1000, true), "the tick it woke");
+        assertTrue(ShipSleep.stirring(1004, 1000, true), "four ticks later, a held use");
+        assertTrue(ShipSleep.stirring(1019, 1000, true));
+        assertFalse(ShipSleep.stirring(1020, 1000, true), "twenty ticks on, with entities loaded");
+        assertTrue(ShipSleep.stirring(5000, 1000, false), "entities still unloaded");
+        assertFalse(ShipSleep.stirring(0, Long.MIN_VALUE, true), "awake since it loaded");
+        assertFalse(ShipSleep.stirring(Long.MAX_VALUE, Long.MIN_VALUE, true));
+        assertTrue(ShipSleep.stirring(0, Long.MIN_VALUE, false));
+    }
 }

@@ -57,6 +57,8 @@ public final class Ship {
     public long idleTicks;
     /** Transient: ticks with no player aboard or within {@link ShipSleep#ATTEND_RANGE} of the hull; cruise lapses at {@link ShipSleep#CRUISE_LAPSE}. */
     public long unattendedTicks;
+    /** Transient: the overworld game time the ship last woke from dormancy; {@link Long#MIN_VALUE} for a ship awake since it loaded. */
+    public long wokeAt = Long.MIN_VALUE;
     /** Transient: every hull block vanished from the shipyard (its chunks were deleted), so the ship is held dormant until {@code /skydock repair-yard}. */
     public boolean yardLost;
     /** Transient: state as of the last tick, to mark saved data dirty only on change. */

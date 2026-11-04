@@ -413,7 +413,10 @@ public final class ShipManager {
         if (ship == null) { tell(player, "message.skydock.summon_no_ship"); return false; }
         if (!permitted(player, ship)) { tell(player, "message.skydock.summon_not_permitted"); return false; }
         // A dormant ship's chunks, and whoever is on it, may be unloaded: wake it and ask again once they load. No use or cooldown is spent.
-        if (ship.dormant && !ship.yardLost) { wake(server, ship); tell(player, "message.skydock.summon_stirring"); return false; }
+        // It keeps stirring for a second after waking and until the entities under it load, so a held use cannot outrun them.
+        if (!ship.yardLost && (ship.dormant || ShipSleep.stirring(server.overworld().getGameTime(), ship.wokeAt, entitiesLoaded(level, ship)))) {
+            wake(server, ship); tell(player, "message.skydock.summon_stirring"); return false;
+        }
         if (aboard(level, ship)) { tell(player, "message.skydock.summon_aboard"); return false; }
         ShipPose spot = null;
         for (ShipPose pose : SummonPlacement.candidates(player.position(), player.getYRot(), ship.hullBounds()))
@@ -441,12 +444,23 @@ public final class ShipManager {
         double spread = Math.max(1, size / 4);
         level.sendParticles(particle, at.x, at.y, at.z, (int) Math.min(400, 40 * spread), spread, spread / 2, spread, .5);
     }
-    /** The hull box raised 2 blocks: a living thing standing on or inside it would be left behind by a warp. */
+    /** Whether every chunk under the hull (and a block round it) has its entities loaded, so anyone aboard is in the level to be seen. */
+    private static boolean entitiesLoaded(ServerLevel level, Ship ship) {
+        AABB box = ship.hullWorldBounds().inflate(1);
+        for (int cx = SectionPos.blockToSectionCoord(Mth.floor(box.minX)); cx <= SectionPos.blockToSectionCoord(Mth.floor(box.maxX)); cx++)
+            for (int cz = SectionPos.blockToSectionCoord(Mth.floor(box.minZ)); cz <= SectionPos.blockToSectionCoord(Mth.floor(box.maxZ)); cz++)
+                if (!level.areEntitiesLoaded(net.minecraft.world.level.ChunkPos.asLong(cx, cz))) return false;
+        return true;
+    }
+    /** The hull box raised 2 blocks: where to look for living things a warp would leave behind. */
     static AABB deckBox(AABB hull) { return hull.expandTowards(0, 2, 0); }
+    /** Whether a box stands on the hull's blocks or overlaps one of them: a creature there is aboard, unlike one in the air beside a diagonal hull or a mast. */
+    static boolean onHull(Ship ship, ShipPose pose, AABB box) { return ShipCollision.supported(ship, pose, box) || !ShipCollision.shapes(ship, pose, box.deflate(1e-3)).isEmpty(); }
     private static boolean aboard(ServerLevel level, Ship ship) {
         if (ship.pilot != null || !ship.seated.isEmpty() || BOARDING.values().stream().anyMatch(b -> b.ship().equals(ship.id))) return true;
-        // Players, mobs, pets and villagers count whether or not they are attached.
-        if (!level.getEntities((Entity) null, deckBox(ship.hullWorldBounds()), e -> e instanceof net.minecraft.world.entity.LivingEntity living && living.isAlive() && !living.isSpectator()).isEmpty()) return true;
+        // Players, mobs, pets and villagers count whether or not they are attached, when they stand on or in the hull's blocks.
+        if (!level.getEntities((Entity) null, deckBox(ship.hullWorldBounds()), e -> e instanceof net.minecraft.world.entity.LivingEntity living && living.isAlive() && !living.isSpectator()
+                && onHull(ship, ship.pose, living.getBoundingBox())).isEmpty()) return true;
         return !level.getEntities((Entity) null, ship.hullWorldBounds().inflate(2), e -> { Ship on = attachedShip(e); return on != null && on.id.equals(ship.id); }).isEmpty();
     }
     /** A summoned hull must land in loaded chunks, clear of terrain, fluids, other ships and every entity, the summoner included. */
@@ -642,7 +656,7 @@ public final class ShipManager {
     public static void wake(MinecraftServer server, Ship ship) {
         // Cheap no-op for an awake ship; its idle count is left alone because a nearby player already prevents sleep.
         if (!ship.dormant) return;
-        ship.dormant = false; ship.idleTicks = 0; forceTickets(server, ship);
+        ship.dormant = false; ship.idleTicks = 0; ship.wokeAt = server.overworld().getGameTime(); forceTickets(server, ship);
     }
     /** Whether every cell that held a block at the last refresh now reads air: the yard was deleted, not edited. False for a hull with no blocks. */
     static boolean hullVanished(Map<BlockPos, BlockState> hull, java.util.function.Function<BlockPos, BlockState> now) {

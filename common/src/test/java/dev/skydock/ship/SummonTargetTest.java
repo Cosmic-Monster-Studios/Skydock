@@ -35,4 +35,31 @@ class SummonTargetTest {
         assertTrue(deck.intersects(new AABB(3.7, 61, 4.7, 4.3, 62.8, 5.3)), "a pet in the cabin");
         assertFalse(deck.intersects(new AABB(9.7, 60, 4.7, 10.3, 61.8, 5.3)), "a mob on the ground beside the hull");
     }
+    /** A deck row eight blocks long with a mast four high at its bow, turned 45 degrees so its world box takes in a lot of empty air. */
+    private static Ship masted() {
+        Ship ship = launched();
+        for (int x = 0; x < 8; x++) ship.blocks.put(new BlockPos(x, 0, 0), net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState());
+        for (int y = 1; y <= 4; y++) ship.blocks.put(new BlockPos(0, y, 0), net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState());
+        ship.initializePivot(); ship.pose = new ShipPose(100.5, 70, 40.5, 45); ship.previousPose = ship.pose;
+        return ship;
+    }
+    private static AABB creature(Ship ship, double x, double y, double z) {
+        net.minecraft.world.phys.Vec3 feet = ship.blockToWorld(new net.minecraft.world.phys.Vec3(x, y, z));
+        return new AABB(feet.x - .3, feet.y, feet.z - .3, feet.x + .3, feet.y + 1.8, feet.z + .3);
+    }
+    @Test void onlyCreaturesOnOrInTheHullBlocksAreAboard() {
+        Ship ship = masted();
+        AABB deck = ShipManager.deckBox(ship.hullWorldBounds());
+        AABB onDeck = creature(ship, 5.5, 1, .5), inMast = creature(ship, .5, 2, .5), bat = new AABB(creature(ship, 6.5, 3, .5).getCenter(), creature(ship, 6.5, 3, .5).getCenter()).inflate(.25);
+        assertTrue(ShipManager.onHull(ship, ship.pose, onDeck), "a villager standing on the deck");
+        assertTrue(ShipManager.onHull(ship, ship.pose, inMast), "a mob caught in the mast");
+        assertTrue(deck.intersects(bat), "the bat is inside the old aboard box");
+        assertFalse(ShipManager.onHull(ship, ship.pose, bat), "a bat in the air above the deck, beside the mast");
+        // of the box's two corners off the turned deck line, the one far from both of its ends
+        AABB box = ship.hullWorldBounds(); net.minecraft.world.phys.Vec3 bow = ship.blockToWorld(new net.minecraft.world.phys.Vec3(.5, 1, .5)), stern = ship.blockToWorld(new net.minecraft.world.phys.Vec3(7.5, 1, .5));
+        double cx = box.minX + .5, cz = box.maxZ - .5;
+        if (Math.min(Math.hypot(cx - bow.x, cz - bow.z), Math.hypot(cx - stern.x, cz - stern.z)) < 3) { cx = box.maxX - .5; cz = box.minZ + .5; }
+        AABB besideDiagonal = new AABB(cx - .3, 71, cz - .3, cx + .3, 72.8, cz + .3);
+        assertTrue(deck.intersects(besideDiagonal)); assertFalse(ShipManager.onHull(ship, ship.pose, besideDiagonal), "a mob in a corner of the box the turned hull leaves empty");
+    }
 }
