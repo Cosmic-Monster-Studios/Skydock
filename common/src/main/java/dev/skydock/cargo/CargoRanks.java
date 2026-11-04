@@ -17,6 +17,8 @@ public final class CargoRanks {
     public static List<Rank> ranks() { return loaded; }
     public static void setData(List<Rank> ranks) { loaded = ranks.isEmpty() ? DEFAULTS : List.copyOf(ranks); }
 
+    /** The rank with this level; unknown levels (ranks reloaded from data) fall back to the lowest rank. */
+    public static Rank byLevel(int level) { for (Rank r : loaded) if (r.level() == level) return r; return loaded.getFirst(); }
     /** The highest rank whose threshold the reputation reaches. */
     public static Rank forReputation(int reputation) {
         Rank best = loaded.getFirst();

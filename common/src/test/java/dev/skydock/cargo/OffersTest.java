@@ -54,7 +54,7 @@ class OffersTest {
         GlobalPos mid = at(1300, 0), far = at(2600, 0); // rank 1 band is 300..800; neither fits
         Offer own = generate(1, List.of(), List.of(far, mid)).get(0);
         assertEquals(mid, own.destination());
-        assertEquals(CargoRanks.forDistance(1300).level(), own.rankLevel());
+        assertEquals(1, own.rankLevel(), "the slot's rank is still the one needed to accept it");
         assertEquals(CargoRanks.forDistance(1300).crate(), own.crate());
         assertEquals(CargoRanks.forDistance(1300).deadlineDays(), own.deadlineDays());
         Offer longHaul = generate(1, List.of(), List.of(at(2600, 0))).get(0);
@@ -64,7 +64,8 @@ class OffersTest {
         GlobalPos a = at(400, 0), b = at(0, 900); // rank 3 band is 1200..3000
         Offer own = generate(3, List.of(a, b)).get(0);
         assertEquals(b, own.destination());
-        assertEquals(CargoRanks.forDistance(900).level(), own.rankLevel());
+        assertEquals(3, own.rankLevel());
+        assertEquals(CargoRanks.forDistance(900).crate(), own.crate());
     }
     @Test void widerSearchRunsOnlyWhenABandIsEmpty() {
         int[] calls = {0}; AtomicLong ids = new AtomicLong(1);
@@ -73,6 +74,24 @@ class OffersTest {
         assertEquals(0, calls[0]);
         Offers.generate(AT, 2, List.of(at(500, 0)), () -> { calls[0]++; return all; }, RandomSource.create(1), ids::getAndIncrement, NAMES);
         assertEquals(1, calls[0], "the wider search runs once per board, however many bands are empty");
+    }
+    @Test void fallbackOfferStaysAcceptableAtTheSlotRankButPaysForItsDistance() {
+        GlobalPos lone = at(1042, 0); // an isolated outpost: the only site is in Mate's band
+        List<Offer> offers = generate(1, List.of(lone));
+        assertEquals(3, offers.size());
+        Rank mate = CargoRanks.forDistance(1042);
+        assertEquals(2, mate.level());
+        assertEquals(List.of(1, 2, 1), offers.stream().map(Offer::rankLevel).toList(), "own and random slots stay Deckhand; only the preview is Mate");
+        for (Offer o : offers) {
+            assertEquals(lone, o.destination());
+            assertEquals(mate.crate(), o.crate());
+            assertEquals(CargoRanks.reputation(mate, 1042), o.reputationPerPod());
+            assertEquals(mate.deadlineDays(), o.deadlineDays());
+        }
+        CargoProfile deckhand = new CargoProfile();
+        assertEquals("", CargoService.acceptRefusal(deckhand, offers.get(0), 1));
+        assertEquals("message.skydock.cargo_rank_locked", CargoService.acceptRefusal(deckhand, offers.get(1), 1));
+        assertEquals(1, offers.get(0).pods(), "a Deckhand contract carries one pod");
     }
     @Test void neverOffersADestinationInsideTheLowestRanksMinimum() {
         GlobalPos ownSite = at(4, -2); // the terminal's own outpost, predicted at its chunk centre
@@ -85,7 +104,8 @@ class OffersTest {
         List<Offer> offers = generate(1, List.of(at(500, 0)), List.of());
         assertEquals(3, offers.size());
         assertEquals(at(500, 0), offers.get(1).destination());
-        assertEquals(1, offers.get(1).rankLevel());
+        assertEquals(2, offers.get(1).rankLevel(), "the preview keeps its rank");
+        assertEquals(CrateRank.TIN, offers.get(1).crate(), "but pays for the Deckhand distance it covers");
     }
     @Test void noOffersWithNoOtherTerminal() {
         assertTrue(generate(3, List.of(AT)).isEmpty());

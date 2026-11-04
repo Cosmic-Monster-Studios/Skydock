@@ -27,7 +27,7 @@ public final class Delivery {
 
     public static Result deliver(CargoProfile deliverer, UUID delivererId, Contract contract, PodTag pod, boolean byHolder, boolean late, GlobalPos at) {
         if (!accepts(contract, pod, at)) return NOTHING;
-        int full = CargoRanks.reputation(rankOf(contract.rankLevel), distance(contract.origin, contract.destination));
+        int full = contract.reputationPerPod;
         if (!byHolder) {
             int pay = full / 2; deliverer.reputation += pay; contract.lost.add(pod.index());
             CrateRank crate = contract.strangersPaid.add(delivererId) ? contract.crate.lower() : null;
@@ -50,7 +50,4 @@ public final class Delivery {
         int pay = CargoRanks.ranks().getFirst().basePerPod() / 2; deliverer.reputation += pay; return new Result(pay, null, false, false, null);
     }
 
-    // unknown levels (ranks reloaded from data) fall back to rank 1
-    private static Rank rankOf(int level) { for (Rank r : CargoRanks.ranks()) if (r.level() == level) return r; return CargoRanks.ranks().getFirst(); }
-    private static double distance(GlobalPos a, GlobalPos b) { double dx = a.pos().getX() - b.pos().getX(), dz = a.pos().getZ() - b.pos().getZ(); return Math.sqrt(dx * dx + dz * dz); }
 }

@@ -35,7 +35,7 @@ public final class Offers {
         int rank = Math.max(1, Math.min(playerRank, top));
         int[] levels = { rank, Math.min(rank + 1, top), 1 + random.nextInt(rank) };
         List<Offer> out = new ArrayList<>();
-        for (int level : levels) { Offer o = make(at, byLevel(level), candidates, far, random, ids, cargoNames); if (o != null) out.add(o); }
+        for (int level : levels) { Offer o = make(at, CargoRanks.byLevel(level), candidates, far, random, ids, cargoNames); if (o != null) out.add(o); }
         return out;
     }
 
@@ -58,26 +58,22 @@ public final class Offers {
         return beyond != null ? beyond : below;
     }
 
-    private static Rank byLevel(int level) {
-        for (Rank r : CargoRanks.ranks()) if (r.level() == level) return r;
-        return CargoRanks.ranks().getFirst();
-    }
-
     private static Offer make(GlobalPos at, Rank rank, List<GlobalPos> candidates, Supplier<List<GlobalPos>> far, RandomSource random, LongSupplier ids, List<String> cargoNames) {
         List<GlobalPos> band = new ArrayList<>();
         for (GlobalPos d : candidates) { double dist = distance(at.pos(), d.pos()); if (dist >= rank.minDistance() && dist <= rank.maxDistance()) band.add(d); }
-        GlobalPos destination; Rank effective = rank;
+        // A fallback destination keeps the slot's rank (so it can be accepted) but pays, rewards and allows time for the distance it covers.
+        GlobalPos destination; Rank pay = rank;
         if (!band.isEmpty()) destination = band.get(random.nextInt(band.size()));
         else {
             destination = fallback(at.pos(), rank, far.get());
             if (destination == null) return null;
-            effective = CargoRanks.forDistance(distance(at.pos(), destination.pos()));
+            pay = CargoRanks.forDistance(distance(at.pos(), destination.pos()));
         }
         double distance = distance(at.pos(), destination.pos());
-        int pods = 1 + random.nextInt(Math.min(effective.level(), 4));
-        int days = effective.deadlineDays() + (int) (distance / BLOCKS_PER_EXTRA_DAY);
+        int pods = 1 + random.nextInt(Math.min(rank.level(), 4));
+        int days = pay.deadlineDays() + (int) (distance / BLOCKS_PER_EXTRA_DAY);
         String cargo = cargoNames.get(random.nextInt(cargoNames.size()));
-        return new Offer(ids.getAsLong(), destination, effective.level(), effective.crate(), cargo, pods, days, CargoRanks.reputation(effective, distance));
+        return new Offer(ids.getAsLong(), destination, rank.level(), pay.crate(), cargo, pods, days, CargoRanks.reputation(pay, distance));
     }
 
     /**

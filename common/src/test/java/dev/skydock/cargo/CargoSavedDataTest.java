@@ -21,6 +21,14 @@ class CargoSavedDataTest {
         Contract bc = back.contracts.get(5L);
         assertEquals(a, bc.origin); assertEquals(b, bc.destination); assertEquals(CrateRank.COPPER, bc.crate); assertEquals(3, bc.pods); assertEquals(48000, bc.deadline);
         assertEquals(c.delivered, bc.delivered); assertEquals(c.lost, bc.lost); assertTrue(bc.anyReduced); assertEquals(c.strangersPaid, bc.strangersPaid); assertFalse(bc.settled());
+        assertEquals(c.reputationPerPod, bc.reputationPerPod);
+    }
+    @Test void contractPayKeepsItsOfferRateAndOldSavesFallBackToTheRank() {
+        GlobalPos a = GlobalPos.of(Level.OVERWORLD, new BlockPos(0, 64, 0)), b = GlobalPos.of(Level.OVERWORLD, new BlockPos(1042, 64, 0));
+        Contract c = new Contract(9, a, b, 1, CrateRank.COPPER, "cargo.skydock.grain", 1, 0, 43);
+        assertEquals(43, Contract.load(c.save()).reputationPerPod);
+        net.minecraft.nbt.CompoundTag old = c.save(); old.remove("Reputation");
+        assertEquals(CargoRanks.reputation(CargoRanks.ranks().getFirst(), 1042), Contract.load(old).reputationPerPod);
     }
     @Test void podTagSurvivesSaveAndLoad() {
         PodTag tag = new PodTag(1L << 40, 3, true); assertEquals(tag, PodTag.load(tag.save()));

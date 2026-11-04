@@ -23,6 +23,16 @@ class DeliveryTest {
         Delivery.Result r = Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, DEST);
         assertEquals(FULL, r.reputation()); assertTrue(r.full()); assertEquals(FULL, p.reputation); assertTrue(c.delivered.contains(0)); assertFalse(c.anyReduced);
     }
+    @Test void contractPaysTheReputationItsOfferShowed() {
+        // A Deckhand-accepted fallback contract 1042 blocks out pays Mate's rate for the distance, as its offer said.
+        GlobalPos far = GlobalPos.of(Level.OVERWORLD, new BlockPos(1042, 100, 0));
+        int shown = CargoRanks.reputation(CargoRanks.forDistance(1042), 1042);
+        Contract c = new Contract(8, ORIGIN, far, 1, CrateRank.COPPER, "cargo.skydock.grain", 2, 24000, shown);
+        CargoProfile holder = new CargoProfile(), thief = new CargoProfile();
+        assertEquals(shown, Delivery.deliver(holder, HOLDER, c, pod(c, 0, false), true, false, far).reputation());
+        assertEquals(shown / 2, Delivery.deliver(thief, THIEF, c, pod(c, 1, false), false, false, far).reputation());
+        assertNotEquals(CargoRanks.reputation(CargoRanks.ranks().getFirst(), 1042), shown);
+    }
     @Test void secondDeliveryOfTheSamePodPaysNothing() {
         Contract c = contract(2, CrateRank.BRASS); CargoProfile p = new CargoProfile();
         Delivery.deliver(p, HOLDER, c, pod(c, 0, false), true, false, DEST);
