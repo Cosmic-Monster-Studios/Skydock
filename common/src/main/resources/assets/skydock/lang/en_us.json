@@ -319,6 +319,7 @@
   "error.skydock.berth_overlaps_dock": "The berth would overlap another dock's berth.",
   "error.skydock.berth_overlaps_ship": "A ship is in the way of the berth.",
   "item.skydock.warp_anchor": "Warp Anchor",
+  "item.skydock.summoning_horn": "Summoning Horn (old)",
   "item.skydock.warp_anchor.bound": "Bound to the dock at %s (%s)",
   "item.skydock.warp_anchor.unbound": "Use on your dock controller or ship to bind",
   "message.skydock.anchor_bound": "Warp Anchor bound to the dock at %s.",

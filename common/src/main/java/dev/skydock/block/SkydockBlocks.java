@@ -57,6 +57,8 @@ public final class SkydockBlocks {
     public static final RegistrySupplier<MenuType<dev.skydock.cargo.TerminalMenu>> TERMINAL_MENU = MENUS.register("terminal", () -> MenuRegistry.ofExtended(dev.skydock.cargo.TerminalMenu::new));
     public static final RegistrySupplier<Item> SHIPWRIGHT_HAMMER = ITEMS.register("shipwright_hammer", () -> new dev.skydock.item.ShipwrightHammerItem(new Item.Properties().durability(250).stacksTo(1)));
     public static final RegistrySupplier<Item> WARP_ANCHOR = ITEMS.register("warp_anchor", () -> new dev.skydock.item.WarpAnchorItem(new Item.Properties().durability(64)));
+    /** The Warp Anchor's old id: hidden, it turns every old stack into an anchor. */
+    public static final RegistrySupplier<Item> SUMMONING_HORN = ITEMS.register("summoning_horn", () -> new dev.skydock.item.LegacySummoningHornItem(new Item.Properties().durability(64)));
     public static final RegistrySupplier<dev.skydock.cargo.CargoPodBlock> CARGO_POD = BLOCKS.register("cargo_pod", () -> new dev.skydock.cargo.CargoPodBlock(BlockBehaviour.Properties.of().strength(3, 1200).sound(SoundType.METAL)));
     public static final RegistrySupplier<Item> CARGO_POD_ITEM = ITEMS.register("cargo_pod", () -> new dev.skydock.cargo.CargoPodItem(CARGO_POD.get(), new Item.Properties().stacksTo(1)));
     public static final RegistrySupplier<BlockEntityType<dev.skydock.cargo.CargoPodBlockEntity>> CARGO_POD_ENTITY = ENTITIES.register("cargo_pod", () ->
