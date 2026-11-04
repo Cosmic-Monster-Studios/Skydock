@@ -75,6 +75,23 @@ class CargoServiceTest {
         assertNull(CargoService.resolveDestination(terminals, GlobalPos.of(Level.OVERWORLD, new BlockPos(900, 63, 0))));
     }
 
+    @Test void offersBoundForARemovedTerminalLeaveTheBoard() {
+        GlobalPos gone = GlobalPos.of(Level.OVERWORLD, new BlockPos(0, 70, 900));
+        var terminals = new java.util.LinkedHashMap<GlobalPos, CargoSavedData.Terminal>(); terminals.put(THERE, new CargoSavedData.Terminal(THERE, THERE.pos(), true));
+        CargoProfile p = new CargoProfile(); Offer live = offer(1), dead = new Offer(6, gone, 2, CrateRank.TIN, "cargo.skydock.name.silk", 1, 2, 10);
+        p.offers.put(HERE, new java.util.ArrayList<>(java.util.List.of(live, dead))); p.offersRefreshed.put(HERE, 100L);
+        assertTrue(CargoService.dropUnresolved(p, HERE, terminals));
+        assertEquals(java.util.List.of(live), p.offers.get(HERE));
+        assertEquals(100L, p.offersRefreshed.get(HERE), "a short board keeps its day and refills its empty slot");
+        assertFalse(CargoService.dropUnresolved(p, HERE, terminals), "nothing more to drop");
+        assertFalse(CargoService.dropUnresolved(p, THERE, terminals), "no board there");
+        terminals.clear();
+        assertTrue(CargoService.dropUnresolved(p, HERE, terminals));
+        assertTrue(p.offers.get(HERE).isEmpty());
+        assertNull(p.offersRefreshed.get(HERE), "an emptied board searches again rather than waiting the day");
+        assertFalse(CargoService.siteSearchWaits(p, HERE, 200));
+    }
+
     @Test void emptyBoardWaitsADayBeforeSearchingAgain() {
         CargoProfile p = new CargoProfile();
         assertFalse(CargoService.siteSearchWaits(p, HERE, 100));

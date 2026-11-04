@@ -95,6 +95,18 @@ public final class CargoService {
         for (UUID holder : List.copyOf(data.profiles.keySet())) if (expire(data, holder, now)) { ServerPlayer online = server.getPlayerList().getPlayer(holder); if (online != null) sync(online); }
     }
 
+    /**
+     * Drops the offers on the board at {@code at} whose destination no longer resolves (its terminal was removed or retired), so the slots
+     * refill under {@link Offers#refreshIfDue}'s rules. A board this empties forgets its search time, as an emptied board does on accept,
+     * so it does not wait out the day as if no destination had been found. Returns whether any offer went.
+     */
+    static boolean dropUnresolved(CargoProfile p, GlobalPos at, Map<GlobalPos, CargoSavedData.Terminal> terminals) {
+        List<Offer> board = p.offers.get(at);
+        if (board == null || !board.removeIf(o -> resolveDestination(terminals, o.destination()) == null)) return false;
+        if (board.isEmpty()) p.offersRefreshed.remove(at);
+        return true;
+    }
+
     /** An empty board means no destination was found; the site search runs again only once its day is up. */
     static boolean siteSearchWaits(CargoProfile p, GlobalPos at, long now) {
         List<Offer> board = p.offers.get(at); Long last = p.offersRefreshed.get(at);
@@ -135,7 +147,7 @@ public final class CargoService {
 
     /**
      * Called whenever a terminal screen opens. An unregistered terminal only says so and offers nothing; a registered one expires
-     * overdue contracts, hands out queued crates, fails contracts whose terminal is gone, and refreshes the board.
+     * overdue contracts, hands out queued crates, fails contracts whose terminal is gone, drops offers bound for one, and refreshes the board.
      */
     public static void opened(ServerPlayer player, GlobalPos terminal) {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server);
@@ -146,6 +158,7 @@ public final class CargoService {
         if (!p.expired.isEmpty()) { p.expired.clear(); changed = true; }
         if (!p.pendingCrates.isEmpty()) { p.pendingCrates.forEach(rank -> giveCrate(player, rank)); p.pendingCrates.clear(); changed = true; syncInventory(player); }
         for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
+        changed |= dropUnresolved(p, terminal, data.terminals);
         ServerLevel level = server.getLevel(terminal.dimension());
         if (level != null && !siteSearchWaits(p, terminal, now)) {
             int rank = p.peakRank();
