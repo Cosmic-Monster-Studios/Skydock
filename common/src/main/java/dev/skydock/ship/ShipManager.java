@@ -395,6 +395,19 @@ public final class ShipManager {
         for (Ship other : ships(level)) if (other != ship && other.hullWorldBounds().intersects(box) && !ShipCollision.shapes(other, other.pose, box).isEmpty()) return false;
         return level.getEntities((Entity) null, box, e -> !e.isSpectator() && !looseInCell(e.getClass())).isEmpty();
     }
+    /** The shipyard box of a hull, 2 blocks wider all round: loose items and orbs in it came from the ship. */
+    static AABB yardBox(Ship ship) { Vec3 c = ship.center(); return ship.hullBounds().move(c.x + ship.yard.getX(), c.y + ship.yard.getY(), c.z + ship.yard.getZ()).inflate(2); }
+    /** Where a point of the ship's shipyard region is in the world now. */
+    static Vec3 yardToWorld(Ship ship, Vec3 yardPos) { return ship.blockToWorld(yardPos.subtract(Vec3.atLowerCornerOf(ship.yard))); }
+    /** A loose entity's world motion: its motion in the north-frame shipyard turned with the hull, plus the hull's own. */
+    static Vec3 worldMotion(Vec3 yardMotion, double yaw, Vec3 shipVelocity) { return ShipPose.rotate(yardMotion, yaw).add(shipVelocity); }
+    /** Items and orbs made aboard (jukebox discs, composters, dispensers, popped attachments) land in the shipyard; this moves them out beside the hull. */
+    private static void returnLoose(ServerLevel yard, ServerLevel world, Ship ship) {
+        for (Entity loose : yard.getEntities((Entity) null, yardBox(ship), e -> e.isAlive() && looseInCell(e.getClass())))
+            loose.changeDimension(new net.minecraft.world.level.portal.DimensionTransition(world, yardToWorld(ship, loose.position()),
+                    worldMotion(loose.getDeltaMovement(), ship.pose.yaw(), ship.velocity), loose.getYRot() + (float) ship.pose.yaw(), loose.getXRot(),
+                    net.minecraft.world.level.portal.DimensionTransition.DO_NOTHING));
+    }
     /** Dropped items and experience orbs lying in a cell do not keep a block out of it; they are pushed aside like any block placement does. */
     static boolean looseInCell(Class<?> type) { return net.minecraft.world.entity.item.ItemEntity.class.isAssignableFrom(type) || net.minecraft.world.entity.ExperienceOrb.class.isAssignableFrom(type); }
     public static boolean canReachDock(Player player, DockBlockEntity dock) {
@@ -512,6 +525,7 @@ public final class ShipManager {
             ship.history.accept(tick, ship.pose, ship.velocity, ship.yawVelocity);
             carry(level, ship, ship.previousPose);
             ShipDamage.ram(level, ship);
+            if (yard != null && tick % 10 == 0) returnLoose(yard, level, ship);
             if (tick % 2 == 0) ShipNetwork.syncPose(server, ship, false);
             SavedState state = new SavedState(ship.pose, ship.velocity, ship.phase, ship.moored, ship.cruise, ship.pilot, ship.seated.size(), ship.revision, ship.mass, ship.lift, ship.holdAltitude, ship.headingLock, ship.cruiseSpeed);
             if (!state.equals(ship.savedState)) { ship.savedState = state; changed = true; }
