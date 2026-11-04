@@ -15,14 +15,20 @@ public abstract class ServerFlightMixin {
     @Shadow public ServerPlayer player;
     @Shadow private boolean clientIsFloating;
     @Shadow private Vec3 awaitingPositionFromClient;
+    /**
+     * Whether a teleport was already pending when this packet arrived on the server thread, before vanilla ran. Read at the end
+     * instead, it would also be set by the rubber-band teleport vanilla sends for a bad move, which is exactly when the deck needs correcting.
+     */
+    @Unique private boolean skydock$teleportPending;
     @ModifyVariable(method = "handleMovePlayer", argsOnly = true,
             at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V", shift = At.Shift.AFTER))
     private ServerboundMovePlayerPacket skydock$rebaseDeckMove(ServerboundMovePlayerPacket packet) {
-        return ShipManager.rebaseMovement(player, packet);
+        skydock$teleportPending = awaitingPositionFromClient != null;
+        return ShipManager.rebaseMovement(player, packet, skydock$teleportPending);
     }
     @Inject(method = "handleMovePlayer", at = @At("RETURN"))
     private void skydock$deckIsGround(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
-        ShipManager.finishMovement(player, awaitingPositionFromClient != null);
+        ShipManager.finishMovement(player, skydock$teleportPending);
         var ship = ShipManager.attachedShip(player);
         if (ship != null && ShipCollision.aboveHull(ship, ship.pose, player.getBoundingBox())) clientIsFloating = false;
     }

@@ -204,8 +204,12 @@ public final class ShipManager {
     public static void receiveMovementFrame(ServerPlayer player, ShipMovementFrame.Frame frame) {
         attachment(player).receive(frame);
     }
-    /** Re-expresses a verified client-frame target in the server's current ship pose. */
-    public static ServerboundMovePlayerPacket rebaseMovement(ServerPlayer player, ServerboundMovePlayerPacket packet) {
+    /**
+     * Re-expresses a verified client-frame target in the server's current ship pose. {@code teleportPending} is whether a teleport
+     * was awaiting the client's acceptance before vanilla handled this packet; vanilla then ignores the move, so it cannot attach the
+     * player to a ship (fresh or switching) either.
+     */
+    public static ServerboundMovePlayerPacket rebaseMovement(ServerPlayer player, ServerboundMovePlayerPacket packet, boolean teleportPending) {
         ShipAttachment attachment = attachment(player);
         if (!packet.hasPosition()) return packet;
         ShipMovementFrame.Frame frame = attachment.consume();
@@ -218,6 +222,7 @@ public final class ShipManager {
         // A frame naming another ship means the client left the attached one without the server seeing it go.
         boolean switching = attached != null && !attached.equals(frame.ship());
         if (attached == null || switching) {
+            if (teleportPending) return packet;
             rebased = ShipMovementFrame.rebase(frame, frame.ship(), attachment.lastAcceptedSequence(),
                     ship.history, ship.pose, ship.center(), packetPosition);
             if (rebased == null) return packet;
@@ -241,18 +246,24 @@ public final class ShipManager {
                     packet.getYRot(player.getYRot()), packet.getXRot(player.getXRot()), packet.isOnGround());
         return new ServerboundMovePlayerPacket.Pos(rebased.x, rebased.y, rebased.z, packet.isOnGround());
     }
-    /** {@code teleporting} is true while the server waits for the client to accept a teleport; vanilla then ignores the move, and a deck correction would be built from the teleport's destination. */
-    public static void finishMovement(ServerPlayer player, boolean teleporting) {
+    /**
+     * {@code teleportPending} is whether a teleport was awaiting the client's acceptance before vanilla handled the packet (not after:
+     * vanilla's own rubber-band teleport for a rejected move is set during it). With one pending, vanilla ignored the move, and a deck
+     * correction would be built from the teleport's destination; without, a player left short of the accepted target is put back on deck.
+     */
+    public static void finishMovement(ServerPlayer player, boolean teleportPending) {
         ShipAttachment attachment = attachment(player);
         Vec3 target = attachment.consumeAcceptedMovementTarget();
         boolean departing = attachment.consumeDetachAfterMovement();
-        if (target != null && !teleporting && player.position().distanceToSqr(target) > 1e-6) {
+        if (correctsDeck(target, teleportPending, player.position())) {
             Ship ship = findShip(player.level(), attachment.ship());
             if (ship != null) ShipNetwork.correctDeck(player, ship, ship.worldToBlock(player.position()));
             return;
         }
         if (departing) attachment.detach(player, true);
     }
+    /** Whether a move left the player away from its accepted deck target with no teleport pending before it, so the deck must be restored. */
+    static boolean correctsDeck(Vec3 target, boolean teleportPending, Vec3 position) { return target != null && !teleportPending && position.distanceToSqr(target) > 1e-6; }
     public static void tell(Player player, String key, Object... args) { player.displayClientMessage(Component.translatable(key, args), false); }
     public static void tell(Player player, Component text) { player.displayClientMessage(text, false); }
     private static DockBlockEntity dock(ServerPlayer player, BlockPos pos) {
