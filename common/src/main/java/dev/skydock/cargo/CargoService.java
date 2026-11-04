@@ -159,11 +159,6 @@ public final class CargoService {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server);
         if (!onNetwork(data, terminal)) { ShipManager.tell(player, "message.skydock.cargo_terminal_unregistered"); sync(player); return; }
         CargoProfile p = data.profile(player.getUUID()); long now = now(server); boolean changed = false;
-        // Failing first keeps a contract whose terminal is gone from expiring, which would void its pods' orphan reward.
-        for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
-        changed |= expire(data, player.getUUID(), now);
-        for (String cargo : p.expired) ShipManager.tell(player, "message.skydock.cargo_expired", cargoName(cargo));
-        if (!p.expired.isEmpty()) { p.expired.clear(); changed = true; }
         if (!p.pendingCrates.isEmpty()) { p.pendingCrates.forEach(rank -> giveCrate(player, rank)); p.pendingCrates.clear(); changed = true; syncInventory(player); }
         changed |= dropUnresolved(p, terminal, data.terminals);
         ServerLevel level = server.getLevel(terminal.dimension());
@@ -173,6 +168,11 @@ public final class CargoService {
                     () -> TerminalSites.near(level, terminal.pos(), CargoRanks.ranks().getFirst().minDistance(), fallbackRadius()),
                     level.getRandom(), () -> data.nextContract++, CargoNames.names()));
         }
+        // The board refresh above can purge recorded sites, so failing waits for it; failing before expiring keeps a contract whose terminal is gone from voiding its pods' orphan reward.
+        for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
+        changed |= expire(data, player.getUUID(), now);
+        for (String cargo : p.expired) ShipManager.tell(player, "message.skydock.cargo_expired", cargoName(cargo));
+        if (!p.expired.isEmpty()) { p.expired.clear(); changed = true; }
         if (changed) data.setDirty();
         sync(player);
     }

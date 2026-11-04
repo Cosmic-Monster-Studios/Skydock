@@ -10,7 +10,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
@@ -38,6 +41,11 @@ public final class CargoTerminalBlock extends HorizontalDirectionalBlock impleme
             if (serverPlayer.containerMenu instanceof TerminalMenu) CargoService.opened(serverPlayer, GlobalPos.of(level.dimension(), pos));
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+    /** A hand-placed terminal, even a pick-block copy of an outpost's, is not part of an outpost: only worldgen leaves the pad offset on. */
+    @Override public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (placer != null && level.getBlockEntity(pos) instanceof CargoTerminalBlockEntity terminal) terminal.clearPad();
     }
     @Override protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState next, boolean moved) {
         if (!state.is(next.getBlock()) && level instanceof ServerLevel server)

@@ -29,6 +29,8 @@ public final class CargoTerminalBlockEntity extends BlockEntity {
     public CargoTerminalBlockEntity(BlockPos pos, BlockState state) { super(SkydockBlocks.CARGO_TERMINAL_ENTITY.get(), pos, state); }
 
     /** Whether this terminal generated with an outpost (it carries a pad offset), rather than being placed by hand. */
+    /** Forgets the outpost pad offset, so the terminal is a plain hand-placed one. */
+    public void clearPad() { if (padOffset != null) { padOffset = null; setChanged(); } }
     public boolean fromOutpost() { return padOffset != null; }
     /** The pad centre in world coordinates. */
     public BlockPos pad() { return pad(worldPosition, getBlockState().getValue(HorizontalDirectionalBlock.FACING), padOffset); }
