@@ -69,6 +69,17 @@ class ShopTest {
         assertEquals(JsonParser.parseString(Shop.DEFAULTS), JsonParser.parseString(java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/data/skydock/cargo/shop.json"))));
     }
 
+    @Test void staleShopIndexIsRefused() {
+        List<ShopEntry> before = List.of(item(1, 60), pattern(3, 500, BRIG)), after = List.of(pattern(4, 1500, CRUISER), item(1, 60));
+        long cheap = Shop.fingerprint(0, before.get(0));
+        assertSame(before.get(0), Shop.resolve(before, cheap));
+        assertNull(Shop.resolve(after, cheap), "a reload put a different entry at index 0");
+        assertNull(Shop.resolve(after, Shop.fingerprint(1, before.get(1))), "same index, different entry");
+        assertSame(after.get(1), Shop.resolve(after, Shop.fingerprint(1, ShopEntry.load(after.get(1).save()))), "a synced copy still matches");
+        assertNull(Shop.resolve(before, Shop.fingerprint(5, before.get(0))), "index out of range");
+        assertNull(Shop.resolve(before, -1));
+    }
+
     @Test void syncedEntriesRoundTrip() {
         for (ShopEntry entry : List.of(item(2, 120), pattern(4, 1500, CRUISER))) {
             ShopEntry back = ShopEntry.load(entry.save());

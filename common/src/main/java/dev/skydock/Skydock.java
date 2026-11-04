@@ -40,6 +40,8 @@ public final class Skydock {
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new dev.skydock.cargo.ShopLoader(), id("cargo_shop"));
         CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> SkydockCommands.register(dispatcher));
         LifecycleEvent.SERVER_STARTED.register(ShipManager::start);
+        LifecycleEvent.SERVER_STARTED.register(dev.skydock.cargo.Shop::started);
+        LifecycleEvent.SERVER_STOPPED.register(dev.skydock.cargo.Shop::stopped);
         LifecycleEvent.SERVER_STOPPED.register(ShipManager::stop);
         LifecycleEvent.SERVER_STOPPED.register(AssemblyManager::stop);
         TickEvent.SERVER_PRE.register(ShipManager::tick);

@@ -39,7 +39,7 @@ public final class CargoNetwork {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** A button on the terminal screen; {@code id} is the offer, the contract or (for {@link #BUY}) the shop entry index. */
+    /** A button on the terminal screen; {@code id} is the offer, the contract or (for {@link #BUY}) the shop entry's {@link Shop#fingerprint}. */
     public record Action(int containerId, int action, long id) implements CustomPacketPayload {
         public static final Type<Action> TYPE = new Type<>(Skydock.id("cargo_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Action> CODEC = StreamCodec.of((buffer, packet) -> {

@@ -44,7 +44,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         contractsTab = button(leftPos + 9, tabY, 80, 18, "gui.skydock.cargo.tab_contracts", () -> page = Page.CONTRACTS);
         shopTab = button(leftPos + 91, tabY, 60, 18, "gui.skydock.cargo.tab_shop", () -> page = Page.SHOP);
         reputationTab = button(leftPos + 153, tabY, 84, 18, "gui.skydock.cargo.tab_reputation", () -> page = Page.REPUTATION);
-        shop = new ShopPanel(font, action -> button(0, 0, 10, 10, "gui.skydock.cargo.buy", action), index -> send(CargoNetwork.BUY, index));
+        shop = new ShopPanel(font, action -> button(0, 0, 10, 10, "gui.skydock.cargo.buy", action), fingerprint -> send(CargoNetwork.BUY, fingerprint));
         for (int i = 0; i < CargoService.MAX_CONTRACTS; i++) {
             int slot = i;
             acceptButtons.add(button(0, 0, 10, 10, "gui.skydock.cargo.accept", () -> { if (slot < offers.size()) send(CargoNetwork.ACCEPT, offers.get(slot).id()); }));

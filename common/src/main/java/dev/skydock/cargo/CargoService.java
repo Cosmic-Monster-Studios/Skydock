@@ -122,10 +122,11 @@ public final class CargoService {
         ShipManager.tell(player, "message.skydock.cargo_abandoned", cargoName(c.cargoKey));
     }
 
-    /** Buys the shop entry at this index for the player, re-checking rank, balance and ownership; items go to the inventory or drop at their feet. */
-    public static void buy(ServerPlayer player, long index) {
-        List<ShopEntry> entries = Shop.entries(); if (index < 0 || index >= entries.size()) return;
-        ShopEntry entry = entries.get((int) index);
+    /** Buys the shop entry a {@link Shop#fingerprint} names for the player, re-checking rank, balance and ownership; items go to the inventory or drop at their feet. */
+    public static void buy(ServerPlayer player, long fingerprint) {
+        ShopEntry entry = Shop.resolve(Shop.entries(), fingerprint);
+        // The caller resyncs after every action, so the stale screen gets the current stock.
+        if (entry == null) { ShipManager.tell(player, "message.skydock.shop_changed"); return; }
         if (entry.isPattern() && ShipPatterns.get(entry.pattern()).isEmpty()) { ShipManager.tell(player, "message.skydock.shop_unavailable"); return; }
         CargoSavedData data = CargoSavedData.get(player.getServer());
         String refusal = Shop.buy(data.profile(player.getUUID()), entry);
@@ -189,11 +190,15 @@ public final class CargoService {
         if (count == 0) { ShipManager.tell(player, "message.skydock.cargo_nothing"); return; }
         data.setDirty();
         ShipManager.tell(player, "message.skydock.cargo_delivered", count, gained);
-        if (me.peakRank() > rankBefore) {
-            ShipManager.tell(player, "message.skydock.cargo_rank_up", Component.translatable(CargoRanks.forReputation(me.reputation).key()));
-            player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1, 1);
-        }
+        announceRankUp(player, me, rankBefore);
         for (UUID holder : holders) { ServerPlayer online = server.getPlayerList().getPlayer(holder); if (online != null) sync(online); }
+    }
+
+    /** Tells the player of a promotion, with the toast sound, when their rank rose above {@code rankBefore}. */
+    public static void announceRankUp(ServerPlayer player, CargoProfile profile, int rankBefore) {
+        if (profile.peakRank() <= rankBefore) return;
+        ShipManager.tell(player, "message.skydock.cargo_rank_up", Component.translatable(CargoRanks.forReputation(profile.reputation).key()));
+        player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1, 1);
     }
 
     /** Sends the player's profile, the rank ladder, the shop stock (pattern entries carry the pattern's name) and each active contract's destination pad. */

@@ -34,6 +34,8 @@ public final class Shop {
               {"rank": 5, "price": 200, "item": "skydock:timber_railing", "count": 64},
               {"rank": 5, "price": 200, "item": "skydock:signal_flag", "count": 64}
             ]}""";
+    /** The running server, so a reload can resync open terminals; null while none runs. */
+    private static volatile MinecraftServer server;
     /** Null until a reload sets data; the defaults resolve lazily because their items must be registered first. */
     private static volatile List<ShopEntry> loaded, defaults;
     private Shop() {}
@@ -46,8 +48,35 @@ public final class Shop {
     public static List<ShopEntry> entries() { List<ShopEntry> l = loaded; return l == null ? defaults() : l; }
     /** Null keeps the defaults. */
     public static void setData(List<ShopEntry> entries) { loaded = entries == null ? null : List.copyOf(entries); }
-    /** Every pattern the shop sells, once each, in shop order. */
-    public static List<ResourceLocation> patterns() { return entries().stream().map(ShopEntry::pattern).filter(Objects::nonNull).distinct().toList(); }
+    /** Every loaded pattern the shop sells, once each, in shop order. */
+    public static List<ResourceLocation> patterns() {
+        return entries().stream().map(ShopEntry::pattern).filter(Objects::nonNull).distinct().filter(id -> ShipPatterns.get(id).isPresent()).toList();
+    }
+
+    public static void started(MinecraftServer started) { server = started; }
+    public static void stopped(MinecraftServer stopped) { server = null; }
+    /** After a reload changes the stock, every player looking at a terminal gets the new list. */
+    static void resyncTerminals() {
+        MinecraftServer s = server; if (s == null) return;
+        s.execute(() -> { for (ServerPlayer player : s.getPlayerList().getPlayers()) if (player.containerMenu instanceof TerminalMenu) CargoService.sync(player); });
+    }
+
+    /**
+     * What the client sends to buy an entry: its index in the low 16 bits and a 32-bit hash of what it sells (rank, price,
+     * item id and count, pattern id) above, so a screen left open across a reload cannot buy whatever now sits at that index.
+     */
+    public static long fingerprint(int index, ShopEntry entry) {
+        String item = entry.item().isEmpty() ? "" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(entry.item().getItem()) + "*" + entry.item().getCount();
+        int hash = Objects.hash(entry.rank(), entry.price(), item, entry.pattern() == null ? "" : entry.pattern().toString());
+        return (hash & 0xFFFFFFFFL) << 16 | (index & 0xFFFF);
+    }
+    /** The entry a fingerprint names, or null when the index is out of range or the entry there has changed. */
+    public static ShopEntry resolve(List<ShopEntry> entries, long fingerprint) {
+        int index = (int) (fingerprint & 0xFFFF);
+        if (fingerprint < 0 || index >= entries.size()) return null;
+        ShopEntry entry = entries.get(index);
+        return fingerprint(index, entry) == fingerprint ? entry : null;
+    }
 
     /**
      * Empty on success, else the lang key saying why not. Success adds the price to {@code spent} and unlocks a pattern entry;
@@ -89,13 +118,13 @@ public final class Shop {
 
     /** Applies a crate's pattern prize to its opener's saved profile whether or not they are online, telling and syncing them if they are. */
     public static void awardCratePrize(MinecraftServer server, UUID opener, CrateRank rank, RandomSource random) {
-        CargoSavedData data = CargoSavedData.get(server);
-        Prize prize = cratePrize(data.profile(opener), rank, patterns(), random);
+        CargoSavedData data = CargoSavedData.get(server); CargoProfile profile = data.profile(opener); int rankBefore = profile.peakRank();
+        Prize prize = cratePrize(profile, rank, patterns(), random);
         if (prize.pattern() == null && !prize.refunded()) return;
         data.setDirty();
         ServerPlayer player = server.getPlayerList().getPlayer(opener);
         if (player == null) return;
-        if (prize.refunded()) ShipManager.tell(player, "message.skydock.crate_pattern_refund", PRIZE_REFUND);
+        if (prize.refunded()) { ShipManager.tell(player, "message.skydock.crate_pattern_refund", PRIZE_REFUND); CargoService.announceRankUp(player, profile, rankBefore); }
         else ShipManager.tell(player, "message.skydock.crate_pattern", patternName(prize.pattern()));
         CargoService.sync(player);
     }

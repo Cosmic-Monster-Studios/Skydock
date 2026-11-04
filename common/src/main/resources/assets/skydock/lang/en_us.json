@@ -397,5 +397,6 @@
   "message.skydock.shop_bought_pattern": "Unlocked the %s pattern for %s reputation. It is now on your dock screens.",
   "message.skydock.crate_pattern": "The crate held a ship pattern: %s! It is now on your dock screens.",
   "message.skydock.crate_pattern_refund": "The crate held a ship pattern you already own; it was traded for %s reputation.",
-  "status.skydock.pattern_locked": "Locked: buy this pattern in the cargo shop to build it."
+  "status.skydock.pattern_locked": "Locked: buy this pattern in the cargo shop to build it.",
+  "message.skydock.shop_changed": "The shop's stock changed. Look again."
 }

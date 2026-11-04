@@ -27,7 +27,7 @@ final class ShopPanel {
 
     ShopPanel(Font font, Function<Runnable, DockScreen.ShipwrightButton> button, LongConsumer buy) {
         this.font = font;
-        for (int i = 0; i < BUTTONS; i++) { int slot = i; buttons.add(button.apply(() -> { if (bound[slot] != null) buy.accept(bound[slot].index()); })); }
+        for (int i = 0; i < BUTTONS; i++) { int slot = i; buttons.add(button.apply(() -> { if (bound[slot] != null) buy.accept(dev.skydock.cargo.Shop.fingerprint(bound[slot].index(), bound[slot].entry())); })); }
     }
 
     private static List<Row> rows() {

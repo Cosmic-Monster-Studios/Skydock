@@ -23,6 +23,7 @@ public final class ShopLoader extends SimpleJsonResourceReloadListener {
             catch (RuntimeException ex) { Skydock.LOGGER.error("Invalid Skydock cargo shop", ex); }
         }
         Shop.setData(next);
+        Shop.resyncTerminals();
     }
 
     /** Each entry has a {@code rank} (1 or more), a {@code price} (0 or more) and exactly one of {@code item} (with an optional {@code count}) or {@code pattern}. */
