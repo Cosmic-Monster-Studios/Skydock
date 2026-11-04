@@ -11,7 +11,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.server.Bootstrap;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -20,7 +19,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Properties that fail on the current code. Each is disabled with the bug it shows; remove the annotation once it is fixed.
+ * Properties that once failed, each kept as a regression test for the bug its comment describes.
  */
 class ShipBugsFuzzTest {
     static HolderLookup.Provider registries;
@@ -44,7 +43,6 @@ class ShipBugsFuzzTest {
      * Minimal reproducer: a valid save of two ships where the second has {@code Tier: "GALLEON"} (or no {@code Id}, or
      * {@code Dimension: "Bad Dim"}) throws IllegalArgumentException / NullPointerException / ResourceLocationException.
      */
-    @Disabled("bug: one unreadable ship makes ShipSavedData.load throw, so the world loads with no ships and saves over them")
     @Test void oneUnreadableShipCostsOnlyThatShip() {
         Fuzz.check("ShipSavedData isolates a damaged ship", 500, (r, log) -> {
             List<Ship> ships = new ArrayList<>(); for (int i = 2 + r.nextInt(3); i > 0; i--) ships.add(ShipPersistenceFuzzTest.ship(r, true));
@@ -60,12 +58,13 @@ class ShipBugsFuzzTest {
             CompoundTag saved = new CompoundTag(); saved.putInt("NextRegion", 7); saved.put("Ships", list);
             ShipSavedData data = assertDoesNotThrow(() -> load(saved), "ShipSavedData.load threw for one damaged ship");
             for (int i = 0; i < ships.size(); i++) if (i != victim) assertTrue(data.ships.containsKey(ships.get(i).id), "undamaged ship " + i + " survives");
-            assertEquals(7, data.nextRegion);
+            // never below the saved counter, and (since the earlier fix) past every region a loaded or quarantined ship holds
+            assertTrue(data.nextRegion >= 7, "nextRegion " + data.nextRegion);
+            for (Ship s : data.ships.values()) assertTrue(data.nextRegion > ShipSavedData.regionOf(s.yard), "nextRegion above ship regions");
         });
     }
 
     /** The minimal case on its own, for a quick check of a fix. */
-    @Disabled("bug: one unreadable ship makes ShipSavedData.load throw, so the world loads with no ships and saves over them")
     @Test void anUnknownTierDropsTheWholeShipSave() throws Throwable {
         Random r = new Random(1);
         Ship good = ShipPersistenceFuzzTest.ship(r, true), other = ShipPersistenceFuzzTest.ship(r, true);
@@ -81,7 +80,6 @@ class ShipBugsFuzzTest {
      * nothing for the hardest impacts. Every input is one the mass rules loader accepts (blocks_per_speed up to 1e6, block masses up
      * to 1e9). Minimal reproducer: budget(rules with blocks_per_speed 1e6, excess speed 20, mass 1e10) == Integer.MIN_VALUE.
      */
-    @Disabled("bug: ShipDamage.budget wraps to a negative budget for fast heavy hulls, so the hardest impacts break nothing")
     @Test void impactBudgetsNeverGoNegativeForAcceptedRules() {
         Fuzz.check("ShipDamage.budget overflow", 5000, (r, log) -> {
             CollisionRules rules = new CollisionRules(3, 1.5, Fuzz.pick(r, 1.0, 1e3, 1e6, r.nextDouble() * 1e6), 1 + r.nextInt(4096), 1, true);

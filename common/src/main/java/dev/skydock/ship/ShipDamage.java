@@ -46,7 +46,9 @@ public final class ShipDamage {
     /** Hull blocks an impact may break: grows with speed above the safe limit and, more gently, with mass. */
     static int budget(CollisionRules rules, double excessSpeed, double mass) {
         if (excessSpeed <= 0 || rules.maxBlocks() == 0) return 0;
-        return Math.min(rules.maxBlocks(), 1 + (int) Math.floor(excessSpeed * rules.blocksPerSpeed() * Math.sqrt(Math.max(1, mass / 10000))));
+        // Clamped before adding 1, so the hardest impacts saturate at the maximum instead of wrapping past Integer.MAX_VALUE.
+        double scaled = Math.floor(excessSpeed * rules.blocksPerSpeed() * Math.sqrt(Math.max(1, mass / 10000)));
+        return Math.min(rules.maxBlocks(), 1 + (int) Math.min(scaled, rules.maxBlocks()));
     }
     /** Harder blocks need a faster impact; unbreakable blocks (negative hardness) never break. */
     static boolean breaks(CollisionRules rules, double excessSpeed, float hardness) {
