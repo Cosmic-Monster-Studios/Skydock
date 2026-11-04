@@ -44,6 +44,7 @@
   "message.skydock.pod_overweight": "The ship cannot lift another pod.",
   "message.skydock.pod_need_cells": "The ship needs another lift cell to carry another pod.",
   "message.skydock.pod_obstructed": "Something is in the way there.",
+  "message.skydock.cargo_offer_gone": "That offer's destination terminal is gone; the offer is withdrawn.",
   "block.skydock.seat": "Crew Seat",
   "block.skydock.brass_lantern": "Brass Lantern",
   "block.skydock.canvas_awning": "Canvas Awning",

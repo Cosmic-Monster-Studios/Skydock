@@ -13,6 +13,7 @@ import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BeaconRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -64,5 +65,13 @@ public final class CrateRenderer implements BlockEntityRenderer<CrateBlockEntity
         poses.popPose();
     }
 
+    /**
+     * NeoForge culls a block entity renderer by {@code IBlockEntityRendererExtension.getRenderBoundingBox(T)}, a one-block box by default.
+     * {@code common} cannot see that interface, so this declares its erased signature (no {@code @Override}, parameter erased to
+     * {@link BlockEntity}) and overrides it at runtime with {@link CrateBlockEntity#renderBox}.
+     */
+    public net.minecraft.world.phys.AABB getRenderBoundingBox(BlockEntity be) {
+        return be instanceof CrateBlockEntity crate ? CrateBlockEntity.renderBox(crate) : new net.minecraft.world.phys.AABB(be.getBlockPos());
+    }
     @Override public boolean shouldRenderOffScreen(CrateBlockEntity crate) { return crate.rank() == CrateRank.AETHER; }
 }

@@ -108,6 +108,11 @@ public final class CargoService {
         return true;
     }
 
+    /** Whether {@code offer} is still on the board at {@code at} once offers whose destination no longer resolves are dropped ({@link #dropUnresolved}). */
+    static boolean offerStands(CargoProfile p, GlobalPos at, Offer offer, Map<GlobalPos, CargoSavedData.Terminal> terminals) {
+        dropUnresolved(p, at, terminals); List<Offer> board = p.offers.get(at); return board != null && board.contains(offer);
+    }
+
     /** An empty board means no destination was found; the site search runs again only once its day is up. */
     static boolean siteSearchWaits(CargoProfile p, GlobalPos at, long now) {
         List<Offer> board = p.offers.get(at); Long last = p.offersRefreshed.get(at);
@@ -176,6 +181,8 @@ public final class CargoService {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server); CargoProfile p = data.profile(player.getUUID());
         List<Offer> board = p.offers.get(terminal); if (board == null) return;
         Offer offer = board.stream().filter(o -> o.id() == offerId).findFirst().orElse(null); if (offer == null) return;
+        // A screen left open can still show an offer whose terminal has since gone.
+        if (!offerStands(p, terminal, offer, data.terminals)) { data.setDirty(); ShipManager.tell(player, "message.skydock.cargo_offer_gone"); return; }
         String refusal = acceptRefusal(p, offer, p.peakRank());
         if (!refusal.isEmpty()) { ShipManager.tell(player, refusal); return; }
         int free = 0; for (ItemStack s : player.getInventory().items) if (s.isEmpty()) free++;

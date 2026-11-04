@@ -326,13 +326,15 @@ public final class ShipManager {
         BlockState there = level.getBlockState(at);
         return !there.getFluidState().isEmpty() || !there.getCollisionShape(level, at).isEmpty();
     }
-    /** Whether one hull cell at {@code pose} is free in the world: no terrain or fluid, no other ship's hull and no entity but spectators, as {@link #roomFor} asks of a whole hull. */
+    /** Whether one hull cell at {@code pose} is free in the world: no terrain or fluid, no other ship's hull and no entity but spectators and loose items or orbs, much as {@link #roomFor} asks of a whole hull. */
     public static boolean cellClear(ServerLevel level, Ship ship, ShipPose pose, BlockPos cell) {
         AABB box = pose.transform().toWorld(new AABB(cell).move(ship.center().scale(-1))).deflate(1e-3);
         if (groundAt(level, ship, pose, cell) || level.getBlockCollisions(null, box).iterator().hasNext() || level.containsAnyLiquid(box)) return false;
         for (Ship other : ships(level)) if (other != ship && other.hullWorldBounds().intersects(box) && !ShipCollision.shapes(other, other.pose, box).isEmpty()) return false;
-        return level.getEntities((Entity) null, box, e -> !e.isSpectator()).isEmpty();
+        return level.getEntities((Entity) null, box, e -> !e.isSpectator() && !looseInCell(e.getClass())).isEmpty();
     }
+    /** Dropped items and experience orbs lying in a cell do not keep a block out of it; they are pushed aside like any block placement does. */
+    static boolean looseInCell(Class<?> type) { return net.minecraft.world.entity.item.ItemEntity.class.isAssignableFrom(type) || net.minecraft.world.entity.ExperienceOrb.class.isAssignableFrom(type); }
     public static boolean canReachDock(Player player, DockBlockEntity dock) {
         if (player.distanceToSqr(Vec3.atCenterOf(dock.getBlockPos())) <= 64) return true;
         HitResult hit = player.pick(player.blockInteractionRange(), 1, false);

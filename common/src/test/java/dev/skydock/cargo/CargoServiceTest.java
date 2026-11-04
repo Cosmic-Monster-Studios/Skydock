@@ -92,6 +92,17 @@ class CargoServiceTest {
         assertFalse(CargoService.siteSearchWaits(p, HERE, 200));
     }
 
+    @Test void acceptingAnOfferWhoseTerminalWentWithdrawsIt() {
+        GlobalPos gone = GlobalPos.of(Level.OVERWORLD, new BlockPos(0, 70, 900));
+        var terminals = new java.util.LinkedHashMap<GlobalPos, CargoSavedData.Terminal>(); terminals.put(THERE, new CargoSavedData.Terminal(THERE, THERE.pos(), true));
+        CargoProfile p = new CargoProfile(); Offer live = offer(1), dead = new Offer(6, gone, 2, CrateRank.TIN, "cargo.skydock.name.silk", 1, 2, 10);
+        p.offers.put(HERE, new java.util.ArrayList<>(java.util.List.of(live, dead))); p.offersRefreshed.put(HERE, 100L);
+        assertFalse(CargoService.offerStands(p, HERE, dead, terminals));
+        assertEquals(java.util.List.of(live), p.offers.get(HERE), "the dead offer is dropped");
+        assertTrue(CargoService.offerStands(p, HERE, live, terminals));
+        assertFalse(CargoService.offerStands(p, THERE, live, terminals), "no board there");
+    }
+
     @Test void emptyBoardWaitsADayBeforeSearchingAgain() {
         CargoProfile p = new CargoProfile();
         assertFalse(CargoService.siteSearchWaits(p, HERE, 100));
