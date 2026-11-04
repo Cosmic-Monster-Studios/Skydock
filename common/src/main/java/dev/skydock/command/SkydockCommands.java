@@ -50,7 +50,8 @@ public final class SkydockCommands {
         root.then(literal("inspect").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.inspect(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));
         root.then(literal("launch").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.launch(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));
         root.then(literal("redock").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> { ShipManager.redockNearest(ctx.getSource().getPlayerOrException(), BlockPosArgument.getLoadedBlockPos(ctx, "controller")); return 1; })));
-        root.then(literal("summon").then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> {
+        // Summoning by command skips the Warp Anchor's uses and cooldown.
+        root.then(literal("summon").requires(source -> source.hasPermission(2)).then(argument("controller", BlockPosArgument.blockPos()).executes(ctx -> {
             ServerPlayer player = ctx.getSource().getPlayerOrException();
             return ShipManager.summon(player, player.level().dimension(), BlockPosArgument.getBlockPos(ctx, "controller")) ? 1 : 0;
         })));
