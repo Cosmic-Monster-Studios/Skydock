@@ -21,7 +21,7 @@ import java.util.Map;
 
 /** Putting cargo pods into a moored ship's hull and taking them out again. */
 public final class PodLoading {
-    private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
+    static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
     private PodLoading() {}
 
     /** Empty when a pod may go in {@code cell}, else the lang key saying why not. */

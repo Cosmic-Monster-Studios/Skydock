@@ -41,6 +41,7 @@ public final class SkydockClient {
         ShipNetwork.clientReceiver = SkydockClient::receive;
         ShipNetwork.poseReceiver = SkydockClient::receivePose;
         DockNetwork.clientReceiver = DockView::receive;
+        dev.skydock.cargo.CargoNetwork.clientReceiver = ClientCargo::receive;
         ShipManager.ClientShipAccess.provider = level -> {
             if (levelShips == null || levelShipsDimension != level.dimension()) {
                 levelShips = SHIPS.values().stream().filter(s -> s.dimension.equals(level.dimension())).toList();
@@ -51,6 +52,7 @@ public final class SkydockClient {
         SkydockBlocks.DOCK_MENU.listen(type -> MenuRegistry.registerScreenFactory(type, DockScreen::new));
         SkydockBlocks.DEVICE_MENU.listen(type -> MenuRegistry.registerScreenFactory(type, DeviceScreen::new));
         SkydockBlocks.ENGINE_MENU.listen(type -> MenuRegistry.registerScreenFactory(type, EngineScreen::new));
+        SkydockBlocks.TERMINAL_MENU.listen(type -> MenuRegistry.registerScreenFactory(type, TerminalScreen::new));
         dev.architectury.registry.client.level.entity.EntityRendererRegistry.register(SkydockBlocks.POD, PodEntityRenderer::new);
         SkydockBlocks.CRATE_ENTITY.listen(type -> dev.architectury.registry.client.rendering.BlockEntityRendererRegistry.register(type, CrateRenderer::new));
         KeyMappingRegistry.register(RELEASE);

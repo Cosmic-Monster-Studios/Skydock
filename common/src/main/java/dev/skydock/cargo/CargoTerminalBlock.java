@@ -5,7 +5,10 @@ import dev.skydock.block.SkydockBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
+import dev.architectury.registry.menu.MenuRegistry;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -29,7 +32,13 @@ public final class CargoTerminalBlock extends HorizontalDirectionalBlock impleme
     @Override public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
         return level.isClientSide || type != SkydockBlocks.CARGO_TERMINAL_ENTITY.get() ? null : (BlockEntityTicker<T>) (BlockEntityTicker<CargoTerminalBlockEntity>) CargoTerminalBlockEntity::serverTick;
     }
-    @Override protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) { return InteractionResult.PASS; }
+    @Override protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        if (player instanceof ServerPlayer serverPlayer) {
+            MenuRegistry.openExtendedMenu(serverPlayer, new SimpleMenuProvider((id, inventory, ignored) -> new TerminalMenu(id, inventory, pos), getName()), buffer -> buffer.writeBlockPos(pos));
+            if (serverPlayer.containerMenu instanceof TerminalMenu) CargoService.opened(serverPlayer, GlobalPos.of(level.dimension(), pos));
+        }
+        return InteractionResult.sidedSuccess(level.isClientSide);
+    }
     @Override protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState next, boolean moved) {
         if (!state.is(next.getBlock()) && level instanceof ServerLevel server) CargoSavedData.get(server.getServer()).removeTerminal(GlobalPos.of(level.dimension(), pos));
         super.onRemove(state, level, pos, next, moved);

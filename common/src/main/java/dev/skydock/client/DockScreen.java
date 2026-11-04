@@ -439,11 +439,12 @@ public final class DockScreen extends AbstractContainerScreen<DockMenu> {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
     }
 
-    private static final class ShipwrightButton extends AbstractButton {
+    /** The canvas-and-timber button shared by the dock and terminal screens. */
+    static final class ShipwrightButton extends AbstractButton {
         private final Runnable action;
-        private boolean selected;
+        boolean selected;
 
-        private ShipwrightButton(int x, int y, int width, int height, Component label, Runnable action) {
+        ShipwrightButton(int x, int y, int width, int height, Component label, Runnable action) {
             super(x, y, width, height, label);
             this.action = action;
         }

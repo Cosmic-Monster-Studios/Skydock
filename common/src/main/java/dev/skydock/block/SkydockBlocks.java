@@ -54,6 +54,7 @@ public final class SkydockBlocks {
     public static final RegistrySupplier<MenuType<DockMenu>> DOCK_MENU = MENUS.register("dock", () -> MenuRegistry.ofExtended(DockMenu::new));
     public static final RegistrySupplier<MenuType<DeviceMenu>> DEVICE_MENU = MENUS.register("device", () -> MenuRegistry.ofExtended(DeviceMenu::new));
     public static final RegistrySupplier<MenuType<EngineMenu>> ENGINE_MENU = MENUS.register("engine", () -> MenuRegistry.of(EngineMenu::new));
+    public static final RegistrySupplier<MenuType<dev.skydock.cargo.TerminalMenu>> TERMINAL_MENU = MENUS.register("terminal", () -> MenuRegistry.ofExtended(dev.skydock.cargo.TerminalMenu::new));
     public static final RegistrySupplier<Item> SHIPWRIGHT_HAMMER = ITEMS.register("shipwright_hammer", () -> new dev.skydock.item.ShipwrightHammerItem(new Item.Properties().durability(250).stacksTo(1)));
     public static final RegistrySupplier<Item> WARP_ANCHOR = ITEMS.register("warp_anchor", () -> new dev.skydock.item.WarpAnchorItem(new Item.Properties().durability(64)));
     public static final RegistrySupplier<dev.skydock.cargo.CargoPodBlock> CARGO_POD = BLOCKS.register("cargo_pod", () -> new dev.skydock.cargo.CargoPodBlock(BlockBehaviour.Properties.of().strength(3).sound(SoundType.METAL)));

@@ -24,10 +24,13 @@ public final class CargoPodItem extends BlockItem {
     public static Optional<PodCargo> cargo(ItemStack stack) { return PodCargo.load(stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag()); }
     public static Optional<PodTag> tag(ItemStack stack) { return cargo(stack).map(PodCargo::tag); }
 
+    /** The lang key for a cargo name: contracts carry full keys from {@link CargoNames}, older pods a bare name. */
+    public static String nameKey(String cargoKey) { return cargoKey.startsWith("cargo.") ? cargoKey : "cargo.skydock.name." + cargoKey; }
+
     public static List<Component> describe(PodCargo cargo) {
         var pos = cargo.destination().pos();
         var lines = new java.util.ArrayList<Component>();
-        lines.add(Component.translatable("cargo.skydock.name." + cargo.cargoKey()).withStyle(ChatFormatting.GOLD));
+        lines.add(Component.translatable(nameKey(cargo.cargoKey())).withStyle(ChatFormatting.GOLD));
         lines.add(Component.translatable("item.skydock.cargo_pod.destination", pos.getX() + ", " + pos.getY() + ", " + pos.getZ(), cargo.destination().dimension().location().toString()).withStyle(ChatFormatting.GRAY));
         if (cargo.tag().ejected()) lines.add(Component.translatable("item.skydock.cargo_pod.ejected").withStyle(ChatFormatting.RED));
         return lines;
