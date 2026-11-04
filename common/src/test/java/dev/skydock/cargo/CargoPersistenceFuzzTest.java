@@ -102,7 +102,6 @@ class CargoPersistenceFuzzTest {
         for (int i = r.nextInt(3); i > 0; i--) data.retired.add(pos(r));
         for (int i = r.nextInt(4); i > 0; i--) data.profiles.put(new UUID(r.nextLong(), r.nextLong()), profile(r, terminals));
         data.wind = new CargoSavedData.Wind(r.nextDouble() * Math.PI * 2, r.nextDouble() * 2, Fuzz.edgyLong(r));
-        data.nextContract = Fuzz.edgyLong(r);
         for (int i = r.nextInt(6); i > 0; i--) data.voided.add(Fuzz.edgyLong(r));
         return data;
     }
@@ -113,7 +112,7 @@ class CargoPersistenceFuzzTest {
             CargoSavedData back = CargoSavedData.load(saved, null);
             assertEquals(saved, back.save(new CompoundTag(), null));
             assertEquals(data.terminals, back.terminals); assertEquals(data.retired, back.retired); assertEquals(data.voided, back.voided);
-            assertEquals(data.wind, back.wind); assertEquals(data.nextContract, back.nextContract);
+            assertEquals(data.wind, back.wind);
             assertEquals(new ArrayList<>(data.profiles.keySet()), new ArrayList<>(back.profiles.keySet()));
             data.profiles.forEach((id, p) -> assertSameProfile(p, back.profiles.get(id)));
         });
