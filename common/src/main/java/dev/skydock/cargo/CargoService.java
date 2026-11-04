@@ -10,6 +10,7 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -77,21 +78,40 @@ public final class CargoService {
         return preview.maxDistance() == Integer.MAX_VALUE ? preview.minDistance() * 2 : preview.maxDistance();
     }
 
+    /** How far an empty band's fallback looks: 2,000 past the top band's minimum, or the largest finite band maximum if that is farther. */
+    static int fallbackRadius() {
+        int radius = CargoRanks.ranks().getLast().minDistance() + 2000;
+        for (Rank r : CargoRanks.ranks()) if (r.maxDistance() != Integer.MAX_VALUE) radius = Math.max(radius, r.maxDistance());
+        return radius;
+    }
+
     private static long now(MinecraftServer server) { return server.overworld().getGameTime(); }
     private static Component cargoName(String key) { return Component.translatable(CargoPodItem.nameKey(key)); }
     private static void give(ServerPlayer player, ItemStack stack) { if (!player.getInventory().add(stack)) player.drop(stack, false); }
+    /**
+     * Pushes the main inventory to the client. The terminal's menu has no slots, and while it is open the client applies inventory-menu
+     * updates only to the hotbar, so the rest is sent slot by slot; the inventory menu then broadcasts to bring its remote copy level.
+     */
+    private static void syncInventory(ServerPlayer player) {
+        List<ItemStack> items = player.getInventory().items;
+        for (int i = 0; i < items.size(); i++) player.connection.send(new ClientboundContainerSetSlotPacket(ClientboundContainerSetSlotPacket.PLAYER_INVENTORY, 0, i, items.get(i).copy()));
+        player.inventoryMenu.broadcastChanges();
+    }
+    /** The lang key for {@code count} things: {@code one} for exactly one, else {@code many}. */
+    public static String byCount(int count, String one, String many) { return count == 1 ? one : many; }
     private static void giveCrate(ServerPlayer player, CrateRank rank) { give(player, new ItemStack(SkydockBlocks.CRATES.get(rank).get())); }
 
     /** Called whenever a terminal screen opens: hands out queued crates, fails contracts whose terminal is gone, and refreshes the board. */
     public static void opened(ServerPlayer player, GlobalPos terminal) {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server); CargoProfile p = data.profile(player.getUUID());
         boolean changed = false;
-        if (!p.pendingCrates.isEmpty()) { p.pendingCrates.forEach(rank -> giveCrate(player, rank)); p.pendingCrates.clear(); changed = true; }
+        if (!p.pendingCrates.isEmpty()) { p.pendingCrates.forEach(rank -> giveCrate(player, rank)); p.pendingCrates.clear(); changed = true; syncInventory(player); }
         for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
         long now = now(server); ServerLevel level = server.getLevel(terminal.dimension());
         if (level != null && !siteSearchWaits(p, terminal, now)) {
             int rank = p.peakRank();
             changed |= Offers.refreshIfDue(p, terminal, now, () -> Offers.generate(terminal, rank, TerminalSites.near(level, terminal.pos(), 1, searchRadius(rank)),
+                    () -> TerminalSites.near(level, terminal.pos(), CargoRanks.ranks().getFirst().minDistance(), fallbackRadius()),
                     level.getRandom(), () -> data.nextContract++, CargoNames.names()));
         }
         if (changed) data.setDirty();
@@ -105,14 +125,14 @@ public final class CargoService {
         String refusal = acceptRefusal(p, offer, p.peakRank());
         if (!refusal.isEmpty()) { ShipManager.tell(player, refusal); return; }
         int free = 0; for (ItemStack s : player.getInventory().items) if (s.isEmpty()) free++;
-        if (free < offer.pods()) { ShipManager.tell(player, "message.skydock.cargo_no_room", offer.pods()); return; }
+        if (free < offer.pods()) { ShipManager.tell(player, byCount(offer.pods(), "message.skydock.cargo_no_room_one", "message.skydock.cargo_no_room"), offer.pods()); return; }
         Contract contract = new Contract(data.nextContract++, terminal, offer.destination(), offer.rankLevel(), offer.crate(), offer.cargoKey(), offer.pods(), deadline(now(server), offer.deadlineDays()));
         p.contracts.put(contract.id, contract); board.remove(offer);
         // An emptied board was not short of destinations, so it should not wait a day for the next search.
         if (board.isEmpty()) p.offersRefreshed.remove(terminal);
         for (int i = 0; i < offer.pods(); i++) give(player, CargoPodItem.create(new PodTag(contract.id, i, false), offer.cargoKey(), offer.destination()));
-        data.setDirty();
-        ShipManager.tell(player, "message.skydock.cargo_accepted", cargoName(offer.cargoKey()), offer.pods());
+        data.setDirty(); syncInventory(player);
+        ShipManager.tell(player, byCount(offer.pods(), "message.skydock.cargo_accepted_one", "message.skydock.cargo_accepted"), cargoName(offer.cargoKey()), offer.pods());
     }
 
     public static void abandon(ServerPlayer player, long contractId) {
@@ -133,7 +153,7 @@ public final class CargoService {
         if (!refusal.isEmpty()) { ShipManager.tell(player, refusal); return; }
         data.setDirty();
         if (entry.isPattern()) ShipManager.tell(player, "message.skydock.shop_bought_pattern", Shop.patternName(entry.pattern()), entry.price());
-        else { ItemStack stack = entry.item().copy(); ShipManager.tell(player, "message.skydock.shop_bought", stack.getCount(), stack.getHoverName(), entry.price()); give(player, stack); }
+        else { ItemStack stack = entry.item().copy(); ShipManager.tell(player, "message.skydock.shop_bought", stack.getCount(), stack.getHoverName(), entry.price()); give(player, stack); syncInventory(player); }
         player.playNotifySound(SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 1, 1);
     }
 
@@ -188,8 +208,8 @@ public final class CargoService {
         for (Ship ship : touched) { ship.revision++; ShipManager.refresh(server, ship); }
         if (!touched.isEmpty()) ShipNetwork.syncPlayers(server);
         if (count == 0) { ShipManager.tell(player, "message.skydock.cargo_nothing"); return; }
-        data.setDirty();
-        ShipManager.tell(player, "message.skydock.cargo_delivered", count, gained);
+        data.setDirty(); syncInventory(player);
+        ShipManager.tell(player, byCount(count, "message.skydock.cargo_delivered_one", "message.skydock.cargo_delivered"), count, gained);
         announceRankUp(player, me, rankBefore);
         for (UUID holder : holders) { ServerPlayer online = server.getPlayerList().getPlayer(holder); if (online != null) sync(online); }
     }

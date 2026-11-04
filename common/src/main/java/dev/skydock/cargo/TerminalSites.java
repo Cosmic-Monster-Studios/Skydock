@@ -21,11 +21,15 @@ public final class TerminalSites {
     private static final int MAX_REGIONS = 4096;
     private TerminalSites() {}
 
-    /** Terminals whose horizontal distance from {@code from} is within {@code [min, max]}; predicted sites are recorded as ungenerated terminals. */
+    /**
+     * Terminals whose horizontal distance from {@code from} is within {@code [min, max]}; predicted sites are recorded as ungenerated terminals.
+     * A predicted site within {@link CargoService#SITE_MATCH} of a generated terminal is that terminal's own outpost, so it is never recorded or returned.
+     */
     public static List<GlobalPos> near(ServerLevel level, BlockPos from, int min, int max) {
         CargoSavedData data = CargoSavedData.get(level.getServer());
         Map<GlobalPos, CargoSavedData.Terminal> found = new LinkedHashMap<>();
-        for (CargoSavedData.Terminal t : data.terminals.values()) if (t.pos().dimension().equals(level.dimension()) && inBand(from, t.pos().pos(), min, max)) found.put(t.pos(), t);
+        for (CargoSavedData.Terminal t : data.terminals.values())
+            if (t.pos().dimension().equals(level.dimension()) && inBand(from, t.pos().pos(), min, max) && (t.generated() || !shadowed(data.terminals.values(), t.pos()))) found.put(t.pos(), t);
         Optional<Holder.Reference<StructureSet>> set = level.registryAccess().registryOrThrow(Registries.STRUCTURE_SET).getHolder(STRUCTURE_SET);
         Optional<Holder.Reference<Structure>> structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE).getHolder(STRUCTURE);
         if (set.isPresent() && structure.isPresent() && set.get().value().placement() instanceof RandomSpreadStructurePlacement placement) {
@@ -33,7 +37,7 @@ public final class TerminalSites {
             for (ChunkPos chunk : predicted(level, placement, from, max)) {
                 BlockPos centre = new BlockPos(chunk.getMiddleBlockX(), level.getSeaLevel(), chunk.getMiddleBlockZ());
                 GlobalPos pos = GlobalPos.of(level.dimension(), centre);
-                if (found.containsKey(pos) || data.terminals.containsKey(pos) || !inBand(from, centre, min, max)) continue;
+                if (found.containsKey(pos) || data.terminals.containsKey(pos) || !inBand(from, centre, min, max) || shadowed(data.terminals.values(), pos)) continue;
                 if (level.structureManager().checkStructurePresence(chunk, structure.get().value(), placement, false) == StructureCheckResult.START_NOT_PRESENT) continue;
                 CargoSavedData.Terminal site = new CargoSavedData.Terminal(pos, centre, false);
                 data.terminals.put(pos, site); found.put(pos, site); added = true;
@@ -55,6 +59,12 @@ public final class TerminalSites {
                 out.add(placement.getPotentialStructureChunk(seed, rx, rz));
             }
         return out;
+    }
+
+    /** Whether a generated terminal stands within {@link CargoService#SITE_MATCH} blocks horizontally of {@code site} in its dimension. */
+    static boolean shadowed(Collection<CargoSavedData.Terminal> terminals, GlobalPos site) {
+        for (CargoSavedData.Terminal t : terminals) if (t.generated() && t.pos().dimension().equals(site.dimension()) && Offers.distance(t.pos().pos(), site.pos()) <= CargoService.SITE_MATCH) return true;
+        return false;
     }
 
     private static boolean inBand(BlockPos from, BlockPos to, int min, int max) { double d = Offers.distance(from, to); return d >= min && d <= max; }

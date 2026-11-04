@@ -1,5 +1,6 @@
 package dev.skydock.client;
 
+import dev.skydock.block.SkydockBlocks;
 import dev.skydock.cargo.*;
 import dev.skydock.ship.Navigation;
 import net.minecraft.client.gui.GuiGraphics;
@@ -9,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +31,8 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
     private final List<DockScreen.ShipwrightButton> acceptButtons = new ArrayList<>(), deliverButtons = new ArrayList<>(), abandonButtons = new ArrayList<>();
     private final List<Offer> offers = new ArrayList<>();
     private final List<Contract> contracts = new ArrayList<>();
+    /** The crate whose ladder icon is under the mouse, for its tooltip. */
+    private ItemStack hoveredCrate = ItemStack.EMPTY;
 
     public TerminalScreen(TerminalMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -97,6 +101,8 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         super.render(graphics, mouseX, mouseY, partialTick);
         renderTooltip(graphics, mouseX, mouseY);
         shop.renderTooltip(graphics, mouseX, mouseY);
+        if (!hoveredCrate.isEmpty()) graphics.renderTooltip(font, hoveredCrate, mouseX, mouseY);
+        hoveredCrate = ItemStack.EMPTY;
     }
 
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
@@ -117,7 +123,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         graphics.drawString(font, standing, right - 10 - font.width(standing), topPos + 8, TEAL, false);
         switch (page) {
             case CONTRACTS -> renderContracts(graphics);
-            case REPUTATION -> renderReputation(graphics, leftPos + 9, bodyY(), imageWidth - 18, imageHeight - 57, profile);
+            case REPUTATION -> renderReputation(graphics, leftPos + 9, bodyY(), imageWidth - 18, imageHeight - 57, profile, mouseX, mouseY);
             case SHOP -> shop.render(graphics, leftPos + 9, bodyY(), imageWidth - 18, imageHeight - 57, mouseX, mouseY);
         }
     }
@@ -132,7 +138,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
             Offer o = offers.get(i); int y = rows + i * ROW, text = col - 60; boolean locked = o.rankLevel() > rank;
             graphics.fill(left, y, left + col, y + ROW - 4, CARD);
             line(graphics, I18n.get(CargoPodItem.nameKey(o.cargoKey())), left + 4, y + 4, text, locked ? MUTED : INK);
-            line(graphics, I18n.get("gui.skydock.cargo.route", o.pods(), Math.round(distance(o.destination())), bearing(o.destination())), left + 4, y + 16, col - 8, MUTED);
+            line(graphics, I18n.get(CargoService.byCount(o.pods(), "gui.skydock.cargo.route_one", "gui.skydock.cargo.route"), o.pods(), Math.round(distance(o.destination())), bearing(o.destination())), left + 4, y + 16, col - 8, MUTED);
             String reward = locked ? I18n.get("gui.skydock.cargo.locked", I18n.get(ClientCargo.byLevel(o.rankLevel()).key()))
                     : I18n.get("gui.skydock.cargo.reward", o.deadlineDays(), o.reputationPerPod(), crateName(o.crate()));
             line(graphics, reward, left + 4, y + 28, col - 8, locked ? MISSING : INK);
@@ -141,7 +147,7 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
             Contract c = contracts.get(i); int y = rows + i * ROW, text = col - 60; long remaining = c.deadline - now();
             graphics.fill(right, y, right + col, y + ROW - 4, CARD);
             line(graphics, I18n.get(CargoPodItem.nameKey(c.cargoKey)), right + 4, y + 4, text, INK);
-            line(graphics, I18n.get("gui.skydock.cargo.progress", c.delivered.size(), c.pods, Math.round(distance(c.destination)), bearing(c.destination)), right + 4, y + 16, text, MUTED);
+            line(graphics, I18n.get(CargoService.byCount(c.pods, "gui.skydock.cargo.progress_one", "gui.skydock.cargo.progress"), c.delivered.size(), c.pods, Math.round(distance(c.destination)), bearing(c.destination)), right + 4, y + 16, text, MUTED);
             String due = remaining < 0 ? I18n.get("gui.skydock.cargo.overdue")
                     : I18n.get("gui.skydock.cargo.due", remaining / Offers.DAY_TICKS, remaining % Offers.DAY_TICKS / 1000);
             line(graphics, due, right + 4, y + 28, text, remaining < 0 ? MISSING : INK);
@@ -161,22 +167,38 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
 
     @Override protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {}
 
-    /** The Reputation tab: the rank ladder with the current rank lit, and what the next rank brings. */
-    private void renderReputation(GuiGraphics graphics, int x, int y, int width, int height, CargoProfile profile) {
+    /**
+     * The Reputation tab: the rank ladder with the current rank lit, and what the next rank brings. Each rung has columns sized to their widest
+     * entry: rank, threshold, compact band and crate (its icon, plus its name when the ladder has room for it).
+     */
+    private void renderReputation(GuiGraphics graphics, int x, int y, int width, int height, CargoProfile profile, int mouseX, int mouseY) {
         List<Rank> ranks = ClientCargo.ranks(); Rank current = ClientCargo.rank(profile.reputation), next = null;
         for (Rank r : ranks) if (r.threshold() > profile.reputation) { next = r; break; }
-        int ladderW = Math.max(150, width * 3 / 5), rowH = Math.min(24, Math.max(16, (height - 16) / Math.max(1, ranks.size())));
+        int nameW = 0, repW = 0, bandW = 0, crateW = 0;
+        for (Rank r : ranks) {
+            nameW = Math.max(nameW, font.width(rankName(r))); repW = Math.max(repW, font.width(I18n.get("gui.skydock.cargo.threshold", r.threshold())));
+            bandW = Math.max(bandW, font.width(shortBand(r))); crateW = Math.max(crateW, font.width(crateName(r.crate())));
+        }
+        int tight = LADDER_PAD + nameW + LADDER_GAP + repW + LADDER_GAP + bandW + LADDER_GAP + 16 + LADDER_PAD, full = tight + 3 + crateW;
+        int ladderW = Math.min(width - 80, Math.max(width * 3 / 5, full));
+        if (ladderW < tight) ladderW = Math.min(width, tight);
+        boolean named = full <= ladderW;
+        int rowH = Math.min(24, Math.max(16, (height - 16) / Math.max(1, ranks.size())));
         graphics.drawString(font, I18n.get("gui.skydock.cargo.ladder"), x + 3, y + 3, INK, false);
         // The ladder reads upwards: the top rank at the top, Deckhand at the foot.
         for (int i = 0; i < ranks.size(); i++) {
-            Rank r = ranks.get(ranks.size() - 1 - i); int ry = y + 14 + i * rowH; boolean lit = r.level() == current.level(), reached = r.threshold() <= profile.reputation;
+            Rank r = ranks.get(ranks.size() - 1 - i); int ry = y + 14 + i * rowH, ty = ry + (rowH - 10) / 2; boolean lit = r.level() == current.level(), reached = r.threshold() <= profile.reputation;
             graphics.fill(x, ry, x + ladderW, ry + rowH - 2, lit ? TEAL : CARD);
-            int ink = lit ? PALE : reached ? INK : MUTED;
-            String name = r.level() + "  " + I18n.get(r.key());
-            graphics.drawString(font, font.plainSubstrByWidth(name, ladderW / 2 - 6), x + 4, ry + (rowH - 10) / 2, ink, false);
-            String detail = I18n.get("gui.skydock.cargo.threshold", r.threshold()) + "  " + band(r) + "  " + crateName(r.crate());
-            detail = font.plainSubstrByWidth(detail, ladderW / 2 - 2);
-            graphics.drawString(font, detail, x + ladderW - 4 - font.width(detail), ry + (rowH - 10) / 2, ink, false);
+            int ink = lit ? PALE : reached ? INK : MUTED, edge = x + ladderW - LADDER_PAD;
+            if (named) { graphics.drawString(font, crateName(r.crate()), edge - crateW, ty, ink, false); edge -= crateW + 3; }
+            int iconX = edge - 16, iconY = ry + (rowH - 18) / 2; ItemStack crate = crateStack(r.crate());
+            graphics.renderItem(crate, iconX, iconY);
+            if (mouseX >= iconX && mouseX < iconX + 16 && mouseY >= iconY && mouseY < iconY + 16) hoveredCrate = crate;
+            String band = shortBand(r), threshold = I18n.get("gui.skydock.cargo.threshold", r.threshold());
+            int bandRight = iconX - LADDER_GAP, repRight = bandRight - bandW - LADDER_GAP;
+            graphics.drawString(font, band, bandRight - font.width(band), ty, ink, false);
+            graphics.drawString(font, threshold, repRight - font.width(threshold), ty, ink, false);
+            graphics.drawString(font, font.plainSubstrByWidth(rankName(r), repRight - repW - LADDER_GAP - x - LADDER_PAD), x + LADDER_PAD, ty, ink, false);
         }
         int sx = x + ladderW + 8, sw = width - ladderW - 8, sy = y + 14;
         if (sw < 40) return;
@@ -193,6 +215,18 @@ public final class TerminalScreen extends AbstractContainerScreen<TerminalMenu> 
         int ly = sy + 5;
         for (String line : lines) for (var part : font.split(net.minecraft.network.chat.FormattedText.of(line), sw - 8)) { if (ly + 9 > y + height) return; graphics.drawString(font, part, sx + 4, ly, INK, false); ly += 10; }
     }
+    private static final int LADDER_PAD = 4, LADDER_GAP = 6;
+    private static String rankName(Rank r) { return r.level() + "  " + I18n.get(r.key()); }
+    private static ItemStack crateStack(CrateRank rank) { return new ItemStack(SkydockBlocks.CRATES.get(rank).get()); }
+    /** The band for the ladder's narrow column: "2.5k–6k", "5k+". */
+    private static String shortBand(Rank r) {
+        return r.maxDistance() == Integer.MAX_VALUE ? I18n.get("gui.skydock.cargo.band_open_short", compact(r.minDistance()))
+                : I18n.get("gui.skydock.cargo.band_short", compact(r.minDistance()), compact(r.maxDistance()));
+    }
+    /** Block counts of a thousand or more in thousands with at most one decimal (2500 is "2.5k"); smaller ones as they are. */
+    private static String compact(int blocks) { return blocks < 1000 ? Integer.toString(blocks) : I18n.get("gui.skydock.cargo.thousands", thousands(blocks)); }
+    /** Blocks in thousands to at most one decimal, without a trailing ".0": 2500 is "2.5", 6000 is "6". */
+    private static String thousands(int blocks) { String k = String.format(Locale.ROOT, "%.1f", blocks / 1000.0); return k.endsWith(".0") ? k.substring(0, k.length() - 2) : k; }
     private static String band(Rank r) {
         return r.maxDistance() == Integer.MAX_VALUE ? I18n.get("gui.skydock.cargo.band_open", r.minDistance()) : I18n.get("gui.skydock.cargo.band", r.minDistance(), r.maxDistance());
     }

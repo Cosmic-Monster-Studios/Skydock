@@ -82,4 +82,16 @@ class CargoServiceTest {
         assertTrue(CargoService.siteSearchWaits(p, HERE, 100 + Offers.DAY_TICKS - 1));
         assertFalse(CargoService.siteSearchWaits(p, HERE, 100 + Offers.DAY_TICKS));
     }
+    @Test void fallbackSearchReachesPastTheTopBandsMinimum() {
+        assertEquals(7000, CargoService.fallbackRadius()); // Admiral's 5,000 + 2,000 beats Commodore's 6,000
+        try {
+            CargoRanks.setData(java.util.List.of(new Rank(1, "a", 0, 300, 800, 2, CrateRank.TIN, 10), new Rank(2, "b", 100, 1000, 9000, 2, CrateRank.COPPER, 25), new Rank(3, "c", 400, 2000, Integer.MAX_VALUE, 3, CrateRank.BRASS, 60)));
+            assertEquals(9000, CargoService.fallbackRadius());
+        } finally { CargoRanks.setData(java.util.List.of()); }
+    }
+    @Test void podCountsPickTheSingularForOne() {
+        assertEquals("one", CargoService.byCount(1, "one", "many"));
+        assertEquals("many", CargoService.byCount(0, "one", "many"));
+        assertEquals("many", CargoService.byCount(3, "one", "many"));
+    }
 }

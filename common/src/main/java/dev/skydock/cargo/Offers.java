@@ -18,19 +18,44 @@ public final class Offers {
     public static double distance(BlockPos a, BlockPos b) { double dx = a.getX() - b.getX(), dz = a.getZ() - b.getZ(); return Math.sqrt(dx * dx + dz * dz); }
 
     /**
-     * Three offers: one at the player's rank, one a rank above (a preview, capped at the top rank) and one at a random rank up to the player's.
-     * Destinations are other terminals in the same dimension; with none, the list is empty.
+     * Up to three offers: one at the player's rank, one a rank above (a preview; at the top rank it is the top rank itself) and one at a random rank up to the player's.
+     * Destinations are other terminals in the same dimension at least the lowest rank's minimum distance away. A rank whose band is empty falls back on
+     * {@code wider} (asked at most once): the nearest site beyond the band, else the farthest below it, paid at the rank its distance earns.
+     * A slot with no destination at all is left out.
      */
-    public static List<Offer> generate(GlobalPos at, int playerRank, List<GlobalPos> destinations, RandomSource random, LongSupplier ids, List<String> cargoNames) {
-        List<GlobalPos> candidates = new ArrayList<>();
-        for (GlobalPos d : destinations) if (d.dimension().equals(at.dimension()) && !d.pos().equals(at.pos())) candidates.add(d);
-        if (candidates.isEmpty() || cargoNames.isEmpty()) return List.of();
+    public static List<Offer> generate(GlobalPos at, int playerRank, List<GlobalPos> destinations, Supplier<List<GlobalPos>> wider, RandomSource random, LongSupplier ids, List<String> cargoNames) {
+        if (cargoNames.isEmpty()) return List.of();
+        List<GlobalPos> candidates = eligible(at, destinations);
+        List<GlobalPos> farther = new ArrayList<>(); boolean[] searched = {false};
+        Supplier<List<GlobalPos>> far = () -> {
+            if (!searched[0]) { searched[0] = true; farther.addAll(candidates); for (GlobalPos d : eligible(at, wider.get())) if (!farther.contains(d)) farther.add(d); }
+            return farther;
+        };
         int top = CargoRanks.ranks().getLast().level();
         int rank = Math.max(1, Math.min(playerRank, top));
         int[] levels = { rank, Math.min(rank + 1, top), 1 + random.nextInt(rank) };
         List<Offer> out = new ArrayList<>();
-        for (int level : levels) out.add(make(at, byLevel(level), candidates, random, ids, cargoNames));
+        for (int level : levels) { Offer o = make(at, byLevel(level), candidates, far, random, ids, cargoNames); if (o != null) out.add(o); }
         return out;
+    }
+
+    /** Same-dimension destinations no nearer than the lowest rank's minimum distance (so never the terminal's own outpost). */
+    private static List<GlobalPos> eligible(GlobalPos at, List<GlobalPos> destinations) {
+        int min = CargoRanks.ranks().getFirst().minDistance();
+        List<GlobalPos> out = new ArrayList<>();
+        for (GlobalPos d : destinations) if (d.dimension().equals(at.dimension()) && distance(at.pos(), d.pos()) >= min && !out.contains(d)) out.add(d);
+        return out;
+    }
+
+    /** For a rank whose band is empty: the nearest destination beyond its maximum, else the farthest below its minimum; null with none. */
+    static GlobalPos fallback(BlockPos from, Rank rank, List<GlobalPos> destinations) {
+        GlobalPos beyond = null, below = null;
+        for (GlobalPos d : destinations) {
+            double dist = distance(from, d.pos());
+            if (dist > rank.maxDistance()) { if (beyond == null || dist < distance(from, beyond.pos())) beyond = d; }
+            else if (below == null || dist > distance(from, below.pos())) below = d;
+        }
+        return beyond != null ? beyond : below;
     }
 
     private static Rank byLevel(int level) {
@@ -38,14 +63,14 @@ public final class Offers {
         return CargoRanks.ranks().getFirst();
     }
 
-    private static Offer make(GlobalPos at, Rank rank, List<GlobalPos> candidates, RandomSource random, LongSupplier ids, List<String> cargoNames) {
+    private static Offer make(GlobalPos at, Rank rank, List<GlobalPos> candidates, Supplier<List<GlobalPos>> far, RandomSource random, LongSupplier ids, List<String> cargoNames) {
         List<GlobalPos> band = new ArrayList<>();
         for (GlobalPos d : candidates) { double dist = distance(at.pos(), d.pos()); if (dist >= rank.minDistance() && dist <= rank.maxDistance()) band.add(d); }
         GlobalPos destination; Rank effective = rank;
         if (!band.isEmpty()) destination = band.get(random.nextInt(band.size()));
         else {
-            destination = candidates.getFirst();
-            for (GlobalPos d : candidates) if (distance(at.pos(), d.pos()) > distance(at.pos(), destination.pos())) destination = d;
+            destination = fallback(at.pos(), rank, far.get());
+            if (destination == null) return null;
             effective = CargoRanks.forDistance(distance(at.pos(), destination.pos()));
         }
         double distance = distance(at.pos(), destination.pos());

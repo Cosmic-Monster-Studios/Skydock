@@ -33,6 +33,16 @@ class TerminalRegistryTest {
         data.registerTerminal(terminal, terminal.pos());
         assertTrue(data.terminals.containsKey(site)); assertTrue(data.terminals.containsKey(otherDimension)); assertEquals(3, data.terminals.size());
     }
+    @Test void predictedSiteNearAGeneratedTerminalIsShadowed() {
+        CargoSavedData data = new CargoSavedData(); data.registerTerminal(at(292, -598), new BlockPos(292, 71, -591));
+        GlobalPos site = at(296, -600), otherDimension = GlobalPos.of(Level.NETHER, new BlockPos(296, 64, -600));
+        data.terminals.put(at(5000, 0), new CargoSavedData.Terminal(at(5000, 0), new BlockPos(5000, 64, 0), false));
+        assertTrue(TerminalSites.shadowed(data.terminals.values(), site));
+        assertTrue(TerminalSites.shadowed(data.terminals.values(), at(292 + 64, -598)));
+        assertFalse(TerminalSites.shadowed(data.terminals.values(), at(292 + 65, -598)));
+        assertFalse(TerminalSites.shadowed(data.terminals.values(), otherDimension));
+        assertFalse(TerminalSites.shadowed(data.terminals.values(), at(5010, 0)), "only generated terminals shadow a site");
+    }
     @Test void padOffsetTurnsWithTheBlock() {
         BlockPos pos = new BlockPos(10, 70, 10), offset = new BlockPos(0, 0, -7);
         assertEquals(new BlockPos(10, 70, 3), CargoTerminalBlockEntity.pad(pos, Direction.NORTH, offset));
