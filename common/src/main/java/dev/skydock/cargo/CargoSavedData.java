@@ -20,7 +20,7 @@ public final class CargoSavedData extends SavedData {
     public Wind wind = new Wind(0, 0, 0);
     public long nextContract = 1;
     public final Set<Long> voided = new TreeSet<>();
-    /** Where generated terminals were destroyed; their outposts' structure starts remain, so no site is predicted near one again. */
+    /** Where terminals that generated with an outpost were destroyed; their outposts' structure starts remain, so no site is predicted near one again. */
     public final Set<GlobalPos> retired = new LinkedHashSet<>();
 
     public static CargoSavedData get(MinecraftServer server) {
@@ -32,12 +32,13 @@ public final class CargoSavedData extends SavedData {
         terminals.put(pos, new Terminal(pos, pad, true)); setDirty(); TerminalSites.CACHE.clear();
     }
     /**
-     * Drops the terminal and every board shown at it. A generated one is retired, taking any predicted site near it along, so contracts
-     * bound for it fail rather than follow a prediction of the outpost that is already there.
+     * Drops the terminal and every board shown at it. One that generated with an outpost ({@code outpost}) is retired, taking any predicted
+     * site near it along, so contracts bound for it fail rather than follow a prediction of the outpost that is already there. A terminal
+     * placed by hand is not retired, so a real outpost near it is still predicted.
      */
-    public void removeTerminal(GlobalPos pos) {
+    public void removeTerminal(GlobalPos pos, boolean outpost) {
         Terminal removed = terminals.remove(pos); if (removed == null) return;
-        if (removed.generated()) { retired.add(pos); terminals.values().removeIf(t -> !t.generated() && TerminalSites.retired(List.of(pos), t.pos())); }
+        if (removed.generated() && outpost) { retired.add(pos); terminals.values().removeIf(t -> !t.generated() && TerminalSites.retired(List.of(pos), t.pos())); }
         for (CargoProfile p : profiles.values()) { p.offers.remove(pos); p.offersRefreshed.remove(pos); }
         setDirty(); TerminalSites.CACHE.clear();
     }

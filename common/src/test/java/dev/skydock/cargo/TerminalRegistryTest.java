@@ -24,7 +24,7 @@ class TerminalRegistryTest {
     @Test void removedTerminalLeavesTheRegistry() {
         GlobalPos terminal = at(0, 0); CargoSavedData data = new CargoSavedData();
         data.registerTerminal(terminal, new BlockPos(5, 64, 0)); data.setDirty(false);
-        data.removeTerminal(terminal);
+        data.removeTerminal(terminal, true);
         assertTrue(data.terminals.isEmpty()); assertTrue(data.isDirty());
     }
     @Test void farSiteIsKept() {
@@ -80,7 +80,7 @@ class TerminalRegistryTest {
         CargoSavedData data = new CargoSavedData(); data.registerTerminal(terminal, terminal.pos());
         data.terminals.put(predictedNear, new CargoSavedData.Terminal(predictedNear, predictedNear.pos(), false));
         data.terminals.put(far, new CargoSavedData.Terminal(far, far.pos(), false));
-        data.removeTerminal(terminal);
+        data.removeTerminal(terminal, true);
         assertEquals(java.util.Set.of(terminal), data.retired);
         assertEquals(java.util.Set.of(far), data.terminals.keySet(), "a predicted site at the destroyed outpost goes with it");
         assertTrue(TerminalSites.retired(data.retired, site));
@@ -92,14 +92,14 @@ class TerminalRegistryTest {
     }
     @Test void aRemovedPredictedSiteIsNotRetired() {
         GlobalPos site = at(0, 0); CargoSavedData data = withSite(site);
-        data.removeTerminal(site);
+        data.removeTerminal(site, true);
         assertTrue(data.retired.isEmpty());
     }
     @Test void removingATerminalDropsEveryBoardShownAtIt() {
         GlobalPos terminal = at(0, 0), other = at(900, 0); CargoSavedData data = new CargoSavedData();
         data.registerTerminal(terminal, terminal.pos()); data.registerTerminal(other, other.pos());
         for (int i = 0; i < 2; i++) { CargoProfile p = data.profile(java.util.UUID.randomUUID()); p.offers.put(terminal, java.util.List.of()); p.offersRefreshed.put(terminal, 5L); p.offers.put(other, java.util.List.of()); }
-        data.removeTerminal(terminal);
+        data.removeTerminal(terminal, true);
         for (CargoProfile p : data.profiles.values()) { assertEquals(java.util.Set.of(other), p.offers.keySet()); assertTrue(p.offersRefreshed.isEmpty()); }
     }
     @Test void terminalListShowsTheNearestInTheCallersDimensionFirst() {
@@ -110,5 +110,23 @@ class TerminalRegistryTest {
         assertEquals(20, got.size());
         assertEquals(at(100, 0), got.getFirst().pos()); assertEquals(at(2000, 0), got.getLast().pos());
         assertEquals(nether, CargoSavedData.nearest(all, GlobalPos.of(Level.NETHER, new BlockPos(5000, 64, 0)), 20).getFirst().pos());
+    }
+    @Test void aBrokenHandPlacedTerminalIsNotRetired() {
+        GlobalPos terminal = at(-1020, -950), outpost = at(-1000, -960);
+        CargoSavedData data = new CargoSavedData(); data.registerTerminal(terminal, terminal.pos());
+        data.removeTerminal(terminal, false);
+        assertTrue(data.retired.isEmpty(), "a command-placed terminal has no outpost to retire");
+        assertTrue(data.terminals.isEmpty());
+        assertFalse(TerminalSites.retired(data.retired, outpost), "a real outpost near it can still be predicted");
+    }
+    @Test void aLevelWithoutOutpostsForgetsItsPredictions() {
+        GlobalPos site = at(1000, 1000), generated = at(-500, 0), nether = GlobalPos.of(Level.NETHER, new BlockPos(1000, 64, 1000));
+        CargoSavedData data = withSite(site); data.registerTerminal(generated, generated.pos());
+        data.terminals.put(nether, new CargoSavedData.Terminal(nether, nether.pos(), false)); data.setDirty(false);
+        assertTrue(TerminalSites.dropPredicted(data, Level.OVERWORLD));
+        assertEquals(java.util.Set.of(generated, nether), data.terminals.keySet(), "only predictions in that dimension go");
+        assertTrue(data.isDirty());
+        data.setDirty(false);
+        assertFalse(TerminalSites.dropPredicted(data, Level.OVERWORLD)); assertFalse(data.isDirty());
     }
 }

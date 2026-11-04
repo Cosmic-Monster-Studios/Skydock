@@ -8,6 +8,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureCheckResult;
 import net.minecraft.world.level.levelgen.structure.StructureSet;
@@ -29,7 +30,8 @@ public final class TerminalSites {
      * Terminals whose horizontal distance from {@code from} is within {@code [min, max]}; predicted sites are recorded as ungenerated terminals.
      * A predicted site within {@link CargoService#SITE_MATCH} of a generated terminal is that terminal's own outpost, and one that near a
      * {@linkplain CargoSavedData#retired retired} terminal is an outpost whose terminal was destroyed, so neither is recorded or returned.
-     * Nothing is predicted unless the world generates structures and its generator places outposts, as {@code /locate} would find them.
+     * Nothing is predicted unless the world generates structures and its generator places outposts, as {@code /locate} would find them;
+     * where it places none, only generated terminals are returned and the dimension's recorded predictions are dropped.
      * The walk is remembered in {@link #CACHE} for up to a day.
      */
     public static List<GlobalPos> near(ServerLevel level, BlockPos from, int min, int max) {
@@ -39,12 +41,14 @@ public final class TerminalSites {
 
     private static List<GlobalPos> walk(ServerLevel level, BlockPos from, int min, int max) {
         CargoSavedData data = CargoSavedData.get(level.getServer());
-        Map<GlobalPos, CargoSavedData.Terminal> found = new LinkedHashMap<>();
-        for (CargoSavedData.Terminal t : data.terminals.values())
-            if (t.pos().dimension().equals(level.dimension()) && inBand(from, t.pos().pos(), min, max) && (t.generated() || !shadowed(data.terminals.values(), t.pos()) && !retired(data.retired, t.pos()))) found.put(t.pos(), t);
         Optional<Holder.Reference<Structure>> structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE).getHolder(STRUCTURE);
         RandomSpreadStructurePlacement placement = structure.isEmpty() ? null
                 : placement(level.getServer().getWorldData().worldGenOptions().generateStructures(), level.getChunkSource().getGeneratorState().getPlacementsForStructure(structure.get()));
+        // Predictions recorded before (another generator, or structures since turned off) name outposts that will never generate here.
+        if (placement == null) dropPredicted(data, level.dimension());
+        Map<GlobalPos, CargoSavedData.Terminal> found = new LinkedHashMap<>();
+        for (CargoSavedData.Terminal t : data.terminals.values())
+            if (t.pos().dimension().equals(level.dimension()) && inBand(from, t.pos().pos(), min, max) && (t.generated() || !shadowed(data.terminals.values(), t.pos()) && !retired(data.retired, t.pos()))) found.put(t.pos(), t);
         if (placement != null) {
             boolean added = false;
             for (ChunkPos chunk : predicted(level, placement, from, min, max)) {
@@ -58,6 +62,13 @@ public final class TerminalSites {
             if (added) data.setDirty();
         }
         return new ArrayList<>(found.keySet());
+    }
+
+    /** Drops every recorded ungenerated (predicted) terminal in {@code dimension}, dirtying the data if any went; returns whether any did. */
+    static boolean dropPredicted(CargoSavedData data, ResourceKey<Level> dimension) {
+        boolean dropped = data.terminals.values().removeIf(t -> !t.generated() && t.pos().dimension().equals(dimension));
+        if (dropped) data.setDirty();
+        return dropped;
     }
 
     /**

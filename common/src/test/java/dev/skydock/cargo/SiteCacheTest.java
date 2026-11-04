@@ -39,7 +39,7 @@ class SiteCacheTest {
         CargoSavedData data = new CargoSavedData(); data.registerTerminal(THERE, THERE.pos());
         TerminalSites.CACHE.get(HERE, 1, 800, 1, walker());
         assertEquals(2, calls[0]);
-        data.removeTerminal(THERE);
+        data.removeTerminal(THERE, true);
         TerminalSites.CACHE.get(HERE, 1, 800, 2, walker());
         assertEquals(3, calls[0]);
         TerminalSites.CACHE.clear();

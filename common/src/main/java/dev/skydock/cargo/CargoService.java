@@ -76,11 +76,12 @@ public final class CargoService {
     /**
      * Settles the holder's contracts still open {@link #EXPIRY_GRACE} past their deadline: every undelivered pod counts as lost (so a
      * holder who delivered one is owed the lowered crate), the contract is dropped and voided, and its cargo queued to be told at the
-     * next terminal visit. Returns whether any expired.
+     * next terminal visit. A contract whose destination no longer resolves is left for {@link #failGone}, so its pods stay unvoided
+     * orphans. Returns whether any expired.
      */
     static boolean expire(CargoSavedData data, UUID holder, long now) {
         CargoProfile p = data.profiles.get(holder); if (p == null) return false;
-        List<Contract> due = p.contracts.values().stream().filter(c -> now - c.deadline >= EXPIRY_GRACE).toList();
+        List<Contract> due = p.contracts.values().stream().filter(c -> now - c.deadline >= EXPIRY_GRACE && resolveDestination(data.terminals, c.destination) != null).toList();
         for (Contract c : due) {
             for (int i = 0; i < c.pods; i++) applyResult(data, holder, c, Delivery.lose(c, i));
             p.contracts.remove(c.id); data.voided.add(c.id); p.expired.add(c.cargoKey);
@@ -146,18 +147,19 @@ public final class CargoService {
     static boolean onNetwork(CargoSavedData data, GlobalPos terminal) { CargoSavedData.Terminal site = data.terminals.get(terminal); return site != null && site.generated(); }
 
     /**
-     * Called whenever a terminal screen opens. An unregistered terminal only says so and offers nothing; a registered one expires
-     * overdue contracts, hands out queued crates, fails contracts whose terminal is gone, drops offers bound for one, and refreshes the board.
+     * Called whenever a terminal screen opens. An unregistered terminal only says so and offers nothing; a registered one fails contracts
+     * whose terminal is gone, expires overdue ones, hands out queued crates, drops offers bound for one, and refreshes the board.
      */
     public static void opened(ServerPlayer player, GlobalPos terminal) {
         MinecraftServer server = player.getServer(); CargoSavedData data = CargoSavedData.get(server);
         if (!onNetwork(data, terminal)) { ShipManager.tell(player, "message.skydock.cargo_terminal_unregistered"); sync(player); return; }
-        CargoProfile p = data.profile(player.getUUID()); long now = now(server);
-        boolean changed = expire(data, player.getUUID(), now);
+        CargoProfile p = data.profile(player.getUUID()); long now = now(server); boolean changed = false;
+        // Failing first keeps a contract whose terminal is gone from expiring, which would void its pods' orphan reward.
+        for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
+        changed |= expire(data, player.getUUID(), now);
         for (String cargo : p.expired) ShipManager.tell(player, "message.skydock.cargo_expired", cargoName(cargo));
         if (!p.expired.isEmpty()) { p.expired.clear(); changed = true; }
         if (!p.pendingCrates.isEmpty()) { p.pendingCrates.forEach(rank -> giveCrate(player, rank)); p.pendingCrates.clear(); changed = true; syncInventory(player); }
-        for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
         changed |= dropUnresolved(p, terminal, data.terminals);
         ServerLevel level = server.getLevel(terminal.dimension());
         if (level != null && !siteSearchWaits(p, terminal, now)) {
@@ -194,13 +196,21 @@ public final class CargoService {
         ShipManager.tell(player, "message.skydock.cargo_abandoned", cargoName(c.cargoKey));
     }
 
-    /** Buys the shop entry a {@link Shop#fingerprint} names for the player, re-checking rank, balance and ownership; items go to the inventory or drop at their feet. */
-    public static void buy(ServerPlayer player, long fingerprint) {
+    /** Empty when the shop at {@code terminal} may sell, else the lang key saying why not: only a registered terminal keeps a shop. */
+    static String shopRefusal(CargoSavedData data, GlobalPos terminal) { return onNetwork(data, terminal) ? "" : "message.skydock.cargo_terminal_unregistered"; }
+
+    /**
+     * Buys the shop entry a {@link Shop#fingerprint} names for the player at {@code terminal}, re-checking that the terminal is registered,
+     * then rank, balance and ownership; items go to the inventory or drop at their feet.
+     */
+    public static void buy(ServerPlayer player, GlobalPos terminal, long fingerprint) {
+        CargoSavedData data = CargoSavedData.get(player.getServer());
+        String closed = shopRefusal(data, terminal);
+        if (!closed.isEmpty()) { ShipManager.tell(player, closed); return; }
         ShopEntry entry = Shop.resolve(Shop.entries(), fingerprint);
         // The caller resyncs after every action, so the stale screen gets the current stock.
         if (entry == null) { ShipManager.tell(player, "message.skydock.shop_changed"); return; }
         if (entry.isPattern() && ShipPatterns.get(entry.pattern()).isEmpty()) { ShipManager.tell(player, "message.skydock.shop_unavailable"); return; }
-        CargoSavedData data = CargoSavedData.get(player.getServer());
         String refusal = Shop.buy(data.profile(player.getUUID()), entry);
         if (!refusal.isEmpty()) { ShipManager.tell(player, refusal); return; }
         data.setDirty();

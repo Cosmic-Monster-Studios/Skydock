@@ -28,6 +28,8 @@ public final class CargoTerminalBlockEntity extends BlockEntity {
     private boolean registered, spawnedVillagers;
     public CargoTerminalBlockEntity(BlockPos pos, BlockState state) { super(SkydockBlocks.CARGO_TERMINAL_ENTITY.get(), pos, state); }
 
+    /** Whether this terminal generated with an outpost (it carries a pad offset), rather than being placed by hand. */
+    public boolean fromOutpost() { return padOffset != null; }
     /** The pad centre in world coordinates. */
     public BlockPos pad() { return pad(worldPosition, getBlockState().getValue(HorizontalDirectionalBlock.FACING), padOffset); }
     static BlockPos pad(BlockPos pos, Direction facing, BlockPos offset) { return pos.offset((offset == null ? HAND_PLACED_OFFSET : offset).rotate(rotationFromNorth(facing))); }

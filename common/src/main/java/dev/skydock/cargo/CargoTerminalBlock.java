@@ -40,7 +40,8 @@ public final class CargoTerminalBlock extends HorizontalDirectionalBlock impleme
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
     @Override protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState next, boolean moved) {
-        if (!state.is(next.getBlock()) && level instanceof ServerLevel server) CargoSavedData.get(server.getServer()).removeTerminal(GlobalPos.of(level.dimension(), pos));
+        if (!state.is(next.getBlock()) && level instanceof ServerLevel server)
+            CargoSavedData.get(server.getServer()).removeTerminal(GlobalPos.of(level.dimension(), pos), level.getBlockEntity(pos) instanceof CargoTerminalBlockEntity terminal && terminal.fromOutpost());
         super.onRemove(state, level, pos, next, moved);
     }
 }

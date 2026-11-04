@@ -121,7 +121,7 @@ class CargoServiceTest {
         assertEquals(java.util.List.of(CrateRank.TIN), data.profile(holder).pendingCrates);
     }
     @Test void anOverdueContractExpiresTwoDaysPastItsDeadline() {
-        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
+        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID(); data.registerTerminal(THERE, THERE.pos());
         Contract c = contract(21, 3); data.profile(holder).contracts.put(c.id, c);
         CargoService.applyResult(data, holder, c, Delivery.deliver(data.profile(holder), c, new PodTag(21, 0, false), true, false, THERE));
         assertFalse(CargoService.expire(data, holder, c.deadline + CargoService.EXPIRY_GRACE - 1));
@@ -137,7 +137,7 @@ class CargoServiceTest {
         assertFalse(CargoService.expire(data, holder, Long.MAX_VALUE / 2));
     }
     @Test void anExpiredContractWithNothingDeliveredPaysNoCrate() {
-        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
+        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID(); data.registerTerminal(THERE, THERE.pos());
         Contract c = contract(22, 2); data.profile(holder).contracts.put(c.id, c);
         assertTrue(CargoService.expire(data, holder, c.deadline + CargoService.EXPIRY_GRACE));
         assertTrue(data.profile(holder).pendingCrates.isEmpty()); assertNull(data.findContract(22)); assertTrue(data.voided.contains(22L));
@@ -150,5 +150,22 @@ class CargoServiceTest {
         assertFalse(CargoService.onNetwork(data, HERE), "a predicted site is not a terminal yet");
         data.registerTerminal(HERE, HERE.pos().north(5));
         assertTrue(CargoService.onNetwork(data, HERE));
+    }
+    @Test void aContractBoundForAGoneTerminalDoesNotExpireButFailsUnvoided() {
+        CargoSavedData data = new CargoSavedData(); UUID holder = UUID.randomUUID();
+        Contract c = contract(23, 2); data.profile(holder).contracts.put(c.id, c);
+        assertFalse(CargoService.expire(data, holder, c.deadline + CargoService.EXPIRY_GRACE), "its destination is gone, so it is left for failGone");
+        assertTrue(data.profile(holder).contracts.containsKey(23L)); assertFalse(data.voided.contains(23L)); assertTrue(data.profile(holder).expired.isEmpty());
+        assertEquals(java.util.List.of(c), CargoService.failGone(data, data.profile(holder)));
+        assertFalse(data.voided.contains(23L), "its pods stay orphans");
+        assertTrue(Delivery.acceptsOrphan(23, null, HERE, data.voided));
+    }
+    @Test void anUnregisteredTerminalSellsNothing() {
+        CargoSavedData data = new CargoSavedData();
+        assertEquals("message.skydock.cargo_terminal_unregistered", CargoService.shopRefusal(data, HERE));
+        data.terminals.put(HERE, new CargoSavedData.Terminal(HERE, HERE.pos(), false));
+        assertEquals("message.skydock.cargo_terminal_unregistered", CargoService.shopRefusal(data, HERE), "nor does a predicted site");
+        data.registerTerminal(HERE, HERE.pos().north(5));
+        assertEquals("", CargoService.shopRefusal(data, HERE));
     }
 }
