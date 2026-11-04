@@ -64,6 +64,7 @@
   "message.skydock.repair_yard_done": "Re-pasted %s hull blocks of ship %s into its shipyard region and woke it. Block contents (chest items, engine fuel) could not be restored.",
   "message.skydock.repair_yard_no_ship": "No launched ship has the id %s.",
   "message.skydock.repair_yard_transfer": "Ship %s is in the middle of a transfer, which resumes on its own.",
+  "message.skydock.repair_yard_not_lost": "Ship %s still has its shipyard hull; repair-yard is only for a ship whose shipyard blocks vanished.",
   "message.skydock.resume_transfer_not_held": "Ship %s has no held transfer.",
   "message.skydock.resume_transfer_paused": "Released the transfer of ship %s, but it paused again; it now retries on its own. See the server log.",
   "message.skydock.resume_transfer_done": "The held transfer of ship %s finished.",

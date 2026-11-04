@@ -98,6 +98,8 @@ public final class SkydockCommands {
         Ship ship = ShipManager.get(source.getServer(), id);
         if (ship == null) { source.sendFailure(Component.translatable("message.skydock.repair_yard_no_ship", id.toString())); return 0; }
         if (!ship.phase.equals("active")) { source.sendFailure(Component.translatable("message.skydock.repair_yard_transfer", id.toString())); return 0; }
+        // Re-pasting over a yard that still holds the hull would wipe every block entity in it.
+        if (!ship.yardLost) { source.sendFailure(Component.translatable("message.skydock.repair_yard_not_lost", id.toString())); return 0; }
         if (source.getServer().getLevel(ShipManager.SHIPYARD) == null) { source.sendFailure(Component.translatable("message.skydock.shipyard_missing")); return 0; }
         int pasted = ShipManager.repairYard(source.getServer(), ship);
         source.sendSuccess(() -> Component.translatable("message.skydock.repair_yard_done", pasted, id.toString()), true);
