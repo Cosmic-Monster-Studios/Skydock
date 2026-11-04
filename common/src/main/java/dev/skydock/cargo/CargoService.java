@@ -166,7 +166,7 @@ public final class CargoService {
             int rank = p.peakRank();
             changed |= Offers.refreshIfDue(p, terminal, now, () -> Offers.generate(terminal, rank, TerminalSites.near(level, terminal.pos(), 1, searchRadius(rank)),
                     () -> TerminalSites.near(level, terminal.pos(), CargoRanks.ranks().getFirst().minDistance(), fallbackRadius()),
-                    level.getRandom(), () -> data.nextContract++, CargoNames.names()));
+                    level.getRandom(), () -> data.newId(level.getRandom()::nextLong), CargoNames.names()));
         }
         // The board refresh above can purge recorded sites, so failing waits for it; failing before expiring keeps a contract whose terminal is gone from voiding its pods' orphan reward.
         for (Contract c : failGone(data, p)) { changed = true; ShipManager.tell(player, "message.skydock.cargo_destination_gone", cargoName(c.cargoKey)); }
@@ -187,7 +187,7 @@ public final class CargoService {
         if (!refusal.isEmpty()) { ShipManager.tell(player, refusal); return; }
         int free = 0; for (ItemStack s : player.getInventory().items) if (s.isEmpty()) free++;
         if (free < offer.pods()) { ShipManager.tell(player, byCount(offer.pods(), "message.skydock.cargo_no_room_one", "message.skydock.cargo_no_room"), offer.pods()); return; }
-        Contract contract = new Contract(data.nextContract++, terminal, offer.destination(), offer.rankLevel(), offer.crate(), offer.cargoKey(), offer.pods(), deadline(now(server), offer.deadlineDays()), offer.reputationPerPod());
+        Contract contract = new Contract(data.newId(player.getRandom()::nextLong), terminal, offer.destination(), offer.rankLevel(), offer.crate(), offer.cargoKey(), offer.pods(), deadline(now(server), offer.deadlineDays()), offer.reputationPerPod());
         p.contracts.put(contract.id, contract); board.remove(offer);
         // An emptied board was not short of destinations, so it should not wait a day for the next search.
         if (board.isEmpty()) p.offersRefreshed.remove(terminal);

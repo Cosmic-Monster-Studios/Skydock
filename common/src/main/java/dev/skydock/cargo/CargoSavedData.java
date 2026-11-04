@@ -18,7 +18,6 @@ public final class CargoSavedData extends SavedData {
     public final Map<GlobalPos, Terminal> terminals = new LinkedHashMap<>();
     public final Map<UUID, CargoProfile> profiles = new LinkedHashMap<>();
     public Wind wind = new Wind(0, 0, 0);
-    public long nextContract = 1;
     public final Set<Long> voided = new TreeSet<>();
     /** Where terminals that generated with an outpost were destroyed; their outposts' structure starts remain, so no site is predicted near one again. */
     public final Set<GlobalPos> retired = new LinkedHashSet<>();
@@ -53,6 +52,17 @@ public final class CargoSavedData extends SavedData {
                 .thenComparingDouble(t -> Offers.distance(t.pos().pos(), from.pos()))).limit(limit).toList();
     }
     public CargoProfile profile(UUID id) { return profiles.computeIfAbsent(id, k -> { setDirty(); return new CargoProfile(); }); }
+    /**
+     * A new contract or offer id: a random positive long that no held contract, offer on a board or voided id uses. A counter saved only
+     * at autosave would hand out old ids again after a crash, matching old pods to a new contract. Ids saved before this load as they are.
+     */
+    public long newId(java.util.function.LongSupplier random) {
+        while (true) {
+            long id = random.getAsLong() & Long.MAX_VALUE; // positive, like the counter's ids; the client uses -1 as "none"
+            if (id != 0 && !voided.contains(id) && findContract(id) == null
+                    && profiles.values().stream().noneMatch(p -> p.offers.values().stream().anyMatch(board -> board.stream().anyMatch(o -> o.id() == id)))) return id;
+        }
+    }
     /** The contract with this id and the player holding it, or null. */
     public Map.Entry<UUID, Contract> findContract(long id) {
         for (Map.Entry<UUID, CargoProfile> e : profiles.entrySet()) { Contract c = e.getValue().contracts.get(id); if (c != null) return Map.entry(e.getKey(), c); }
@@ -71,7 +81,7 @@ public final class CargoSavedData extends SavedData {
 
     /** Loads every entry on its own: one that cannot be read is logged and skipped, so it never costs the rest of the file. */
     static CargoSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
-        CargoSavedData data = new CargoSavedData(); data.nextContract = tag.contains("NextContract") ? tag.getLong("NextContract") : 1;
+        CargoSavedData data = new CargoSavedData();
         each(tag.getList("Terminals", Tag.TAG_COMPOUND), "terminal", saved -> {
             GlobalPos pos = Contract.loadPos(saved.get("Pos"));
             data.terminals.put(pos, new Terminal(pos, BlockPos.of(saved.getLong("Pad")), saved.getBoolean("Generated")));
@@ -92,7 +102,6 @@ public final class CargoSavedData extends SavedData {
         }
     }
     @Override public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
-        tag.putLong("NextContract", nextContract);
         ListTag terms = new ListTag();
         terminals.values().forEach(t -> { CompoundTag c = new CompoundTag(); c.put("Pos", Contract.savePos(t.pos())); c.putLong("Pad", t.pad().asLong()); c.putBoolean("Generated", t.generated()); terms.add(c); });
         tag.put("Terminals", terms);

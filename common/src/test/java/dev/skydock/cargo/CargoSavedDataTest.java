@@ -71,4 +71,19 @@ class CargoSavedDataTest {
         CargoProfile back = CargoSavedData.load(data.save(new net.minecraft.nbt.CompoundTag(), null), null).profiles.values().iterator().next();
         assertEquals(java.util.Set.of(a), back.offers.keySet()); assertEquals(java.util.Set.of(a), back.offersRefreshed.keySet());
     }
+    /** Ids come from no counter a crash could rewind: a random non-zero long, never one held, on a board, or voided. */
+    @Test void newIdsSkipZeroAndEveryIdInUse() {
+        GlobalPos a = GlobalPos.of(Level.OVERWORLD, BlockPos.ZERO), b = GlobalPos.of(Level.OVERWORLD, new BlockPos(900, 64, 0));
+        CargoSavedData data = new CargoSavedData(); data.voided.add(5L);
+        CargoProfile p = data.profile(java.util.UUID.randomUUID());
+        p.contracts.put(7L, new Contract(7, a, b, 1, CrateRank.TIN, "cargo.skydock.grain", 1, 0));
+        p.offers.put(a, List.of(new Offer(9, b, 1, CrateRank.TIN, "cargo.skydock.grain", 1, 2, 10)));
+        java.util.Iterator<Long> rolls = List.of(0L, 5L, 7L, 9L, 11L).iterator();
+        assertEquals(11, data.newId(rolls::next));
+    }
+    @Test void newIdsAreDistinct() {
+        CargoSavedData data = new CargoSavedData(); java.util.Random random = new java.util.Random(42);
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (int i = 0; i < 10_000; i++) { long id = data.newId(random::nextLong); assertNotEquals(0, id); assertTrue(seen.add(id)); data.voided.add(id); }
+    }
 }
