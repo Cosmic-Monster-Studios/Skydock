@@ -41,6 +41,8 @@ public final class EngineBlockEntity extends BlockEntity implements Container, M
     @Override public ItemStack removeItem(int i, int n) { ItemStack stack = ContainerHelper.removeItem(items, i, n); setChanged(); return stack; }
     @Override public ItemStack removeItemNoUpdate(int i) { return ContainerHelper.takeItem(items, i); }
     @Override public void setItem(int i, ItemStack stack) { items.set(i, stack); stack.limitSize(getMaxStackSize(stack)); setChanged(); }
+    /** Hoppers and other automation may insert only furnace fuel, as the fuel slots accept. */
+    @Override public boolean canPlaceItem(int i, ItemStack stack) { return FuelRegistry.get(stack) > 0; }
     @Override public boolean stillValid(Player p) { return Container.stillValidBlockEntity(this, p); }
     @Override public void clearContent() { items.clear(); setChanged(); }
     @Override public Component getDisplayName() { return Component.translatable(switch (tier()) {
